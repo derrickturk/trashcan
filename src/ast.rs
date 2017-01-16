@@ -17,6 +17,16 @@ pub enum Item<'a> {
         ret: Option<Type<'a>>,
         body: &'a [Statement<'a>],
     },
+
+    StructDef {
+        name: Ident<'a>,
+        members: &'a [(Ident<'a>, Type<'a>)],
+    },
+
+    EnumDef {
+        name: Ident<'a>,
+        members: &'a [Ident<'a>],
+    },
 }
 
 /// Statements are either assignments or...
@@ -44,13 +54,13 @@ pub enum Type<'a> {
     Date,
     Variant,
     Object(Ident<'a>),
-    Struct(&'a [(Ident<'a>, Type<'a>)]),
+    Struct(Ident<'a>),
     Enum(&'a [Ident<'a>]),
     Array(&'a Type<'a>, ()),
 }
 
 /// Identifiers
-pub struct Ident<'a>(&'a str);
+pub struct Ident<'a>(pub &'a str);
 
 #[cfg(test)]
 mod test {
@@ -63,9 +73,16 @@ mod test {
 
     #[test]
     fn struct_type() {
-        let _ = Type::Struct(&[
-            (Ident("my_arr"), Type::Array(&Type::Array(&Type::Long, ()), ())),
-            (Ident("some_double"), Type::Double),
-        ]);
+        let _ = Type::Struct(Ident("my_struct"));
+    }
+
+    #[test]
+    fn struct_item() {
+        let _ = Item::StructDef {
+            name: Ident("my_struct"),
+            members: &[
+                (Ident("my_arr"), Type::Array(&Type::Double, ()))
+            ],
+        };
     }
 }
