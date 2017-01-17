@@ -71,7 +71,7 @@ pub enum Type<'a> {
     Variant,
     Object(Ident<'a>),
     Struct(Ident<'a>),
-    Enum(&'a [Ident<'a>]),
+    Enum(Ident<'a>),
     Array(&'a Type<'a>, ()),
 }
 

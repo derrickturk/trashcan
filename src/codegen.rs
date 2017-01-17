@@ -52,7 +52,26 @@ impl Emit for ast::ParamMode {
 
 impl<'a> Emit for ast::Type<'a> {
     fn emit(&self) -> String {
-        String::from("Type")
+        match self {
+            &ast::Type::Boolean => String::from("Boolean"),
+            &ast::Type::Byte => String::from("Byte"),
+            &ast::Type::Integer => String::from("Integer"),
+            &ast::Type::Long => String::from("Long"),
+            &ast::Type::Single => String::from("Single"),
+            &ast::Type::Double => String::from("Double"),
+            &ast::Type::String => String::from("String"),
+            &ast::Type::Currency => String::from("Currency"),
+            &ast::Type::Date => String::from("Date"),
+            &ast::Type::Variant => String::from("Variant"),
+            &ast::Type::Object(ast::Ident(i)) => i.to_string(),
+            &ast::Type::Struct(ast::Ident(i)) => i.to_string(),
+            &ast::Type::Enum(ast::Ident(i)) => i.to_string(),
+            &ast::Type::Array(t, _) => {
+                let mut base = t.emit();
+                base.push_str("()");
+                base
+            },
+        }
     }
 }
 
@@ -103,8 +122,10 @@ mod test {
             params: &[
                 (ast::ParamMode::ByVal, ast::Ident("x"), ast::Type::Long),
                 (ast::ParamMode::ByRef, ast::Ident("y"), ast::Type::Double),
+                (ast::ParamMode::ByRef, ast::Ident("z"),
+                    ast::Type::Array(&ast::Type::Double, ())),
             ],
-            ret: Some(ast::Type::String),
+            ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
             body: &[],
         }.emit();
         println!("{}", s);
