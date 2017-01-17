@@ -13,7 +13,7 @@ pub enum Module<'a> {
 pub enum Item<'a> {
     Function {
         name: Ident<'a>,
-        params: &'a [(Ident<'a>, Type<'a>)],
+        params: &'a [(ParamMode, Ident<'a>, Type<'a>)],
         ret: Option<Type<'a>>,
         body: &'a [Statement<'a>],
     },
@@ -39,6 +39,22 @@ pub enum Statement<'a> {
 pub enum Expression<'a> {
     Literal(()),
     Ident(Ident<'a>),
+}
+
+/// Access specifiers
+pub enum AccessMode {
+    /// (Module- or class-) private
+    Private,
+    /// Public
+    Public,
+}
+
+/// Parameter passing modes
+pub enum ParamMode {
+    /// Pass by value
+    ByVal,
+    /// Pass by reference
+    ByRef,
 }
 
 /// Valid types (some placeholder () members for now)
