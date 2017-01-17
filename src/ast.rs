@@ -30,6 +30,7 @@ pub struct StructDef<'a> {
     pub members: &'a [VariableDeclaration<'a>],
 }
 
+// TODO: allow specified values for members
 /// A custom enum type definition
 pub struct EnumDef<'a> {
     pub name: Ident<'a>,
@@ -51,8 +52,8 @@ pub struct VariableDeclaration<'a> {
 
 /// Statements are either assignments or...
 pub enum Statement<'a> {
-    Declaration(&'a VariableDeclaration<'a>, Option<Expression<'a>>),
-    Assignment(Ident<'a>, Expression<'a>),
+    Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
+    Assignment(Ident<'a>, &'a Expression<'a>),
 }
 
 /// Expressions are...
@@ -97,6 +98,7 @@ pub enum Type<'a> {
     Array(&'a Type<'a>, Option<u32>),
 }
 
+#[derive(Clone, Copy)]
 /// Identifiers
 pub struct Ident<'a>(pub &'a str);
 

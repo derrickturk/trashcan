@@ -2,6 +2,10 @@
 
 use ast;
 
+// TODO: do we really want to emit tabs?
+
+// TODO: emit(&self) => emit(&self, indent: u32)?
+
 /// trait for all emittable types
 pub trait Emit {
     fn emit(&self) -> String;
@@ -68,6 +72,30 @@ impl<'a> Emit for ast::VariableDeclaration<'a> {
     }
 }
 
+impl<'a> Emit for ast::Statement<'a> {
+    fn emit(&self) -> String {
+        match self {
+            &ast::Statement::Declaration(decl, None) => {
+                let mut s = String::from("Dim ");
+                s.push_str(&decl.emit());
+                s
+            },
+            &ast::Statement::Declaration(decl, Some(expr)) => {
+                let mut s = ast::Statement::Declaration(decl, None).emit();
+                s.push_str("\n\t");
+                s.push_str(&ast::Statement::Assignment(decl.name, expr).emit());
+                s
+            },
+            // TODO: this will have to look up the type of the symbol identified
+            //   by ident in the symbol table eventually (to decide whether
+            //   to emit = or Set =)
+            &ast::Statement::Assignment(ident, expr) => {
+                format!("{} = {}", ident.0, expr.emit())
+            },
+        }
+    }
+}
+
 impl<'a> Emit for ast::Expression<'a> {
     fn emit(&self) -> String {
         String::from("TODO: an expression")
@@ -123,7 +151,12 @@ fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
         .map(Emit::emit)
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{access} {type} {name} ({params}){ret}\n\t{body:?}\nEnd {type}",
+    let body = func.body.iter()
+        .map(Emit::emit)
+        .collect::<Vec<_>>()
+        .join("\n\t");
+    // TODO: don't emit \n\t if no body
+    format!("{access} {type} {name} ({params}){ret}\n\t{body}\nEnd {type}",
       access = mode.emit(),
       type = if func.ret.is_some() { "Function" } else { "Sub" },
       name = func.name.0,
@@ -136,7 +169,7 @@ fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
           },
           _ => String::new(),
       },
-      body = "body tbd")
+      body = body)
 }
 
 fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
@@ -188,7 +221,23 @@ mod test {
                     },
                 ],
                 ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
-                body: &[],
+                body: &[
+                    ast::Statement::Declaration(
+                        &ast::VariableDeclaration {
+                            name: ast::Ident("x"), typ: &ast::Type::Long
+                        },
+                        Some(&ast::Expression::Literal(())),
+                    ),
+                    ast::Statement::Declaration(
+                        &ast::VariableDeclaration {
+                            name: ast::Ident("y"),
+                            typ: &ast::Type::Array(&ast::Type::Double, Some(25))
+                        },
+                        None,
+                    ),
+                    ast::Statement::Assignment(
+                        ast::Ident("x"), &ast::Expression::Literal(())),
+                ],
             }
         ).emit();
         println!("{}", s);
