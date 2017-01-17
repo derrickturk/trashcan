@@ -47,6 +47,7 @@ impl Emit for ast::ParamMode {
     }
 }
 
+// TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::FunctionParameter<'a> {
     fn emit(&self) -> String {
         match self.typ {
@@ -65,6 +66,27 @@ impl<'a> Emit for ast::FunctionParameter<'a> {
     }
 }
 
+// TODO: handle multidimensional arrays properly
+impl<'a> Emit for ast::VariableDeclaration<'a> {
+    fn emit(&self) -> String {
+        match self.typ {
+            &ast::Type::Array(ref inner, dim) => ast::VariableDeclaration {
+                name: ast::Ident(&{
+                    let mut s = String::from(self.name.0);
+                    match dim {
+                        Some(n) => s.push_str(&format!("({})", n)),
+                        None => s.push_str(""),
+                    };
+                    s
+                }),
+                typ: inner,
+            }.emit(),
+            t => format!("{} as {}", self.name.0, t.emit())
+        }
+    }
+}
+
+// TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::Type<'a> {
     fn emit(&self) -> String {
         match self {
@@ -112,7 +134,14 @@ fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
 }
 
 fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
-    unimplemented!()
+    let member_spec = def.members.iter()
+        .map(Emit::emit)
+        .collect::<Vec<_>>()
+        .join("\n\t");
+    format!("{access} Type {name}\n\t{members}\nEnd Type",
+      access = mode.emit(),
+      name = def.name.0,
+      members = member_spec)
 }
 
 fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef) -> String {
@@ -124,7 +153,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn emit_item() {
+    fn emit_fn() {
         let s = ast::Item::Function(
             ast::AccessMode::Private,
             &ast::Function {
@@ -142,7 +171,7 @@ mod test {
                     },
                     ast::FunctionParameter {
                         name: ast::Ident("z"),
-                        typ: &ast::Type::Array(&ast::Type::Double, ()),
+                        typ: &ast::Type::Array(&ast::Type::Double, None),
                         mode: ast::ParamMode::ByRef,
                     },
                 ],
@@ -153,4 +182,24 @@ mod test {
         println!("{}", s);
     }
 
+    #[test]
+    fn emit_st() {
+        let s = ast::Item::StructDef(
+            ast::AccessMode::Public,
+            &ast::StructDef {
+                name: ast::Ident("my_struct"),
+                members: &[
+                    ast::VariableDeclaration {
+                        name: ast::Ident("my_arr"),
+                        typ: &ast::Type::Array(&ast::Type::Double, Some(10)),
+                    },
+                    ast::VariableDeclaration {
+                        name: ast::Ident("my_dbl"),
+                        typ: &ast::Type::Double,
+                    },
+                ],
+            },
+        ).emit();
+        println!("{}", s);
+    }
 }

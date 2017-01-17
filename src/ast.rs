@@ -24,17 +24,10 @@ pub struct Function<'a> {
     pub body: &'a [Statement<'a>],
 }
 
-/// A individual function parameter
-pub struct FunctionParameter<'a> {
-    pub name: Ident<'a>,
-    pub typ: &'a Type<'a>,
-    pub mode: ParamMode,
-}
-
 /// A custom structure type definition
 pub struct StructDef<'a> {
     pub name: Ident<'a>,
-    pub members: &'a [(Ident<'a>, Type<'a>)],
+    pub members: &'a [VariableDeclaration<'a>],
 }
 
 /// A custom enum type definition
@@ -45,8 +38,24 @@ pub struct EnumDef<'a> {
 
 /// Statements are either assignments or...
 pub enum Statement<'a> {
-    Declaration(Ident<'a>, Type<'a>, Option<Expression<'a>>),
+    Declaration(&'a VariableDeclaration<'a>, Option<Expression<'a>>),
     Assignment(Ident<'a>, Expression<'a>),
+}
+
+// TODO: maybe unify FunctionParameter and VariableDeclaration?
+//   they should emit pretty much the same thing except for Dim vs By*
+
+/// A individual function parameter
+pub struct FunctionParameter<'a> {
+    pub name: Ident<'a>,
+    pub typ: &'a Type<'a>,
+    pub mode: ParamMode,
+}
+
+/// A variable declaration binding an identifier with a type
+pub struct VariableDeclaration<'a> {
+    pub name: Ident<'a>,
+    pub typ: &'a Type<'a>,
 }
 
 /// Expressions are...
@@ -88,7 +97,7 @@ pub enum Type<'a> {
     Object(Ident<'a>),
     Struct(Ident<'a>),
     Enum(Ident<'a>),
-    Array(&'a Type<'a>, ()),
+    Array(&'a Type<'a>, Option<u32>),
 }
 
 /// Identifiers
@@ -100,7 +109,7 @@ mod test {
 
     #[test]
     fn array_type() {
-        let _ = Type::Array(&Type::Array(&Type::Long, ()), ());
+        let _ = Type::Array(&Type::Array(&Type::Long, None), None);
     }
 
     #[test]
@@ -115,7 +124,14 @@ mod test {
             &StructDef {
                 name: Ident("my_struct"),
                 members: &[
-                    (Ident("my_arr"), Type::Array(&Type::Double, ()))
+                    VariableDeclaration {
+                        name: Ident("my_arr"),
+                        typ: &Type::Array(&Type::Double, Some(10)),
+                    },
+                    VariableDeclaration {
+                        name: Ident("my_dbl"),
+                        typ: &Type::Double,
+                    },
                 ],
             },
         );
