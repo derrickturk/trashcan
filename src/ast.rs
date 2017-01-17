@@ -11,22 +11,26 @@ pub enum Module<'a> {
 
 /// Items may be functions, globals, or type definitions
 pub enum Item<'a> {
-    Function {
-        name: Ident<'a>,
-        params: &'a [(ParamMode, Ident<'a>, Type<'a>)],
-        ret: Option<Type<'a>>,
-        body: &'a [Statement<'a>],
-    },
+    Function(AccessMode, &'a Function<'a>),
+    StructDef(AccessMode, &'a StructDef<'a>),
+    EnumDef(AccessMode, &'a EnumDef<'a>),
+}
 
-    StructDef {
-        name: Ident<'a>,
-        members: &'a [(Ident<'a>, Type<'a>)],
-    },
+pub struct Function<'a> {
+    pub name: Ident<'a>,
+    pub params: &'a [(ParamMode, Ident<'a>, Type<'a>)],
+    pub ret: Option<Type<'a>>,
+    pub body: &'a [Statement<'a>],
+}
 
-    EnumDef {
-        name: Ident<'a>,
-        members: &'a [Ident<'a>],
-    },
+pub struct StructDef<'a> {
+    pub name: Ident<'a>,
+    pub members: &'a [(Ident<'a>, Type<'a>)],
+}
+
+pub struct EnumDef<'a> {
+    pub name: Ident<'a>,
+    pub members: &'a [Ident<'a>],
 }
 
 /// Statements are either assignments or...
@@ -94,11 +98,14 @@ mod test {
 
     #[test]
     fn struct_item() {
-        let _ = Item::StructDef {
-            name: Ident("my_struct"),
-            members: &[
-                (Ident("my_arr"), Type::Array(&Type::Double, ()))
-            ],
-        };
+        let _ = Item::StructDef(
+            AccessMode::Public,
+            &StructDef {
+                name: Ident("my_struct"),
+                members: &[
+                    (Ident("my_arr"), Type::Array(&Type::Double, ()))
+                ],
+            },
+        );
     }
 }

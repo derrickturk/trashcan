@@ -22,12 +22,9 @@ impl<'a> Emit for ast::Module<'a> {
 impl<'a> Emit for ast::Item<'a> {
     fn emit(&self) -> String {
         match self {
-            &ast::Item::Function { ref name, params, ref ret, body } =>
-                emit_function(&name, params, ret, body),
-            &ast::Item::StructDef { ref name, members } =>
-                emit_struct(&name, members),
-            &ast::Item::EnumDef { ref name, members } =>
-                emit_enum(&name, members),
+            &ast::Item::Function(ref mode, ref func) => emit_func(mode, func),
+            &ast::Item::StructDef(ref mode, ref def) => emit_struct(mode, def),
+            &ast::Item::EnumDef(ref mode, ref def) => emit_enum(mode, def),
         }
     }
 }
@@ -75,24 +72,20 @@ impl<'a> Emit for ast::Type<'a> {
     }
 }
 
-fn emit_function(
-  name: &ast::Ident,
-  params: &[(ast::ParamMode, ast::Ident, ast::Type)],
-  ret: &Option<ast::Type>,
-  body: &[ast::Statement])
-  -> String {
-    let param_spec = params.iter()
+fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
+    let param_spec = func.params.iter()
         .map(|&(ref m, ref i, ref t)| {
             format!("{} {} as {}", m.emit(), i.0, t.emit())
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("Public {type} {name} ({params}){ret}\n\t{body:?}\nEnd {type}",
-      type = if ret.is_some() { "Function" } else { "Sub" },
-      name = name.0,
+    format!("{access} {type} {name} ({params}){ret}\n\t{body:?}\nEnd {type}",
+      access = mode.emit(),
+      type = if func.ret.is_some() { "Function" } else { "Sub" },
+      name = func.name.0,
       params = param_spec,
-      ret = match ret {
-          &Some(ref t) => {
+      ret = match func.ret {
+          Some(ref t) => {
               let mut s = String::from(" As ");
               s.push_str(&t.emit());
               s
@@ -102,12 +95,11 @@ fn emit_function(
       body = "body tbd")
 }
 
-fn emit_struct(name: &ast::Ident, members: &[(ast::Ident, ast::Type)])
-  -> String {
+fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
     unimplemented!()
 }
 
-fn emit_enum(name: &ast::Ident, members: &[ast::Ident]) -> String {
+fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef) -> String {
     unimplemented!()
 }
 
@@ -117,17 +109,20 @@ mod test {
 
     #[test]
     fn emit_item() {
-        let s = ast::Item::Function {
-            name: ast::Ident("do_whatever"),
-            params: &[
-                (ast::ParamMode::ByVal, ast::Ident("x"), ast::Type::Long),
-                (ast::ParamMode::ByRef, ast::Ident("y"), ast::Type::Double),
-                (ast::ParamMode::ByRef, ast::Ident("z"),
-                    ast::Type::Array(&ast::Type::Double, ())),
-            ],
-            ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
-            body: &[],
-        }.emit();
+        let s = ast::Item::Function(
+            ast::AccessMode::Private,
+            &ast::Function {
+                name: ast::Ident("do_whatever"),
+                params: &[
+                    (ast::ParamMode::ByVal, ast::Ident("x"), ast::Type::Long),
+                    (ast::ParamMode::ByRef, ast::Ident("y"), ast::Type::Double),
+                    (ast::ParamMode::ByRef, ast::Ident("z"),
+                        ast::Type::Array(&ast::Type::Double, ())),
+                ],
+                ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
+                body: &[],
+            }
+        ).emit();
         println!("{}", s);
     }
 
