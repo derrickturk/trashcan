@@ -2,21 +2,25 @@
 
 use ast;
 
+const INDENT: &'static str = "    ";
+
 // TODO: do we really want to emit tabs?
 
 // TODO: emit(&self) => emit(&self, indent: u32)?
 
+// TODO: probably more like emit(&self, symtab: &..., indent: u32)
+
 /// trait for all emittable types
 pub trait Emit {
-    fn emit(&self) -> String;
+    fn emit(&self, indent: u32) -> String;
 }
 
 impl<'a> Emit for ast::Module<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, indent: u32) -> String {
         match self {
             &ast::Module::Normal(items) => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
-                    acc.push_str(&item.emit()); acc
+                    acc.push_str(&item.emit(indent)); acc
                 }),
             &ast::Module::Class(items) => unimplemented!(),
         }
@@ -24,18 +28,21 @@ impl<'a> Emit for ast::Module<'a> {
 }
 
 impl<'a> Emit for ast::Item<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Item::Function(ref mode, ref func) => emit_func(mode, func),
-            &ast::Item::StructDef(ref mode, ref def) => emit_struct(mode, def),
-            &ast::Item::EnumDef(ref mode, ref def) => emit_enum(mode, def),
+            &ast::Item::Function(ref mode, ref func) =>
+                emit_func(mode, func, indent),
+            &ast::Item::StructDef(ref mode, ref def) =>
+                emit_struct(mode, def, indent),
+            &ast::Item::EnumDef(ref mode, ref def) =>
+                emit_enum(mode, def, indent),
         }
     }
 }
 
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::FunctionParameter<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, indent: u32) -> String {
         match self.typ {
             &ast::Type::Array(ref inner, _) => ast::FunctionParameter {
                 name: ast::Ident(&{
@@ -45,16 +52,16 @@ impl<'a> Emit for ast::FunctionParameter<'a> {
                 }),
                 typ: inner,
                 mode: self.mode,
-            }.emit(),
-            t => format!("{} {} as {}", self.mode.emit(), self.name.0,
-              t.emit())
+            }.emit(0),
+            t => format!("{} {} as {}", self.mode.emit(0), self.name.0,
+              t.emit(0))
         }
     }
 }
 
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::VariableDeclaration<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, indent: u32) -> String {
         match self.typ {
             &ast::Type::Array(ref inner, dim) => ast::VariableDeclaration {
                 name: ast::Ident(&{
@@ -66,44 +73,50 @@ impl<'a> Emit for ast::VariableDeclaration<'a> {
                     s
                 }),
                 typ: inner,
-            }.emit(),
-            t => format!("{} as {}", self.name.0, t.emit())
+            }.emit(indent),
+            t => format!("{}{} as {}", emit_indent(indent),
+              self.name.0, t.emit(0))
         }
     }
 }
 
 impl<'a> Emit for ast::Statement<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, indent: u32) -> String {
         match self {
             &ast::Statement::Declaration(decl, None) => {
-                let mut s = String::from("Dim ");
-                s.push_str(&decl.emit());
+                let mut s = emit_indent(indent);
+                s.push_str("Dim ");
+                s.push_str(&decl.emit(0));
                 s
             },
             &ast::Statement::Declaration(decl, Some(expr)) => {
-                let mut s = ast::Statement::Declaration(decl, None).emit();
-                s.push_str("\n\t");
-                s.push_str(&ast::Statement::Assignment(decl.name, expr).emit());
+                let mut s = ast::Statement::Declaration(decl, None)
+                    .emit(indent);
+                s.push_str("\n");
+                s.push_str(
+                    &ast::Statement::Assignment(decl.name, expr).emit(indent));
                 s
             },
             // TODO: this will have to look up the type of the symbol identified
             //   by ident in the symbol table eventually (to decide whether
             //   to emit = or Set =)
             &ast::Statement::Assignment(ident, expr) => {
-                format!("{} = {}", ident.0, expr.emit())
+                format!("{}{} = {}", emit_indent(indent), ident.0, expr.emit(0))
             },
         }
     }
 }
 
 impl<'a> Emit for ast::Expression<'a> {
-    fn emit(&self) -> String {
-        String::from("TODO: an expression")
+    fn emit(&self, indent: u32) -> String {
+        let mut s = emit_indent(indent);
+        s.push_str("TODO: an expression");
+        s
     }
 }
 
 impl Emit for ast::AccessMode {
-    fn emit(&self) -> String {
+    fn emit(&self, _indent: u32) -> String {
         match self {
             &ast::AccessMode::Private => String::from("Private"),
             &ast::AccessMode::Public => String::from("Public"),
@@ -112,7 +125,7 @@ impl Emit for ast::AccessMode {
 }
 
 impl Emit for ast::ParamMode {
-    fn emit(&self) -> String {
+    fn emit(&self, _indent: u32) -> String {
         match self {
             &ast::ParamMode::ByVal => String::from("ByVal"),
             &ast::ParamMode::ByRef => String::from("ByRef"),
@@ -122,7 +135,7 @@ impl Emit for ast::ParamMode {
 
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::Type<'a> {
-    fn emit(&self) -> String {
+    fn emit(&self, _indent: u32) -> String {
         match self {
             &ast::Type::Boolean => String::from("Boolean"),
             &ast::Type::Byte => String::from("Byte"),
@@ -138,7 +151,7 @@ impl<'a> Emit for ast::Type<'a> {
             &ast::Type::Struct(ast::Ident(i)) => i.to_string(),
             &ast::Type::Enum(ast::Ident(i)) => i.to_string(),
             &ast::Type::Array(t, _) => {
-                let mut base = t.emit();
+                let mut base = t.emit(_indent);
                 base.push_str("()");
                 base
             },
@@ -146,25 +159,37 @@ impl<'a> Emit for ast::Type<'a> {
     }
 }
 
-fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
+fn emit_indent(indent: u32) -> String {
+    // use String::repeat once that's stabilized
+    let mut s = String::with_capacity(indent as usize * INDENT.len());
+    for _ in 0..indent {
+        s.push_str(INDENT);
+    }
+    s
+}
+
+fn emit_func(mode: &ast::AccessMode, func: &ast::Function,
+  indent: u32) -> String {
     let param_spec = func.params.iter()
-        .map(Emit::emit)
+        .map(|ref s| s.emit(0))
         .collect::<Vec<_>>()
         .join(", ");
     let body = func.body.iter()
-        .map(Emit::emit)
+        .map(|ref s| s.emit(indent + 1))
         .collect::<Vec<_>>()
-        .join("\n\t");
-    // TODO: don't emit \n\t if no body
-    format!("{access} {type} {name} ({params}){ret}\n\t{body}\nEnd {type}",
-      access = mode.emit(),
+        .join("\n");
+    format!("{ind}{access} {type} {name} ({params}){ret}\n\
+             {body}\n\
+             {ind}End {type}",
+      ind = emit_indent(indent),
+      access = mode.emit(0),
       type = if func.ret.is_some() { "Function" } else { "Sub" },
       name = func.name.0,
       params = param_spec,
       ret = match func.ret {
           Some(ref t) => {
               let mut s = String::from(" As ");
-              s.push_str(&t.emit());
+              s.push_str(&t.emit(0));
               s
           },
           _ => String::new(),
@@ -172,25 +197,31 @@ fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
       body = body)
 }
 
-fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
+fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef,
+  indent: u32) -> String {
     let member_spec = def.members.iter()
-        .map(Emit::emit)
+        .map(|ref m| m.emit(indent + 1))
         .collect::<Vec<_>>()
-        .join("\n\t");
-    // TODO: don't emit \n\t if no members
-    format!("{access} Type {name}\n\t{members}\nEnd Type",
-      access = mode.emit(),
+        .join("\n");
+    format!("{ind}{access} Type {name}\n{members}\n{ind}End Type",
+      ind = emit_indent(indent),
+      access = mode.emit(0),
       name = def.name.0,
       members = member_spec)
 }
 
-fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef) -> String {
-    // TODO: don't emit \n\t if no members
-    format!("{access} Enum {name}\n\t{members}\nEnd Enum",
-      access = mode.emit(),
+fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef,
+  indent: u32) -> String {
+    format!("{ind}{access} Enum {name}\n{members}\n{ind}End Enum",
+      ind = emit_indent(indent),
+      access = mode.emit(0),
       name = def.name.0,
-      members = def.members.iter().map(|ref i| i.0)
-        .collect::<Vec<_>>().join("\n\t"))
+      members = def.members.iter().map(|ref i| {
+            let mut s = emit_indent(indent + 1);
+            s.push_str(i.0);
+            s
+        })
+        .collect::<Vec<_>>().join("\n"))
 }
 
 #[cfg(test)]
@@ -239,7 +270,7 @@ mod test {
                         ast::Ident("x"), &ast::Expression::Literal(())),
                 ],
             }
-        ).emit();
+        ).emit(1);
         println!("{}", s);
     }
 
@@ -260,7 +291,7 @@ mod test {
                     },
                 ],
             },
-        ).emit();
+        ).emit(1);
         println!("{}", s);
     }
 
@@ -276,7 +307,7 @@ mod test {
                     ast::Ident("ThirdChoice"),
                 ],
             },
-        ).emit();
+        ).emit(1);
         println!("{}", s);
     }
 }
