@@ -47,6 +47,24 @@ impl Emit for ast::ParamMode {
     }
 }
 
+impl<'a> Emit for ast::FunctionParameter<'a> {
+    fn emit(&self) -> String {
+        match self.typ {
+            &ast::Type::Array(ref inner, _) => ast::FunctionParameter {
+                name: ast::Ident(&{
+                    let mut s = String::from(self.name.0);
+                    s.push_str("()");
+                    s
+                }),
+                typ: inner,
+                mode: self.mode,
+            }.emit(),
+            t => format!("{} {} as {}", self.mode.emit(), self.name.0,
+              t.emit())
+        }
+    }
+}
+
 impl<'a> Emit for ast::Type<'a> {
     fn emit(&self) -> String {
         match self {
@@ -74,9 +92,7 @@ impl<'a> Emit for ast::Type<'a> {
 
 fn emit_func(mode: &ast::AccessMode, func: &ast::Function) -> String {
     let param_spec = func.params.iter()
-        .map(|&(ref m, ref i, ref t)| {
-            format!("{} {} as {}", m.emit(), i.0, t.emit())
-        })
+        .map(Emit::emit)
         .collect::<Vec<_>>()
         .join(", ");
     format!("{access} {type} {name} ({params}){ret}\n\t{body:?}\nEnd {type}",
@@ -114,10 +130,21 @@ mod test {
             &ast::Function {
                 name: ast::Ident("do_whatever"),
                 params: &[
-                    (ast::ParamMode::ByVal, ast::Ident("x"), ast::Type::Long),
-                    (ast::ParamMode::ByRef, ast::Ident("y"), ast::Type::Double),
-                    (ast::ParamMode::ByRef, ast::Ident("z"),
-                        ast::Type::Array(&ast::Type::Double, ())),
+                    ast::FunctionParameter {
+                        name: ast::Ident("x"),
+                        typ: &ast::Type::Long,
+                        mode: ast::ParamMode::ByVal,
+                    },
+                    ast::FunctionParameter {
+                        name: ast::Ident("y"),
+                        typ: &ast::Type::Double,
+                        mode: ast::ParamMode::ByRef,
+                    },
+                    ast::FunctionParameter {
+                        name: ast::Ident("z"),
+                        typ: &ast::Type::Array(&ast::Type::Double, ()),
+                        mode: ast::ParamMode::ByRef,
+                    },
                 ],
                 ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
                 body: &[],

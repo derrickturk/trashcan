@@ -16,18 +16,28 @@ pub enum Item<'a> {
     EnumDef(AccessMode, &'a EnumDef<'a>),
 }
 
+/// A function (or "sub") definition
 pub struct Function<'a> {
     pub name: Ident<'a>,
-    pub params: &'a [(ParamMode, Ident<'a>, Type<'a>)],
+    pub params: &'a [FunctionParameter<'a>],
     pub ret: Option<Type<'a>>,
     pub body: &'a [Statement<'a>],
 }
 
+/// A individual function parameter
+pub struct FunctionParameter<'a> {
+    pub name: Ident<'a>,
+    pub typ: &'a Type<'a>,
+    pub mode: ParamMode,
+}
+
+/// A custom structure type definition
 pub struct StructDef<'a> {
     pub name: Ident<'a>,
     pub members: &'a [(Ident<'a>, Type<'a>)],
 }
 
+/// A custom enum type definition
 pub struct EnumDef<'a> {
     pub name: Ident<'a>,
     pub members: &'a [Ident<'a>],
@@ -46,6 +56,7 @@ pub enum Expression<'a> {
 }
 
 /// Access specifiers
+#[derive(Clone, Copy)]
 pub enum AccessMode {
     /// (Module- or class-) private
     Private,
@@ -54,6 +65,7 @@ pub enum AccessMode {
 }
 
 /// Parameter passing modes
+#[derive(Clone, Copy)]
 pub enum ParamMode {
     /// Pass by value
     ByVal,
