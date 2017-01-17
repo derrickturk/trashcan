@@ -1,12 +1,9 @@
 //! code generator: emit VB6 from trashcan ASTs
 
 use ast;
+use symtab;
 
 const INDENT: &'static str = "    ";
-
-// TODO: do we really want to emit tabs?
-
-// TODO: emit(&self) => emit(&self, indent: u32)?
 
 // TODO: probably more like emit(&self, symtab: &..., indent: u32)
 
