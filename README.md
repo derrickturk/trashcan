@@ -18,10 +18,10 @@ Key features of the trashcan language over VB include:
 trashcan is inspired by previous work on extending the VB language with m4 macros: https://gist.github.com/derrickturk/5c01caab93bbd6bc9ddd
 
 Critical implementation note:  
-<div style="text-align:center"><img src ="https://i.imgur.com/rFIYYc1.png" /></div>
+<div style="margin: 0 auto; text-align:center"><img src ="https://i.imgur.com/rFIYYc1.png" /></div>
 
 ---
 
-<div style="text-align:center"><img src ="https://tenor.co/xLax.gif" /></div>
+<div style="margin: 0 auto; text-align:center"><img src ="https://i.imgur.com/H1XO5we.gif" /></div>
 
 ### (c) 2017 dwt | terminus data science, LLC
