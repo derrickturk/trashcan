@@ -15,11 +15,11 @@ pub trait Emit {
 impl<'a> Emit for ast::Module<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Module::Normal(items) => items.iter()
+            &ast::Module::Normal(_, items) => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
                     acc.push_str(&item.emit(indent)); acc
                 }),
-            &ast::Module::Class(items) => unimplemented!(),
+            &ast::Module::Class(_, items) => unimplemented!(),
         }
     }
 }

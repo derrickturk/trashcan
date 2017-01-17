@@ -5,8 +5,8 @@ pub struct Dumpster<'a>(&'a [Module<'a>]);
 
 /// Modules may be ordinary or class modules, and make up a dumpster
 pub enum Module<'a> {
-    Normal(&'a [Item<'a>]),
-    Class(&'a [Item<'a>]),
+    Normal(Ident<'a>, &'a [Item<'a>]),
+    Class(Ident<'a>, &'a [Item<'a>]),
 }
 
 /// Items may be functions, globals, or type definitions
