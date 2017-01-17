@@ -29,24 +29,6 @@ impl<'a> Emit for ast::Item<'a> {
     }
 }
 
-impl Emit for ast::AccessMode {
-    fn emit(&self) -> String {
-        match self {
-            &ast::AccessMode::Private => String::from("Private"),
-            &ast::AccessMode::Public => String::from("Public"),
-        }
-    }
-}
-
-impl Emit for ast::ParamMode {
-    fn emit(&self) -> String {
-        match self {
-            &ast::ParamMode::ByVal => String::from("ByVal"),
-            &ast::ParamMode::ByRef => String::from("ByRef"),
-        }
-    }
-}
-
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::FunctionParameter<'a> {
     fn emit(&self) -> String {
@@ -82,6 +64,30 @@ impl<'a> Emit for ast::VariableDeclaration<'a> {
                 typ: inner,
             }.emit(),
             t => format!("{} as {}", self.name.0, t.emit())
+        }
+    }
+}
+
+impl<'a> Emit for ast::Expression<'a> {
+    fn emit(&self) -> String {
+        String::from("TODO: an expression")
+    }
+}
+
+impl Emit for ast::AccessMode {
+    fn emit(&self) -> String {
+        match self {
+            &ast::AccessMode::Private => String::from("Private"),
+            &ast::AccessMode::Public => String::from("Public"),
+        }
+    }
+}
+
+impl Emit for ast::ParamMode {
+    fn emit(&self) -> String {
+        match self {
+            &ast::ParamMode::ByVal => String::from("ByVal"),
+            &ast::ParamMode::ByRef => String::from("ByRef"),
         }
     }
 }
@@ -138,6 +144,7 @@ fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
         .map(Emit::emit)
         .collect::<Vec<_>>()
         .join("\n\t");
+    // TODO: don't emit \n\t if no members
     format!("{access} Type {name}\n\t{members}\nEnd Type",
       access = mode.emit(),
       name = def.name.0,
@@ -145,7 +152,12 @@ fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef) -> String {
 }
 
 fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef) -> String {
-    unimplemented!()
+    // TODO: don't emit \n\t if no members
+    format!("{access} Enum {name}\n\t{members}\nEnd Enum",
+      access = mode.emit(),
+      name = def.name.0,
+      members = def.members.iter().map(|ref i| i.0)
+        .collect::<Vec<_>>().join("\n\t"))
 }
 
 #[cfg(test)]
@@ -197,6 +209,22 @@ mod test {
                         name: ast::Ident("my_dbl"),
                         typ: &ast::Type::Double,
                     },
+                ],
+            },
+        ).emit();
+        println!("{}", s);
+    }
+
+    #[test]
+    fn emit_en() {
+        let s = ast::Item::EnumDef(
+            ast::AccessMode::Private,
+            &ast::EnumDef {
+                name: ast::Ident("my_enum"),
+                members: &[
+                    ast::Ident("FirstChoice"),
+                    ast::Ident("SecondChoice"),
+                    ast::Ident("ThirdChoice"),
                 ],
             },
         ).emit();

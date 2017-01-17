@@ -36,15 +36,6 @@ pub struct EnumDef<'a> {
     pub members: &'a [Ident<'a>],
 }
 
-/// Statements are either assignments or...
-pub enum Statement<'a> {
-    Declaration(&'a VariableDeclaration<'a>, Option<Expression<'a>>),
-    Assignment(Ident<'a>, Expression<'a>),
-}
-
-// TODO: maybe unify FunctionParameter and VariableDeclaration?
-//   they should emit pretty much the same thing except for Dim vs By*
-
 /// A individual function parameter
 pub struct FunctionParameter<'a> {
     pub name: Ident<'a>,
@@ -56,6 +47,12 @@ pub struct FunctionParameter<'a> {
 pub struct VariableDeclaration<'a> {
     pub name: Ident<'a>,
     pub typ: &'a Type<'a>,
+}
+
+/// Statements are either assignments or...
+pub enum Statement<'a> {
+    Declaration(&'a VariableDeclaration<'a>, Option<Expression<'a>>),
+    Assignment(Ident<'a>, Expression<'a>),
 }
 
 /// Expressions are...
