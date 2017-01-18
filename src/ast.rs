@@ -58,8 +58,50 @@ pub enum Statement<'a> {
 
 /// Expressions are...
 pub enum Expression<'a> {
-    Literal(()),
+    Literal(Literal),
     Ident(Ident<'a>),
+    UnOpApply(UnOp, &'a Expression<'a>),
+    BinOpApply(BinOp, &'a Expression<'a>, &'a Expression<'a>),
+}
+
+/// Literals are...
+pub enum Literal {
+    Bool(bool),
+    Int(i32),
+    Float(f64),
+    Str(String),
+    // TODO maybe currency and date?
+    Struct(Vec<Literal>),
+    Array(Vec<Literal>),
+}
+
+#[derive(Clone, Copy)]
+/// Built-in unary operators
+pub enum UnOp {
+    Minus,
+    LogNot,
+    BitNot,
+    AddressOf, // TODO: might leave this out? thinking &xxx -> VarPtr in bodies
+               //   for FFI calls; &xxx -> ByRef xxx in fn params
+}
+
+/// Built-in binary operators
+#[derive(Clone, Copy)]
+pub enum BinOp {
+    Dot,
+    Index,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Pow,
+    StrConcat,
+    LogAnd,
+    LogOr,
+    // these may emit the same code, but I'm not using the same syntax for it
+    BitAnd,
+    BitOr,
+    BitXor,
 }
 
 /// Access specifiers

@@ -112,6 +112,26 @@ impl<'a> Emit for ast::Expression<'a> {
     }
 }
 
+impl<'a> Emit for ast::Literal {
+    fn emit(&self, indent: u32) -> String {
+        let mut s = emit_indent(indent);
+        match self {
+            &ast::Literal::Bool(b) =>
+                s.push_str(if b { "True" } else { "False" }),
+            &ast::Literal::Int(i) => s.push_str(&i.to_string()),
+            &ast::Literal::Float(f) => {
+                s.push_str("#");
+                s.push_str(&f.to_string());
+            },
+            &ast::Literal::Str(ref t) => {
+                s.push_str(&escape_string(t));
+            },
+            _ => unimplemented!(),
+        };
+        s
+    }
+}
+
 impl Emit for ast::AccessMode {
     fn emit(&self, _indent: u32) -> String {
         match self {
@@ -221,6 +241,13 @@ fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef,
         .collect::<Vec<_>>().join("\n"))
 }
 
+fn escape_string(s: &str) -> String {
+    let s = s.replace("\"", "\"\"");
+    let s = s.replace("\\n", "\" & vbCrLf & \"");
+    let s = s.replace("\\t", "\" & vbTab & \"");
+    s
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -254,7 +281,9 @@ mod test {
                         &ast::VariableDeclaration {
                             name: ast::Ident("x"), typ: &ast::Type::Long
                         },
-                        Some(&ast::Expression::Literal(())),
+                        Some(&ast::Expression::Literal(
+                            ast::Literal::Int(2349)
+                        )),
                     ),
                     ast::Statement::Declaration(
                         &ast::VariableDeclaration {
@@ -264,7 +293,10 @@ mod test {
                         None,
                     ),
                     ast::Statement::Assignment(
-                        ast::Ident("x"), &ast::Expression::Literal(())),
+                        ast::Ident("x"), &ast::Expression::Literal(
+                            ast::Literal::Str(String::from("I ate\ta lot of \
+                              meat\n...the other day"))
+                        )),
                 ],
             }
         ).emit(1);
