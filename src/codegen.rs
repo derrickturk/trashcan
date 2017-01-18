@@ -147,6 +147,20 @@ impl<'a> Emit for ast::Statement<'a> {
                 s.push_str("End If");
                 s
             },
+
+            &ast::Statement::WhileLoop { cond, body } => {
+                let mut s = emit_indent(indent);
+                s.push_str("Do While ");
+                s.push_str(&cond.emit(0));
+                s.push_str("\n");
+                for st in body {
+                    s.push_str(&st.emit(indent + 1));
+                    s.push_str("\n");
+                }
+                s.push_str(&emit_indent(indent));
+                s.push_str("Loop");
+                s
+            }
         }
     }
 }
@@ -189,8 +203,8 @@ impl<'a> Emit for ast::Literal {
                 s.push_str(if b { "True" } else { "False" }),
             &ast::Literal::Int(i) => s.push_str(&i.to_string()),
             &ast::Literal::Float(f) => {
-                s.push_str("#");
                 s.push_str(&f.to_string());
+                s.push_str("#");
             },
             &ast::Literal::Str(ref t) => {
                 s.push_str(&escape_string(t));
@@ -433,6 +447,22 @@ mod test {
                                       &ast::Expression::Literal(
                                           ast::Literal::Int(9))),
                         ]),
+                    },
+                    ast::Statement::WhileLoop {
+                        cond: &ast::Expression::BinOpApply(
+                                  ast::BinOp::LtEq,
+                                  &ast::Expression::Ident(ast::Ident("x")),
+                                  &ast::Expression::Literal(
+                                      ast::Literal::Int(20))),
+                        body: &[
+                            &ast::Statement::Declaration(
+                                &ast::VariableDeclaration {
+                                    name: ast::Ident("z"),
+                                    typ: &ast::Type::Currency,
+                                },
+                                None
+                            ),
+                        ],
                     },
                 ],
             }

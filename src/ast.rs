@@ -66,6 +66,10 @@ pub enum Statement<'a> {
         elsifs: &'a [(&'a Expression<'a>, &'a [&'a Statement<'a>])],
         els: Option<&'a [&'a Statement<'a>]>,
     },
+    WhileLoop {
+        cond: &'a Expression<'a>,
+        body: &'a [&'a Statement<'a>],
+    },
     // maybe lift Literal::Struct and Literal::Array up here?
 }
 
