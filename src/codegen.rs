@@ -106,9 +106,25 @@ impl<'a> Emit for ast::Statement<'a> {
 
 impl<'a> Emit for ast::Expression<'a> {
     fn emit(&self, indent: u32) -> String {
-        let mut s = emit_indent(indent);
-        s.push_str("TODO: an expression");
-        s
+        match self {
+            &ast::Expression::Literal(ref l) => l.emit(indent),
+            &ast::Expression::Ident(ref i) =>
+                format!("{}{}", emit_indent(indent), i.0),
+            // TODO: probably need the symbol table here to choose VarPtr vs
+            //   StrPtr vs AddressOf
+            &ast::Expression::AddressOf(ref i) =>
+                format!("{}VarPtr({})", emit_indent(indent), i.0),
+            // TODO: probably need the symbol table here to choose () vs
+            //   .Item() etc
+            &ast::Expression::Index(ref i, e) =>
+                format!("{}{}({})", emit_indent(indent), i.0, e.emit(0)),
+            &ast::Expression::UnOpApply(op, e) =>
+                format!("{}{}{}", emit_indent(indent), op.emit(0), e.emit(0)),
+            &ast::Expression::BinOpApply(op, e1, e2) => format!("{}{}{}{}",
+                emit_indent(indent), e1.emit(0), op.emit(0), e2.emit(0)),
+            &ast::Expression::Grouped(e) =>
+                format!("{}({})", emit_indent(indent), e.emit(0)),
+        }
     }
 }
 
@@ -129,6 +145,36 @@ impl<'a> Emit for ast::Literal {
             _ => unimplemented!(),
         };
         s
+    }
+}
+
+impl Emit for ast::UnOp {
+    fn emit(&self, _indent: u32) -> String {
+        match self {
+            &ast::UnOp::Minus => String::from("-"),
+            &ast::UnOp::LogNot => String::from("Not "),
+            &ast::UnOp::BitNot => String::from("Not "),
+        }
+    }
+}
+
+/// Built-in binary operators
+impl Emit for ast::BinOp {
+    fn emit(&self, _indent: u32) -> String {
+        match self {
+            &ast::BinOp::Dot => String::from("."),
+            &ast::BinOp::Add => String::from(" + "),
+            &ast::BinOp::Sub => String::from(" - "),
+            &ast::BinOp::Mul => String::from(" * "),
+            &ast::BinOp::Div => String::from(" / "),
+            &ast::BinOp::Pow => String::from("^"),
+            &ast::BinOp::StrConcat => String::from(" & "),
+            &ast::BinOp::LogAnd => String::from(" And "),
+            &ast::BinOp::LogOr => String::from(" Or "),
+            &ast::BinOp::BitAnd => String::from(" And "),
+            &ast::BinOp::BitOr => String::from(" Or "),
+            &ast::BinOp::BitXor => String::from(" Xor "),
+        }
     }
 }
 
@@ -245,7 +291,7 @@ fn escape_string(s: &str) -> String {
     let s = s.replace("\"", "\"\"");
     let s = s.replace("\\n", "\" & vbCrLf & \"");
     let s = s.replace("\\t", "\" & vbTab & \"");
-    s
+    format!("\"{}\"", s)
 }
 
 #[cfg(test)]
@@ -294,8 +340,8 @@ mod test {
                     ),
                     ast::Statement::Assignment(
                         ast::Ident("x"), &ast::Expression::Literal(
-                            ast::Literal::Str(String::from("I ate\ta lot of \
-                              meat\n...the other day"))
+                            ast::Literal::Str(String::from("I ate\\ta lot of \
+                              meat\\n...the other day"))
                         )),
                 ],
             }

@@ -60,8 +60,11 @@ pub enum Statement<'a> {
 pub enum Expression<'a> {
     Literal(Literal),
     Ident(Ident<'a>),
+    AddressOf(Ident<'a>),
+    Index(Ident<'a>, &'a Expression<'a>),
     UnOpApply(UnOp, &'a Expression<'a>),
     BinOpApply(BinOp, &'a Expression<'a>, &'a Expression<'a>),
+    Grouped(&'a Expression<'a>),
 }
 
 /// Literals are...
@@ -81,15 +84,12 @@ pub enum UnOp {
     Minus,
     LogNot,
     BitNot,
-    AddressOf, // TODO: might leave this out? thinking &xxx -> VarPtr in bodies
-               //   for FFI calls; &xxx -> ByRef xxx in fn params
 }
 
 /// Built-in binary operators
 #[derive(Clone, Copy)]
 pub enum BinOp {
     Dot,
-    Index,
     Add,
     Sub,
     Mul,
