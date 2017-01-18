@@ -204,6 +204,7 @@ impl<'a> Emit for ast::Type<'a> {
             &ast::Type::Byte => String::from("Byte"),
             &ast::Type::Integer => String::from("Integer"),
             &ast::Type::Long => String::from("Long"),
+            &ast::Type::LongPtr => String::from("LongPtr"),
             &ast::Type::Single => String::from("Single"),
             &ast::Type::Double => String::from("Double"),
             &ast::Type::String => String::from("String"),

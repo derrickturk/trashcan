@@ -54,6 +54,7 @@ pub struct VariableDeclaration<'a> {
 pub enum Statement<'a> {
     Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
     Assignment(Ident<'a>, &'a Expression<'a>),
+    // maybe lift Literal::Struct and Literal::Array up here?
 }
 
 /// Expressions are...
@@ -128,6 +129,7 @@ pub enum Type<'a> {
     Byte,
     Integer,
     Long,
+    LongPtr,
     Single,
     Double,
     String,
