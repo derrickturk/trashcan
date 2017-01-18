@@ -39,7 +39,7 @@ impl<'a> Emit for ast::Item<'a> {
 
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for ast::FunctionParameter<'a> {
-    fn emit(&self, indent: u32) -> String {
+    fn emit(&self, _indent: u32) -> String {
         match self.typ {
             &ast::Type::Array(ref inner, _) => ast::FunctionParameter {
                 name: ast::Ident(&{
@@ -86,25 +86,67 @@ impl<'a> Emit for ast::Statement<'a> {
                 s.push_str(&decl.emit(0));
                 s
             },
+
             &ast::Statement::Declaration(decl, Some(expr)) => {
                 let mut s = ast::Statement::Declaration(decl, None)
                     .emit(indent);
                 s.push_str("\n");
                 s.push_str(
-                    &ast::Statement::Assignment(decl.name, expr).emit(indent));
+                    &ast::Statement::Assignment(
+                        &ast::Expression::Ident(decl.name), expr).emit(indent));
                 s
             },
+
             // TODO: this will have to look up the type of the symbol identified
             //   by ident in the symbol table eventually (to decide whether
             //   to emit = or Set =)
-            &ast::Statement::Assignment(ident, expr) => {
-                format!("{}{} = {}", emit_indent(indent), ident.0, expr.emit(0))
+            &ast::Statement::Assignment(place, expr) => {
+                format!("{}{} = {}",
+                        emit_indent(indent),
+                        place.emit(0),
+                        expr.emit(0))
             },
+
             &ast::Statement::FnCall(ident, args) => {
                 format!("{}{} {}", emit_indent(indent), ident.0,
                   args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", "))
             },
-            &ast::Statement::Conditional(..) => unimplemented!(),
+
+            &ast::Statement::Conditional { cond, body, elsifs, els } => {
+                let this_indent = emit_indent(indent);
+                let mut s = this_indent.clone();
+                s.push_str("If ");
+                s.push_str(&cond.emit(0));
+                s.push_str(" Then\n");
+                for st in body {
+                    s.push_str(&st.emit(indent + 1));
+                    s.push_str("\n");
+                }
+                for &(cond, body) in elsifs {
+                    s.push_str(&this_indent);
+                    s.push_str("Else If ");
+                    s.push_str(&cond.emit(0));
+                    s.push_str(" Then\n");
+                    for st in body {
+                        s.push_str(&st.emit(indent + 1));
+                        s.push_str("\n");
+                    }
+                }
+                match els {
+                    Some(body) => {
+                        s.push_str(&this_indent);
+                        s.push_str("Else\n");
+                        for st in body {
+                            s.push_str(&st.emit(indent + 1));
+                            s.push_str("\n");
+                        }
+                    },
+                    _ => {}
+                };
+                s.push_str(&this_indent);
+                s.push_str("End If");
+                s
+            },
         }
     }
 }
@@ -121,8 +163,11 @@ impl<'a> Emit for ast::Expression<'a> {
                 format!("{}VarPtr({})", emit_indent(indent), i.0),
             // TODO: probably need the symbol table here to choose () vs
             //   .Item() etc
-            &ast::Expression::Index(ref i, e) =>
-                format!("{}{}({})", emit_indent(indent), i.0, e.emit(0)),
+            &ast::Expression::Index(place, i) =>
+                format!("{}{}({})",
+                        emit_indent(indent),
+                        place.emit(0),
+                        i.emit(0)),
             &ast::Expression::UnOpApply(op, e) =>
                 format!("{}{}{}", emit_indent(indent), op.emit(0), e.emit(0)),
             &ast::Expression::BinOpApply(op, e1, e2) => format!("{}{}{}{}",
@@ -177,6 +222,12 @@ impl Emit for ast::BinOp {
             &ast::BinOp::Div => String::from(" / "),
             &ast::BinOp::Pow => String::from("^"),
             &ast::BinOp::StrConcat => String::from(" & "),
+            &ast::BinOp::Eq => String::from(" = "),
+            &ast::BinOp::NotEq => String::from(" <> "),
+            &ast::BinOp::Lt => String::from(" < "),
+            &ast::BinOp::Gt => String::from(" > "),
+            &ast::BinOp::LtEq => String::from(" <= "),
+            &ast::BinOp::GtEq => String::from(" >= "),
             &ast::BinOp::LogAnd => String::from(" And "),
             &ast::BinOp::LogOr => String::from(" Or "),
             &ast::BinOp::BitAnd => String::from(" And "),
@@ -348,10 +399,41 @@ mod test {
                         None,
                     ),
                     ast::Statement::Assignment(
-                        ast::Ident("x"), &ast::Expression::Literal(
+                        &ast::Expression::Ident(ast::Ident("x")),
+                        &ast::Expression::Literal(
                             ast::Literal::Str(String::from("I ate\\ta lot of \
                               meat\\n...the other day"))
                         )),
+                    ast::Statement::Assignment(
+                        &ast::Expression::Index(
+                            &ast::Expression::Ident(ast::Ident("y")),
+                            &ast::Expression::Literal(ast::Literal::Int(45))
+                        ),
+                        &ast::Expression::Literal(ast::Literal::Float(123.45))
+                    ),
+                    ast::Statement::Conditional {
+                        cond: &ast::Expression::BinOpApply(
+                                  ast::BinOp::LtEq,
+                                  &ast::Expression::Ident(ast::Ident("x")),
+                                  &ast::Expression::Literal(
+                                      ast::Literal::Int(20))),
+                        body: &[
+                            &ast::Statement::Declaration(
+                                &ast::VariableDeclaration {
+                                    name: ast::Ident("z"),
+                                    typ: &ast::Type::Currency,
+                                },
+                                None
+                            ),
+                        ],
+                        elsifs: &[],
+                        els: Some(&[
+                                  &ast::Statement::Assignment(
+                                      &ast::Expression::Ident(ast::Ident("x")),
+                                      &ast::Expression::Literal(
+                                          ast::Literal::Int(9))),
+                        ]),
+                    },
                 ],
             }
         ).emit(1);

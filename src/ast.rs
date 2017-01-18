@@ -55,24 +55,34 @@ pub enum Statement<'a> {
     /// A variable declaration with optional initialization
     Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
     /// An assignment to an identifier or other place
-    Assignment(Ident<'a>, &'a Expression<'a>),
+    Assignment(&'a Expression<'a>, &'a Expression<'a>),
     /// A call to a function returning (), or a value-returning function
     ///   whose return value is ignored
     FnCall(Ident<'a>, &'a [Expression<'a>]),
     /// An If... ElseIf... Else sequence
-    Conditional(&'a [(&'a Expression<'a>, &'a [&'a Statement<'a>])]),
+    Conditional {
+        cond: &'a Expression<'a>,
+        body: &'a [&'a Statement<'a>],
+        elsifs: &'a [(&'a Expression<'a>, &'a [&'a Statement<'a>])],
+        els: Option<&'a [&'a Statement<'a>]>,
+    },
     // maybe lift Literal::Struct and Literal::Array up here?
 }
+
+// TODO: places are identifiers or indexing or dot expressions
+//   and places can be on the left side of an assignment
+// ... we'll probably have place-ness-checking as separate pass
 
 /// Expressions are...
 pub enum Expression<'a> {
     Literal(Literal),
     Ident(Ident<'a>),
     AddressOf(Ident<'a>),
-    Index(Ident<'a>, &'a Expression<'a>),
+    Index(&'a Expression<'a>, &'a Expression<'a>),
     UnOpApply(UnOp, &'a Expression<'a>),
     BinOpApply(BinOp, &'a Expression<'a>, &'a Expression<'a>),
     Grouped(&'a Expression<'a>),
+    // probably should allow Expression on the left, e.g. o.f(x)
     FnCall(Ident<'a>, &'a [Expression<'a>]), // function returning value
 }
 
@@ -105,6 +115,12 @@ pub enum BinOp {
     Div,
     Pow,
     StrConcat,
+    Eq,
+    NotEq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
     LogAnd,
     LogOr,
     // these may emit the same code, but I'm not using the same syntax for it
