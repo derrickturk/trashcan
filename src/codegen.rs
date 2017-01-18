@@ -100,6 +100,11 @@ impl<'a> Emit for ast::Statement<'a> {
             &ast::Statement::Assignment(ident, expr) => {
                 format!("{}{} = {}", emit_indent(indent), ident.0, expr.emit(0))
             },
+            &ast::Statement::FnCall(ident, args) => {
+                format!("{}{} {}", emit_indent(indent), ident.0,
+                  args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", "))
+            },
+            &ast::Statement::Conditional(..) => unimplemented!(),
         }
     }
 }
@@ -124,6 +129,9 @@ impl<'a> Emit for ast::Expression<'a> {
                 emit_indent(indent), e1.emit(0), op.emit(0), e2.emit(0)),
             &ast::Expression::Grouped(e) =>
                 format!("{}({})", emit_indent(indent), e.emit(0)),
+            &ast::Expression::FnCall(ref i, args) =>
+                format!("{}{}({})", emit_indent(indent), i.0,
+                  args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", ")),
         }
     }
 }

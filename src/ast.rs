@@ -52,8 +52,15 @@ pub struct VariableDeclaration<'a> {
 
 /// Statements are either assignments or...
 pub enum Statement<'a> {
+    /// A variable declaration with optional initialization
     Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
+    /// An assignment to an identifier or other place
     Assignment(Ident<'a>, &'a Expression<'a>),
+    /// A call to a function returning (), or a value-returning function
+    ///   whose return value is ignored
+    FnCall(Ident<'a>, &'a [Expression<'a>]),
+    /// An If... ElseIf... Else sequence
+    Conditional(&'a [(&'a Expression<'a>, &'a [&'a Statement<'a>])]),
     // maybe lift Literal::Struct and Literal::Array up here?
 }
 
@@ -66,6 +73,7 @@ pub enum Expression<'a> {
     UnOpApply(UnOp, &'a Expression<'a>),
     BinOpApply(BinOp, &'a Expression<'a>, &'a Expression<'a>),
     Grouped(&'a Expression<'a>),
+    FnCall(Ident<'a>, &'a [Expression<'a>]), // function returning value
 }
 
 /// Literals are...
