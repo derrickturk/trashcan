@@ -5,17 +5,31 @@ use parser::SrcLoc;
 /// A trashcan "project" is of course referred to as a dumpster
 pub struct Dumpster<'a>(&'a [Module<'a>]);
 
-/// Modules may be ordinary or class modules, and make up a dumpster
-pub enum Module<'a> {
-    Normal(Ident<'a>, &'a [Item<'a>], SrcLoc),
-    Class(Ident<'a>, &'a [Item<'a>], SrcLoc),
+/// Modules are the basic unit of code organization, and make up a dumpster
+pub struct Module<'a> {
+    pub kind: ModuleKind<'a>,
+    pub loc: SrcLoc,
 }
 
-/// Items may be functions, globals, or type definitions
-pub enum Item<'a> {
-    Function(AccessMode, &'a Function<'a>, SrcLoc),
-    StructDef(AccessMode, &'a StructDef<'a>, SrcLoc),
-    EnumDef(AccessMode, &'a EnumDef<'a>, SrcLoc),
+/// Modules may be ordinary or class modules
+pub enum ModuleKind<'a> {
+    Normal(Ident<'a>, &'a [Item<'a>]),
+    Class(Ident<'a>, &'a [Item<'a>]),
+}
+
+/// Items define functions or types, and make up modules
+pub struct Item<'a> {
+    pub kind: ItemKind<'a>,
+    pub access: AccessMode,
+    pub loc: SrcLoc,
+}
+
+/// Items include function, struct, and enum definitions
+///   as well (TODO) as globals and module-level constants
+pub enum ItemKind<'a> {
+    Function(&'a Function<'a>),
+    StructDef(&'a StructDef<'a>),
+    EnumDef(&'a EnumDef<'a>),
 }
 
 /// A function (or "sub") definition
@@ -197,9 +211,8 @@ mod test {
 
     #[test]
     fn struct_item() {
-        let _ = Item::StructDef(
-            AccessMode::Public,
-            &StructDef {
+        let _ = Item {
+            kind: ItemKind::StructDef(&StructDef {
                 name: Ident("my_struct"),
                 members: &[
                     VariableDeclaration {
@@ -211,13 +224,14 @@ mod test {
                         typ: &Type::Double,
                     },
                 ],
-            },
-            SrcLoc {
+            }),
+            access: AccessMode::Public,
+            loc: SrcLoc {
                 file: String::from("<test literal>"),
                 line: 0,
                 start: 0,
                 len: 0,
             },
-        );
+        };
     }
 }

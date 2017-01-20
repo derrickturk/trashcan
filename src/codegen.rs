@@ -15,25 +15,25 @@ pub trait Emit {
 
 impl<'a> Emit for Module<'a> {
     fn emit(&self, indent: u32) -> String {
-        match self {
-            &Module::Normal(_, items, _) => items.iter()
+        match self.kind {
+            ModuleKind::Normal(_, items) => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
                     acc.push_str(&item.emit(indent)); acc
                 }),
-            &Module::Class(_, items, _) => unimplemented!(),
+            ModuleKind::Class(_, items) => unimplemented!(),
         }
     }
 }
 
 impl<'a> Emit for Item<'a> {
     fn emit(&self, indent: u32) -> String {
-        match self {
-            &Item::Function(ref mode, ref func, _) =>
-                emit_func(mode, func, indent),
-            &Item::StructDef(ref mode, ref def, _) =>
-                emit_struct(mode, def, indent),
-            &Item::EnumDef(ref mode, ref def, _) =>
-                emit_enum(mode, def, indent),
+        match self.kind {
+            ItemKind::Function(ref func) =>
+                emit_func(self.access, func, indent),
+            ItemKind::StructDef(ref def) =>
+                emit_struct(self.access, def, indent),
+            ItemKind::EnumDef(ref def) =>
+                emit_enum(self.access, def, indent),
         }
     }
 }
@@ -306,7 +306,7 @@ fn emit_indent(indent: u32) -> String {
     s
 }
 
-fn emit_func(mode: &AccessMode, func: &Function,
+fn emit_func(mode: AccessMode, func: &Function,
   indent: u32) -> String {
     let param_spec = func.params.iter()
         .map(|ref s| s.emit(0))
@@ -335,7 +335,7 @@ fn emit_func(mode: &AccessMode, func: &Function,
       body = body)
 }
 
-fn emit_struct(mode: &AccessMode, def: &StructDef,
+fn emit_struct(mode: AccessMode, def: &StructDef,
   indent: u32) -> String {
     let member_spec = def.members.iter()
         .map(|ref m| m.emit(indent + 1))
@@ -348,7 +348,7 @@ fn emit_struct(mode: &AccessMode, def: &StructDef,
       members = member_spec)
 }
 
-fn emit_enum(mode: &AccessMode, def: &EnumDef,
+fn emit_enum(mode: AccessMode, def: &EnumDef,
   indent: u32) -> String {
     format!("{ind}{access} Enum {name}\n{members}\n{ind}End Enum",
       ind = emit_indent(indent),
@@ -375,9 +375,8 @@ mod test {
 
     #[test]
     fn emit_fn() {
-        let s = Item::Function(
-            AccessMode::Private,
-            &Function {
+        let s = Item {
+            kind: ItemKind::Function(&Function {
                 name: Ident("do_whatever"),
                 params: &[
                     FunctionParameter {
@@ -466,22 +465,22 @@ mod test {
                         ],
                     },
                 ],
-            },
-            parser::SrcLoc {
+            }),
+            access: AccessMode::Private,
+            loc: parser::SrcLoc {
                 file: String::from("<test literal>"),
                 line: 0,
                 start: 0,
                 len: 0,
             },
-        ).emit(1);
+        }.emit(1);
         println!("{}", s);
     }
 
     #[test]
     fn emit_st() {
-        let s = Item::StructDef(
-            AccessMode::Public,
-            &StructDef {
+        let s = Item {
+            kind: ItemKind::StructDef(&StructDef {
                 name: Ident("my_struct"),
                 members: &[
                     VariableDeclaration {
@@ -493,36 +492,37 @@ mod test {
                         typ: &Type::Double,
                     },
                 ],
-            },
-            parser::SrcLoc {
+            }),
+            access: AccessMode::Public,
+            loc: parser::SrcLoc {
                 file: String::from("<test literal>"),
                 line: 0,
                 start: 0,
                 len: 0,
             },
-        ).emit(1);
+        }.emit(1);
         println!("{}", s);
     }
 
     #[test]
     fn emit_en() {
-        let s = Item::EnumDef(
-            AccessMode::Private,
-            &EnumDef {
+        let s = Item {
+            kind: ItemKind::EnumDef(&EnumDef {
                 name: Ident("my_enum"),
                 members: &[
                     Ident("FirstChoice"),
                     Ident("SecondChoice"),
                     Ident("ThirdChoice"),
                 ],
-            },
-            parser::SrcLoc {
+            }),
+            access: AccessMode::Private,
+            loc: parser::SrcLoc {
                 file: String::from("<test literal>"),
                 line: 0,
                 start: 0,
                 len: 0,
             },
-        ).emit(1);
+        }.emit(1);
         println!("{}", s);
     }
 }
