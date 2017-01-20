@@ -1,19 +1,21 @@
 //! trashcan's internal representation of abstract syntax trees
 
+use parser::SrcLoc;
+
 /// A trashcan "project" is of course referred to as a dumpster
 pub struct Dumpster<'a>(&'a [Module<'a>]);
 
 /// Modules may be ordinary or class modules, and make up a dumpster
 pub enum Module<'a> {
-    Normal(Ident<'a>, &'a [Item<'a>]),
-    Class(Ident<'a>, &'a [Item<'a>]),
+    Normal(Ident<'a>, &'a [Item<'a>], SrcLoc),
+    Class(Ident<'a>, &'a [Item<'a>], SrcLoc),
 }
 
 /// Items may be functions, globals, or type definitions
 pub enum Item<'a> {
-    Function(AccessMode, &'a Function<'a>),
-    StructDef(AccessMode, &'a StructDef<'a>),
-    EnumDef(AccessMode, &'a EnumDef<'a>),
+    Function(AccessMode, &'a Function<'a>, SrcLoc),
+    StructDef(AccessMode, &'a StructDef<'a>, SrcLoc),
+    EnumDef(AccessMode, &'a EnumDef<'a>, SrcLoc),
 }
 
 /// A function (or "sub") definition
@@ -174,6 +176,11 @@ pub enum Type<'a> {
 /// Identifiers
 pub struct Ident<'a>(pub &'a str);
 
+// as I write this comment, I am watching Donald Trump take the oath of office
+//   of the President of the United States
+// yes, that Donald Trump
+// what a fucking trip
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -204,6 +211,12 @@ mod test {
                         typ: &Type::Double,
                     },
                 ],
+            },
+            SrcLoc {
+                file: String::from("<test literal>"),
+                line: 0,
+                start: 0,
+                len: 0,
             },
         );
     }

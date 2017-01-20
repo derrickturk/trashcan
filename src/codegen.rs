@@ -2,6 +2,7 @@
 
 use ast::*;
 use symtab;
+use parser;
 
 const INDENT: &'static str = "    ";
 
@@ -15,11 +16,11 @@ pub trait Emit {
 impl<'a> Emit for Module<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &Module::Normal(_, items) => items.iter()
+            &Module::Normal(_, items, _) => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
                     acc.push_str(&item.emit(indent)); acc
                 }),
-            &Module::Class(_, items) => unimplemented!(),
+            &Module::Class(_, items, _) => unimplemented!(),
         }
     }
 }
@@ -27,11 +28,11 @@ impl<'a> Emit for Module<'a> {
 impl<'a> Emit for Item<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &Item::Function(ref mode, ref func) =>
+            &Item::Function(ref mode, ref func, _) =>
                 emit_func(mode, func, indent),
-            &Item::StructDef(ref mode, ref def) =>
+            &Item::StructDef(ref mode, ref def, _) =>
                 emit_struct(mode, def, indent),
-            &Item::EnumDef(ref mode, ref def) =>
+            &Item::EnumDef(ref mode, ref def, _) =>
                 emit_enum(mode, def, indent),
         }
     }
@@ -465,7 +466,13 @@ mod test {
                         ],
                     },
                 ],
-            }
+            },
+            parser::SrcLoc {
+                file: String::from("<test literal>"),
+                line: 0,
+                start: 0,
+                len: 0,
+            },
         ).emit(1);
         println!("{}", s);
     }
@@ -487,6 +494,12 @@ mod test {
                     },
                 ],
             },
+            parser::SrcLoc {
+                file: String::from("<test literal>"),
+                line: 0,
+                start: 0,
+                len: 0,
+            },
         ).emit(1);
         println!("{}", s);
     }
@@ -502,6 +515,12 @@ mod test {
                     Ident("SecondChoice"),
                     Ident("ThirdChoice"),
                 ],
+            },
+            parser::SrcLoc {
+                file: String::from("<test literal>"),
+                line: 0,
+                start: 0,
+                len: 0,
             },
         ).emit(1);
         println!("{}", s);
