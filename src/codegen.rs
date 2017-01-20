@@ -1,6 +1,6 @@
 //! code generator: emit VB6 from trashcan ASTs
 
-use ast;
+use ast::*;
 use symtab;
 
 const INDENT: &'static str = "    ";
@@ -12,37 +12,37 @@ pub trait Emit {
     fn emit(&self, indent: u32) -> String;
 }
 
-impl<'a> Emit for ast::Module<'a> {
+impl<'a> Emit for Module<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Module::Normal(_, items) => items.iter()
+            &Module::Normal(_, items) => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
                     acc.push_str(&item.emit(indent)); acc
                 }),
-            &ast::Module::Class(_, items) => unimplemented!(),
+            &Module::Class(_, items) => unimplemented!(),
         }
     }
 }
 
-impl<'a> Emit for ast::Item<'a> {
+impl<'a> Emit for Item<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Item::Function(ref mode, ref func) =>
+            &Item::Function(ref mode, ref func) =>
                 emit_func(mode, func, indent),
-            &ast::Item::StructDef(ref mode, ref def) =>
+            &Item::StructDef(ref mode, ref def) =>
                 emit_struct(mode, def, indent),
-            &ast::Item::EnumDef(ref mode, ref def) =>
+            &Item::EnumDef(ref mode, ref def) =>
                 emit_enum(mode, def, indent),
         }
     }
 }
 
 // TODO: handle multidimensional arrays properly
-impl<'a> Emit for ast::FunctionParameter<'a> {
+impl<'a> Emit for FunctionParameter<'a> {
     fn emit(&self, _indent: u32) -> String {
         match self.typ {
-            &ast::Type::Array(ref inner, _) => ast::FunctionParameter {
-                name: ast::Ident(&{
+            &Type::Array(ref inner, _) => FunctionParameter {
+                name: Ident(&{
                     let mut s = String::from(self.name.0);
                     s.push_str("()");
                     s
@@ -57,11 +57,11 @@ impl<'a> Emit for ast::FunctionParameter<'a> {
 }
 
 // TODO: handle multidimensional arrays properly
-impl<'a> Emit for ast::VariableDeclaration<'a> {
+impl<'a> Emit for VariableDeclaration<'a> {
     fn emit(&self, indent: u32) -> String {
         match self.typ {
-            &ast::Type::Array(ref inner, dim) => ast::VariableDeclaration {
-                name: ast::Ident(&{
+            &Type::Array(ref inner, dim) => VariableDeclaration {
+                name: Ident(&{
                     let mut s = String::from(self.name.0);
                     match dim {
                         Some(n) => s.push_str(&format!("({})", n)),
@@ -77,42 +77,42 @@ impl<'a> Emit for ast::VariableDeclaration<'a> {
     }
 }
 
-impl<'a> Emit for ast::Statement<'a> {
+impl<'a> Emit for Statement<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Statement::Declaration(decl, None) => {
+            &Statement::Declaration(decl, None) => {
                 let mut s = emit_indent(indent);
                 s.push_str("Dim ");
                 s.push_str(&decl.emit(0));
                 s
             },
 
-            &ast::Statement::Declaration(decl, Some(expr)) => {
-                let mut s = ast::Statement::Declaration(decl, None)
+            &Statement::Declaration(decl, Some(expr)) => {
+                let mut s = Statement::Declaration(decl, None)
                     .emit(indent);
                 s.push_str("\n");
                 s.push_str(
-                    &ast::Statement::Assignment(
-                        &ast::Expression::Ident(decl.name), expr).emit(indent));
+                    &Statement::Assignment(
+                        &Expression::Ident(decl.name), expr).emit(indent));
                 s
             },
 
             // TODO: this will have to look up the type of the symbol identified
             //   by ident in the symbol table eventually (to decide whether
             //   to emit = or Set =)
-            &ast::Statement::Assignment(place, expr) => {
+            &Statement::Assignment(place, expr) => {
                 format!("{}{} = {}",
                         emit_indent(indent),
                         place.emit(0),
                         expr.emit(0))
             },
 
-            &ast::Statement::FnCall(ident, args) => {
+            &Statement::FnCall(ident, args) => {
                 format!("{}{} {}", emit_indent(indent), ident.0,
                   args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", "))
             },
 
-            &ast::Statement::Conditional { cond, body, elsifs, els } => {
+            &Statement::Conditional { cond, body, elsifs, els } => {
                 let this_indent = emit_indent(indent);
                 let mut s = this_indent.clone();
                 s.push_str("If ");
@@ -148,7 +148,7 @@ impl<'a> Emit for ast::Statement<'a> {
                 s
             },
 
-            &ast::Statement::WhileLoop { cond, body } => {
+            &Statement::WhileLoop { cond, body } => {
                 let mut s = emit_indent(indent);
                 s.push_str("Do While ");
                 s.push_str(&cond.emit(0));
@@ -165,48 +165,48 @@ impl<'a> Emit for ast::Statement<'a> {
     }
 }
 
-impl<'a> Emit for ast::Expression<'a> {
+impl<'a> Emit for Expression<'a> {
     fn emit(&self, indent: u32) -> String {
         match self {
-            &ast::Expression::Literal(ref l) => l.emit(indent),
-            &ast::Expression::Ident(ref i) =>
+            &Expression::Literal(ref l) => l.emit(indent),
+            &Expression::Ident(ref i) =>
                 format!("{}{}", emit_indent(indent), i.0),
             // TODO: probably need the symbol table here to choose VarPtr vs
             //   StrPtr vs AddressOf
-            &ast::Expression::AddressOf(ref i) =>
+            &Expression::AddressOf(ref i) =>
                 format!("{}VarPtr({})", emit_indent(indent), i.0),
             // TODO: probably need the symbol table here to choose () vs
             //   .Item() etc
-            &ast::Expression::Index(place, i) =>
+            &Expression::Index(place, i) =>
                 format!("{}{}({})",
                         emit_indent(indent),
                         place.emit(0),
                         i.emit(0)),
-            &ast::Expression::UnOpApply(op, e) =>
+            &Expression::UnOpApply(op, e) =>
                 format!("{}{}{}", emit_indent(indent), op.emit(0), e.emit(0)),
-            &ast::Expression::BinOpApply(op, e1, e2) => format!("{}{}{}{}",
+            &Expression::BinOpApply(op, e1, e2) => format!("{}{}{}{}",
                 emit_indent(indent), e1.emit(0), op.emit(0), e2.emit(0)),
-            &ast::Expression::Grouped(e) =>
+            &Expression::Grouped(e) =>
                 format!("{}({})", emit_indent(indent), e.emit(0)),
-            &ast::Expression::FnCall(ref i, args) =>
+            &Expression::FnCall(ref i, args) =>
                 format!("{}{}({})", emit_indent(indent), i.0,
                   args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", ")),
         }
     }
 }
 
-impl<'a> Emit for ast::Literal {
+impl<'a> Emit for Literal {
     fn emit(&self, indent: u32) -> String {
         let mut s = emit_indent(indent);
         match self {
-            &ast::Literal::Bool(b) =>
+            &Literal::Bool(b) =>
                 s.push_str(if b { "True" } else { "False" }),
-            &ast::Literal::Int(i) => s.push_str(&i.to_string()),
-            &ast::Literal::Float(f) => {
+            &Literal::Int(i) => s.push_str(&i.to_string()),
+            &Literal::Float(f) => {
                 s.push_str(&f.to_string());
                 s.push_str("#");
             },
-            &ast::Literal::Str(ref t) => {
+            &Literal::Str(ref t) => {
                 s.push_str(&escape_string(t));
             },
             _ => unimplemented!(),
@@ -215,79 +215,79 @@ impl<'a> Emit for ast::Literal {
     }
 }
 
-impl Emit for ast::UnOp {
+impl Emit for UnOp {
     fn emit(&self, _indent: u32) -> String {
         match self {
-            &ast::UnOp::Minus => String::from("-"),
-            &ast::UnOp::LogNot => String::from("Not "),
-            &ast::UnOp::BitNot => String::from("Not "),
+            &UnOp::Minus => String::from("-"),
+            &UnOp::LogNot => String::from("Not "),
+            &UnOp::BitNot => String::from("Not "),
         }
     }
 }
 
 /// Built-in binary operators
-impl Emit for ast::BinOp {
+impl Emit for BinOp {
     fn emit(&self, _indent: u32) -> String {
         match self {
-            &ast::BinOp::Dot => String::from("."),
-            &ast::BinOp::Add => String::from(" + "),
-            &ast::BinOp::Sub => String::from(" - "),
-            &ast::BinOp::Mul => String::from(" * "),
-            &ast::BinOp::Div => String::from(" / "),
-            &ast::BinOp::Pow => String::from("^"),
-            &ast::BinOp::StrConcat => String::from(" & "),
-            &ast::BinOp::Eq => String::from(" = "),
-            &ast::BinOp::NotEq => String::from(" <> "),
-            &ast::BinOp::Lt => String::from(" < "),
-            &ast::BinOp::Gt => String::from(" > "),
-            &ast::BinOp::LtEq => String::from(" <= "),
-            &ast::BinOp::GtEq => String::from(" >= "),
-            &ast::BinOp::LogAnd => String::from(" And "),
-            &ast::BinOp::LogOr => String::from(" Or "),
-            &ast::BinOp::BitAnd => String::from(" And "),
-            &ast::BinOp::BitOr => String::from(" Or "),
-            &ast::BinOp::BitXor => String::from(" Xor "),
+            &BinOp::Dot => String::from("."),
+            &BinOp::Add => String::from(" + "),
+            &BinOp::Sub => String::from(" - "),
+            &BinOp::Mul => String::from(" * "),
+            &BinOp::Div => String::from(" / "),
+            &BinOp::Pow => String::from("^"),
+            &BinOp::StrConcat => String::from(" & "),
+            &BinOp::Eq => String::from(" = "),
+            &BinOp::NotEq => String::from(" <> "),
+            &BinOp::Lt => String::from(" < "),
+            &BinOp::Gt => String::from(" > "),
+            &BinOp::LtEq => String::from(" <= "),
+            &BinOp::GtEq => String::from(" >= "),
+            &BinOp::LogAnd => String::from(" And "),
+            &BinOp::LogOr => String::from(" Or "),
+            &BinOp::BitAnd => String::from(" And "),
+            &BinOp::BitOr => String::from(" Or "),
+            &BinOp::BitXor => String::from(" Xor "),
         }
     }
 }
 
-impl Emit for ast::AccessMode {
+impl Emit for AccessMode {
     fn emit(&self, _indent: u32) -> String {
         match self {
-            &ast::AccessMode::Private => String::from("Private"),
-            &ast::AccessMode::Public => String::from("Public"),
+            &AccessMode::Private => String::from("Private"),
+            &AccessMode::Public => String::from("Public"),
         }
     }
 }
 
-impl Emit for ast::ParamMode {
+impl Emit for ParamMode {
     fn emit(&self, _indent: u32) -> String {
         match self {
-            &ast::ParamMode::ByVal => String::from("ByVal"),
-            &ast::ParamMode::ByRef => String::from("ByRef"),
+            &ParamMode::ByVal => String::from("ByVal"),
+            &ParamMode::ByRef => String::from("ByRef"),
         }
     }
 }
 
 // TODO: handle multidimensional arrays properly
-impl<'a> Emit for ast::Type<'a> {
+impl<'a> Emit for Type<'a> {
     fn emit(&self, _indent: u32) -> String {
         match self {
-            &ast::Type::Boolean => String::from("Boolean"),
-            &ast::Type::Byte => String::from("Byte"),
-            &ast::Type::Integer => String::from("Integer"),
-            &ast::Type::Long => String::from("Long"),
-            &ast::Type::LongPtr => String::from("LongPtr"),
-            &ast::Type::Single => String::from("Single"),
-            &ast::Type::Double => String::from("Double"),
-            &ast::Type::String => String::from("String"),
-            &ast::Type::Currency => String::from("Currency"),
-            &ast::Type::Date => String::from("Date"),
-            &ast::Type::Variant => String::from("Variant"),
-            &ast::Type::Object(ast::Ident(i)) => i.to_string(),
-            &ast::Type::Struct(ast::Ident(i)) => i.to_string(),
-            &ast::Type::Enum(ast::Ident(i)) => i.to_string(),
-            &ast::Type::Array(t, _) => {
+            &Type::Boolean => String::from("Boolean"),
+            &Type::Byte => String::from("Byte"),
+            &Type::Integer => String::from("Integer"),
+            &Type::Long => String::from("Long"),
+            &Type::LongPtr => String::from("LongPtr"),
+            &Type::Single => String::from("Single"),
+            &Type::Double => String::from("Double"),
+            &Type::String => String::from("String"),
+            &Type::Currency => String::from("Currency"),
+            &Type::Date => String::from("Date"),
+            &Type::Variant => String::from("Variant"),
+            &Type::Object(Ident(i)) => i.to_string(),
+            &Type::Struct(Ident(i)) => i.to_string(),
+            &Type::Enum(Ident(i)) => i.to_string(),
+            &Type::Array(t, _) => {
                 let mut base = t.emit(_indent);
                 base.push_str("()");
                 base
@@ -305,7 +305,7 @@ fn emit_indent(indent: u32) -> String {
     s
 }
 
-fn emit_func(mode: &ast::AccessMode, func: &ast::Function,
+fn emit_func(mode: &AccessMode, func: &Function,
   indent: u32) -> String {
     let param_spec = func.params.iter()
         .map(|ref s| s.emit(0))
@@ -334,7 +334,7 @@ fn emit_func(mode: &ast::AccessMode, func: &ast::Function,
       body = body)
 }
 
-fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef,
+fn emit_struct(mode: &AccessMode, def: &StructDef,
   indent: u32) -> String {
     let member_spec = def.members.iter()
         .map(|ref m| m.emit(indent + 1))
@@ -347,7 +347,7 @@ fn emit_struct(mode: &ast::AccessMode, def: &ast::StructDef,
       members = member_spec)
 }
 
-fn emit_enum(mode: &ast::AccessMode, def: &ast::EnumDef,
+fn emit_enum(mode: &AccessMode, def: &EnumDef,
   indent: u32) -> String {
     format!("{ind}{access} Enum {name}\n{members}\n{ind}End Enum",
       ind = emit_indent(indent),
@@ -374,91 +374,91 @@ mod test {
 
     #[test]
     fn emit_fn() {
-        let s = ast::Item::Function(
-            ast::AccessMode::Private,
-            &ast::Function {
-                name: ast::Ident("do_whatever"),
+        let s = Item::Function(
+            AccessMode::Private,
+            &Function {
+                name: Ident("do_whatever"),
                 params: &[
-                    ast::FunctionParameter {
-                        name: ast::Ident("x"),
-                        typ: &ast::Type::Long,
-                        mode: ast::ParamMode::ByVal,
+                    FunctionParameter {
+                        name: Ident("x"),
+                        typ: &Type::Long,
+                        mode: ParamMode::ByVal,
                     },
-                    ast::FunctionParameter {
-                        name: ast::Ident("y"),
-                        typ: &ast::Type::Double,
-                        mode: ast::ParamMode::ByRef,
+                    FunctionParameter {
+                        name: Ident("y"),
+                        typ: &Type::Double,
+                        mode: ParamMode::ByRef,
                     },
-                    ast::FunctionParameter {
-                        name: ast::Ident("z"),
-                        typ: &ast::Type::Array(&ast::Type::Double, None),
-                        mode: ast::ParamMode::ByRef,
+                    FunctionParameter {
+                        name: Ident("z"),
+                        typ: &Type::Array(&Type::Double, None),
+                        mode: ParamMode::ByRef,
                     },
                 ],
-                ret: Some(ast::Type::Struct(ast::Ident("MyType"))),
+                ret: Some(Type::Struct(Ident("MyType"))),
                 body: &[
-                    ast::Statement::Declaration(
-                        &ast::VariableDeclaration {
-                            name: ast::Ident("x"), typ: &ast::Type::Long
+                    Statement::Declaration(
+                        &VariableDeclaration {
+                            name: Ident("x"), typ: &Type::Long
                         },
-                        Some(&ast::Expression::Literal(
-                            ast::Literal::Int(2349)
+                        Some(&Expression::Literal(
+                            Literal::Int(2349)
                         )),
                     ),
-                    ast::Statement::Declaration(
-                        &ast::VariableDeclaration {
-                            name: ast::Ident("y"),
-                            typ: &ast::Type::Array(&ast::Type::Double, Some(25))
+                    Statement::Declaration(
+                        &VariableDeclaration {
+                            name: Ident("y"),
+                            typ: &Type::Array(&Type::Double, Some(25))
                         },
                         None,
                     ),
-                    ast::Statement::Assignment(
-                        &ast::Expression::Ident(ast::Ident("x")),
-                        &ast::Expression::Literal(
-                            ast::Literal::Str(String::from("I ate\\ta lot of \
+                    Statement::Assignment(
+                        &Expression::Ident(Ident("x")),
+                        &Expression::Literal(
+                            Literal::Str(String::from("I ate\\ta lot of \
                               meat\\n...the other day"))
                         )),
-                    ast::Statement::Assignment(
-                        &ast::Expression::Index(
-                            &ast::Expression::Ident(ast::Ident("y")),
-                            &ast::Expression::Literal(ast::Literal::Int(45))
+                    Statement::Assignment(
+                        &Expression::Index(
+                            &Expression::Ident(Ident("y")),
+                            &Expression::Literal(Literal::Int(45))
                         ),
-                        &ast::Expression::Literal(ast::Literal::Float(123.45))
+                        &Expression::Literal(Literal::Float(123.45))
                     ),
-                    ast::Statement::Conditional {
-                        cond: &ast::Expression::BinOpApply(
-                                  ast::BinOp::LtEq,
-                                  &ast::Expression::Ident(ast::Ident("x")),
-                                  &ast::Expression::Literal(
-                                      ast::Literal::Int(20))),
+                    Statement::Conditional {
+                        cond: &Expression::BinOpApply(
+                                  BinOp::LtEq,
+                                  &Expression::Ident(Ident("x")),
+                                  &Expression::Literal(
+                                      Literal::Int(20))),
                         body: &[
-                            &ast::Statement::Declaration(
-                                &ast::VariableDeclaration {
-                                    name: ast::Ident("z"),
-                                    typ: &ast::Type::Currency,
+                            &Statement::Declaration(
+                                &VariableDeclaration {
+                                    name: Ident("z"),
+                                    typ: &Type::Currency,
                                 },
                                 None
                             ),
                         ],
                         elsifs: &[],
                         els: Some(&[
-                                  &ast::Statement::Assignment(
-                                      &ast::Expression::Ident(ast::Ident("x")),
-                                      &ast::Expression::Literal(
-                                          ast::Literal::Int(9))),
+                                  &Statement::Assignment(
+                                      &Expression::Ident(Ident("x")),
+                                      &Expression::Literal(
+                                          Literal::Int(9))),
                         ]),
                     },
-                    ast::Statement::WhileLoop {
-                        cond: &ast::Expression::BinOpApply(
-                                  ast::BinOp::LtEq,
-                                  &ast::Expression::Ident(ast::Ident("x")),
-                                  &ast::Expression::Literal(
-                                      ast::Literal::Int(20))),
+                    Statement::WhileLoop {
+                        cond: &Expression::BinOpApply(
+                                  BinOp::LtEq,
+                                  &Expression::Ident(Ident("x")),
+                                  &Expression::Literal(
+                                      Literal::Int(20))),
                         body: &[
-                            &ast::Statement::Declaration(
-                                &ast::VariableDeclaration {
-                                    name: ast::Ident("z"),
-                                    typ: &ast::Type::Currency,
+                            &Statement::Declaration(
+                                &VariableDeclaration {
+                                    name: Ident("z"),
+                                    typ: &Type::Currency,
                                 },
                                 None
                             ),
@@ -472,18 +472,18 @@ mod test {
 
     #[test]
     fn emit_st() {
-        let s = ast::Item::StructDef(
-            ast::AccessMode::Public,
-            &ast::StructDef {
-                name: ast::Ident("my_struct"),
+        let s = Item::StructDef(
+            AccessMode::Public,
+            &StructDef {
+                name: Ident("my_struct"),
                 members: &[
-                    ast::VariableDeclaration {
-                        name: ast::Ident("my_arr"),
-                        typ: &ast::Type::Array(&ast::Type::Double, Some(10)),
+                    VariableDeclaration {
+                        name: Ident("my_arr"),
+                        typ: &Type::Array(&Type::Double, Some(10)),
                     },
-                    ast::VariableDeclaration {
-                        name: ast::Ident("my_dbl"),
-                        typ: &ast::Type::Double,
+                    VariableDeclaration {
+                        name: Ident("my_dbl"),
+                        typ: &Type::Double,
                     },
                 ],
             },
@@ -493,14 +493,14 @@ mod test {
 
     #[test]
     fn emit_en() {
-        let s = ast::Item::EnumDef(
-            ast::AccessMode::Private,
-            &ast::EnumDef {
-                name: ast::Ident("my_enum"),
+        let s = Item::EnumDef(
+            AccessMode::Private,
+            &EnumDef {
+                name: Ident("my_enum"),
                 members: &[
-                    ast::Ident("FirstChoice"),
-                    ast::Ident("SecondChoice"),
-                    ast::Ident("ThirdChoice"),
+                    Ident("FirstChoice"),
+                    Ident("SecondChoice"),
+                    Ident("ThirdChoice"),
                 ],
             },
         ).emit(1);
