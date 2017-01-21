@@ -82,40 +82,45 @@ impl<'a> Emit for VariableDeclaration<'a> {
 
 impl<'a> Emit for Statement<'a> {
     fn emit(&self, indent: u32) -> String {
-        match self {
-            &Statement::Declaration(decl, None) => {
+        match &self.kind {
+            &StatementKind::Declaration(decl, None) => {
                 let mut s = emit_indent(indent);
                 s.push_str("Dim ");
                 s.push_str(&decl.emit(0));
                 s
             },
 
-            &Statement::Declaration(decl, Some(expr)) => {
-                let mut s = Statement::Declaration(decl, None)
-                    .emit(indent);
+            &StatementKind::Declaration(decl, Some(expr)) => {
+                let mut s = Statement {
+                    kind: StatementKind::Declaration(decl, None),
+                    loc: self.loc.clone(),
+                }.emit(indent);
                 s.push_str("\n");
                 s.push_str(
-                    &Statement::Assignment(
-                        &Expression::Ident(decl.name), expr).emit(indent));
+                    &Statement {
+                        kind: StatementKind::Assignment(
+                                  &Expression::Ident(decl.name), expr),
+                        loc: self.loc.clone(),
+                    }.emit(indent));
                 s
             },
 
             // TODO: this will have to look up the type of the symbol identified
             //   by ident in the symbol table eventually (to decide whether
             //   to emit = or Set =)
-            &Statement::Assignment(place, expr) => {
+            &StatementKind::Assignment(place, expr) => {
                 format!("{}{} = {}",
                         emit_indent(indent),
                         place.emit(0),
                         expr.emit(0))
             },
 
-            &Statement::FnCall(ident, args) => {
+            &StatementKind::FnCall(ident, args) => {
                 format!("{}{} {}", emit_indent(indent), ident.0,
                   args.iter().map(|a| a.emit(0)).collect::<Vec<_>>().join(", "))
             },
 
-            &Statement::Conditional { cond, body, elsifs, els } => {
+            &StatementKind::Conditional { cond, body, elsifs, els } => {
                 let this_indent = emit_indent(indent);
                 let mut s = this_indent.clone();
                 s.push_str("If ");
@@ -151,7 +156,7 @@ impl<'a> Emit for Statement<'a> {
                 s
             },
 
-            &Statement::WhileLoop { cond, body } => {
+            &StatementKind::WhileLoop { cond, body } => {
                 let mut s = emit_indent(indent);
                 s.push_str("Do While ");
                 s.push_str(&cond.emit(0));
@@ -374,9 +379,17 @@ fn escape_string(s: &str) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
+    use parser::SrcLoc;
 
     #[test]
     fn emit_fn() {
+        let loc = SrcLoc {
+            file: String::from("<test literal>"),
+            line: 0,
+            start: 0,
+            len: 0,
+        };
+
         let s = Item {
             kind: ItemKind::Function(&Function {
                 name: Ident("do_whatever"),
@@ -385,139 +398,126 @@ mod test {
                         name: Ident("x"),
                         typ: &Type::Long,
                         mode: ParamMode::ByVal,
-                        loc: parser::SrcLoc {
-                            file: String::from("<test literal>"),
-                            line: 0,
-                            start: 0,
-                            len: 0,
-                        },
+                        loc: loc.clone(),
                     },
                     FunctionParameter {
                         name: Ident("y"),
                         typ: &Type::Double,
                         mode: ParamMode::ByRef,
-                        loc: parser::SrcLoc {
-                            file: String::from("<test literal>"),
-                            line: 0,
-                            start: 0,
-                            len: 0,
-                        },
+                        loc: loc.clone(),
                     },
                     FunctionParameter {
                         name: Ident("z"),
                         typ: &Type::Array(&Type::Double, None),
                         mode: ParamMode::ByRef,
-                        loc: parser::SrcLoc {
-                            file: String::from("<test literal>"),
-                            line: 0,
-                            start: 0,
-                            len: 0,
-                        },
+                        loc: loc.clone(),
                     },
                 ],
                 ret: Some(Type::Struct(Ident("MyType"))),
                 body: &[
-                    Statement::Declaration(
-                        &VariableDeclaration {
-                            name: Ident("x"),
-                            typ: &Type::Long,
-                            loc: parser::SrcLoc {
-                                file: String::from("<test literal>"),
-                                line: 0,
-                                start: 0,
-                                len: 0,
+                    Statement {
+                        kind: StatementKind::Declaration(
+                            &VariableDeclaration {
+                                name: Ident("x"),
+                                typ: &Type::Long,
+                                loc: loc.clone(),
                             },
-                        },
-                        Some(&Expression::Literal(
-                            Literal::Int(2349)
-                        )),
-                    ),
-                    Statement::Declaration(
-                        &VariableDeclaration {
-                            name: Ident("y"),
-                            typ: &Type::Array(&Type::Double, Some(25)),
-                            loc: parser::SrcLoc {
-                                file: String::from("<test literal>"),
-                                line: 0,
-                                start: 0,
-                                len: 0,
-                            },
-                        },
-                        None,
-                    ),
-                    Statement::Assignment(
-                        &Expression::Ident(Ident("x")),
-                        &Expression::Literal(
-                            Literal::Str(String::from("I ate\\ta lot of \
-                              meat\\n...the other day"))
-                        )),
-                    Statement::Assignment(
-                        &Expression::Index(
-                            &Expression::Ident(Ident("y")),
-                            &Expression::Literal(Literal::Int(45))
+                            Some(&Expression::Literal(
+                                Literal::Int(2349)
+                            )),
                         ),
-                        &Expression::Literal(Literal::Float(123.45))
-                    ),
-                    Statement::Conditional {
-                        cond: &Expression::BinOpApply(
-                                  BinOp::LtEq,
-                                  &Expression::Ident(Ident("x")),
-                                  &Expression::Literal(
-                                      Literal::Int(20))),
-                        body: &[
-                            &Statement::Declaration(
-                                &VariableDeclaration {
-                                    name: Ident("z"),
-                                    typ: &Type::Currency,
-                                    loc: parser::SrcLoc {
-                                        file: String::from("<test literal>"),
-                                        line: 0,
-                                        start: 0,
-                                        len: 0,
-                                    },
-                                },
-                                None
+                        loc: loc.clone(),
+                    },
+                    Statement {
+                        kind: StatementKind::Declaration(
+                            &VariableDeclaration {
+                                name: Ident("y"),
+                                typ: &Type::Array(&Type::Double, Some(25)),
+                                loc: loc.clone(),
+                            },
+                            None,
+                        ),
+                        loc: loc.clone(),
+                    },
+                    Statement {
+                        kind: StatementKind::Assignment(
+                            &Expression::Ident(Ident("x")),
+                            &Expression::Literal(
+                                Literal::Str(String::from("I ate\\ta lot of \
+                                  meat\\n...the other day"))
+                            )),
+                            loc: loc.clone(),
+                    },
+                    Statement {
+                        kind: StatementKind::Assignment(
+                            &Expression::Index(
+                                &Expression::Ident(Ident("y")),
+                                &Expression::Literal(Literal::Int(45))
                             ),
-                        ],
-                        elsifs: &[],
-                        els: Some(&[
-                                  &Statement::Assignment(
+                            &Expression::Literal(Literal::Float(123.45))
+                        ),
+                        loc: loc.clone(),
+                    },
+                    Statement {
+                        kind: StatementKind::Conditional {
+                            cond: &Expression::BinOpApply(
+                                      BinOp::LtEq,
                                       &Expression::Ident(Ident("x")),
                                       &Expression::Literal(
-                                          Literal::Int(9))),
-                        ]),
-                    },
-                    Statement::WhileLoop {
-                        cond: &Expression::BinOpApply(
-                                  BinOp::LtEq,
-                                  &Expression::Ident(Ident("x")),
-                                  &Expression::Literal(
-                                      Literal::Int(20))),
-                        body: &[
-                            &Statement::Declaration(
-                                &VariableDeclaration {
-                                    name: Ident("z"),
-                                    typ: &Type::Currency,
-                                    loc: parser::SrcLoc {
-                                        file: String::from("<test literal>"),
-                                        line: 0,
-                                        start: 0,
-                                        len: 0,
-                                    },
+                                          Literal::Int(20))),
+                            body: &[
+                                &Statement {
+                                    kind: StatementKind::Declaration(
+                                        &VariableDeclaration {
+                                            name: Ident("z"),
+                                            typ: &Type::Currency,
+                                            loc: loc.clone(),
+                                        },
+                                        None
+                                    ),
+                                    loc: loc.clone(),
                                 },
-                                None
-                            ),
-                        ],
+                            ],
+                            elsifs: &[],
+                            els: Some(&[
+                                  &Statement {
+                                      kind: StatementKind::Assignment(
+                                          &Expression::Ident(Ident("x")),
+                                          &Expression::Literal(
+                                              Literal::Int(9))),
+                                      loc: loc.clone(),
+                                  },
+                            ]),
+                        },
+                        loc: loc.clone(),
+                    },
+                    Statement {
+                        kind: StatementKind::WhileLoop {
+                            cond: &Expression::BinOpApply(
+                                      BinOp::LtEq,
+                                      &Expression::Ident(Ident("x")),
+                                      &Expression::Literal(
+                                          Literal::Int(20))),
+                            body: &[
+                                &Statement {
+                                    kind: StatementKind::Declaration(
+                                        &VariableDeclaration {
+                                            name: Ident("z"),
+                                            typ: &Type::Currency,
+                                            loc: loc.clone(),
+                                        },
+                                        None
+                                    ),
+                                    loc: loc.clone(),
+                                },
+                            ],
+                        },
+                        loc: loc.clone(),
                     },
                 ],
             }),
             access: AccessMode::Private,
-            loc: parser::SrcLoc {
-                file: String::from("<test literal>"),
-                line: 0,
-                start: 0,
-                len: 0,
-            },
+            loc: loc.clone(),
         }.emit(1);
         println!("{}", s);
     }

@@ -68,8 +68,14 @@ pub struct VariableDeclaration<'a> {
     pub loc: SrcLoc,
 }
 
+/// A (source) statement
+pub struct Statement<'a> {
+    pub kind: StatementKind<'a>,
+    pub loc: SrcLoc,
+}
+
 /// Statements are either assignments or...
-pub enum Statement<'a> {
+pub enum StatementKind<'a> {
     /// A variable declaration with optional initialization
     Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
     /// An assignment to an identifier or other place
