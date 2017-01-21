@@ -50,6 +50,7 @@ impl<'a> Emit for FunctionParameter<'a> {
                 }),
                 typ: inner,
                 mode: self.mode,
+                loc: self.loc.clone(),
             }.emit(0),
             t => format!("{} {} as {}", self.mode.emit(0), self.name.0,
               t.emit(0))
@@ -71,6 +72,7 @@ impl<'a> Emit for VariableDeclaration<'a> {
                     s
                 }),
                 typ: inner,
+                loc: self.loc.clone(),
             }.emit(indent),
             t => format!("{}{} as {}", emit_indent(indent),
               self.name.0, t.emit(0))
@@ -383,23 +385,48 @@ mod test {
                         name: Ident("x"),
                         typ: &Type::Long,
                         mode: ParamMode::ByVal,
+                        loc: parser::SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                     FunctionParameter {
                         name: Ident("y"),
                         typ: &Type::Double,
                         mode: ParamMode::ByRef,
+                        loc: parser::SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                     FunctionParameter {
                         name: Ident("z"),
                         typ: &Type::Array(&Type::Double, None),
                         mode: ParamMode::ByRef,
+                        loc: parser::SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                 ],
                 ret: Some(Type::Struct(Ident("MyType"))),
                 body: &[
                     Statement::Declaration(
                         &VariableDeclaration {
-                            name: Ident("x"), typ: &Type::Long
+                            name: Ident("x"),
+                            typ: &Type::Long,
+                            loc: parser::SrcLoc {
+                                file: String::from("<test literal>"),
+                                line: 0,
+                                start: 0,
+                                len: 0,
+                            },
                         },
                         Some(&Expression::Literal(
                             Literal::Int(2349)
@@ -408,7 +435,13 @@ mod test {
                     Statement::Declaration(
                         &VariableDeclaration {
                             name: Ident("y"),
-                            typ: &Type::Array(&Type::Double, Some(25))
+                            typ: &Type::Array(&Type::Double, Some(25)),
+                            loc: parser::SrcLoc {
+                                file: String::from("<test literal>"),
+                                line: 0,
+                                start: 0,
+                                len: 0,
+                            },
                         },
                         None,
                     ),
@@ -436,6 +469,12 @@ mod test {
                                 &VariableDeclaration {
                                     name: Ident("z"),
                                     typ: &Type::Currency,
+                                    loc: parser::SrcLoc {
+                                        file: String::from("<test literal>"),
+                                        line: 0,
+                                        start: 0,
+                                        len: 0,
+                                    },
                                 },
                                 None
                             ),
@@ -459,6 +498,12 @@ mod test {
                                 &VariableDeclaration {
                                     name: Ident("z"),
                                     typ: &Type::Currency,
+                                    loc: parser::SrcLoc {
+                                        file: String::from("<test literal>"),
+                                        line: 0,
+                                        start: 0,
+                                        len: 0,
+                                    },
                                 },
                                 None
                             ),
@@ -486,10 +531,22 @@ mod test {
                     VariableDeclaration {
                         name: Ident("my_arr"),
                         typ: &Type::Array(&Type::Double, Some(10)),
+                        loc: parser::SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                     VariableDeclaration {
                         name: Ident("my_dbl"),
                         typ: &Type::Double,
+                        loc: parser::SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                 ],
             }),

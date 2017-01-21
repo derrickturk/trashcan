@@ -1,5 +1,6 @@
 //! trashcan's parser and affiliated types
 
+#[derive(Clone)]
 pub struct SrcLoc {
     pub file: String,
     pub line: u32,

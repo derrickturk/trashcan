@@ -58,12 +58,14 @@ pub struct FunctionParameter<'a> {
     pub name: Ident<'a>,
     pub typ: &'a Type<'a>,
     pub mode: ParamMode,
+    pub loc: SrcLoc,
 }
 
 /// A variable declaration binding an identifier with a type
 pub struct VariableDeclaration<'a> {
     pub name: Ident<'a>,
     pub typ: &'a Type<'a>,
+    pub loc: SrcLoc,
 }
 
 /// Statements are either assignments or...
@@ -218,10 +220,22 @@ mod test {
                     VariableDeclaration {
                         name: Ident("my_arr"),
                         typ: &Type::Array(&Type::Double, Some(10)),
+                        loc: SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                     VariableDeclaration {
                         name: Ident("my_dbl"),
                         typ: &Type::Double,
+                        loc: SrcLoc {
+                            file: String::from("<test literal>"),
+                            line: 0,
+                            start: 0,
+                            len: 0,
+                        },
                     },
                 ],
             }),
