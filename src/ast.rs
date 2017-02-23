@@ -2,256 +2,250 @@
 
 use parser::SrcLoc;
 
-/// A trashcan "project" is of course referred to as a dumpster
-pub struct Dumpster<'a>(&'a [Module<'a>]);
+#[derive(Clone)]
+pub struct Dumpster {
+    pub modules: Vec<Module>,
+}
 
-/// Modules are the basic unit of code organization, and make up a dumpster
-pub struct Module<'a> {
-    pub kind: ModuleKind<'a>,
+#[derive(Clone)]
+pub enum ModuleKind {
+    Normal(Vec<NormalItem>),
+    // Class(Vec<ClassItem>),
+}
+
+#[derive(Clone)]
+pub struct Module {
+    pub name: Ident,
+    pub data: ModuleKind,
     pub loc: SrcLoc,
 }
 
-/// Modules may be ordinary or class modules
-pub enum ModuleKind<'a> {
-    Normal(Ident<'a>, &'a [Item<'a>]),
-    Class(Ident<'a>, &'a [Item<'a>]),
+#[derive(Clone)]
+pub enum NormalItem {
+    Function(FunDef),
 }
 
-/// Items define functions or types, and make up modules
-pub struct Item<'a> {
-    pub kind: ItemKind<'a>,
-    pub access: AccessMode,
+/// Function definitions
+#[derive(Clone)]
+pub struct FunDef {
+    pub name: Ident,
+    pub access: Access,
+    pub params: Vec<FunParam>,
+    pub ret: Option<Type>,
+    pub body: Vec<Stmt>,
     pub loc: SrcLoc,
 }
 
-/// Items include function, struct, and enum definitions
-///   as well (TODO) as globals and module-level constants
-pub enum ItemKind<'a> {
-    Function(&'a Function<'a>),
-    StructDef(&'a StructDef<'a>),
-    EnumDef(&'a EnumDef<'a>),
-}
-
-/// A function (or "sub") definition
-pub struct Function<'a> {
-    pub name: Ident<'a>,
-    pub params: &'a [FunctionParameter<'a>],
-    pub ret: Option<Type<'a>>,
-    pub body: &'a [Statement<'a>],
-}
-
-/// A custom structure type definition
-pub struct StructDef<'a> {
-    pub name: Ident<'a>,
-    pub members: &'a [VariableDeclaration<'a>],
-}
-
-// TODO: allow specified values for members
-/// A custom enum type definition
-pub struct EnumDef<'a> {
-    pub name: Ident<'a>,
-    pub members: &'a [Ident<'a>],
-}
-
-/// A individual function parameter
-pub struct FunctionParameter<'a> {
-    pub name: Ident<'a>,
-    pub typ: &'a Type<'a>,
+#[derive(Clone)]
+pub struct FunParam {
+    pub name: Ident,
+    pub typ: Type,
     pub mode: ParamMode,
     pub loc: SrcLoc,
 }
 
-/// A variable declaration binding an identifier with a type
-pub struct VariableDeclaration<'a> {
-    pub name: Ident<'a>,
-    pub typ: &'a Type<'a>,
+/// Statements
+#[derive(Clone)]
+pub struct Stmt {
+    pub data: StmtKind,
     pub loc: SrcLoc,
 }
 
-/// A (source) statement
-pub struct Statement<'a> {
-    pub kind: StatementKind<'a>,
-    pub loc: SrcLoc,
-}
+#[derive(Clone)]
+pub enum StmtKind {
+    /// expression-as-statement
+    ExprStmt(Expr),
 
-/// Statements are either assignments or...
-pub enum StatementKind<'a> {
-    /// A variable declaration with optional initialization
-    Declaration(&'a VariableDeclaration<'a>, Option<&'a Expression<'a>>),
-    /// An assignment to an identifier or other place
-    Assignment(&'a Expression<'a>, &'a Expression<'a>),
-    /// A call to a function returning (), or a value-returning function
-    ///   whose return value is ignored
-    FnCall(Ident<'a>, &'a [Expression<'a>]),
-    /// An If... ElseIf... Else sequence
-    Conditional {
-        cond: &'a Expression<'a>,
-        body: &'a [&'a Statement<'a>],
-        elsifs: &'a [(&'a Expression<'a>, &'a [&'a Statement<'a>])],
-        els: Option<&'a [&'a Statement<'a>]>,
+    /// variable declaration with optional initializer
+    VarDecl(Ident, Type, Option<Expr>),
+
+    /// assignment statement (including += et. al)
+    Assign(Expr, AssignOp, Expr),
+
+    /// return statement
+    Return(Expr),
+
+    /// conditional statement (if, else if, else)
+    IfStmt {
+        cond: Expr,
+        body: Vec<Stmt>,
+        elsifs: Vec<(Expr, Vec<Stmt>)>,
+        els: Vec<Stmt>,
     },
+
+    /// while loop
     WhileLoop {
-        cond: &'a Expression<'a>,
-        body: &'a [&'a Statement<'a>],
+        cond: Expr,
+        body: Vec<Stmt>,
     },
-    // maybe lift Literal::Struct and Literal::Array up here?
+
+    /// `print` statement (i.e. Debug.Print)
+    Print(Expr),
+
+    /// pass-through literal VB statement
+    VbStmt(String),
 }
 
-// TODO: places are identifiers or indexing or dot expressions
-//   and places can be on the left side of an assignment
-// ... we'll probably have place-ness-checking as separate pass
-
-/// Expressions are...
-pub enum Expression<'a> {
-    Literal(Literal),
-    Ident(Ident<'a>),
-    AddressOf(Ident<'a>),
-    Index(&'a Expression<'a>, &'a Expression<'a>),
-    UnOpApply(UnOp, &'a Expression<'a>),
-    BinOpApply(BinOp, &'a Expression<'a>, &'a Expression<'a>),
-    Grouped(&'a Expression<'a>),
-    // probably should allow Expression on the left, e.g. o.f(x)
-    FnCall(Ident<'a>, &'a [Expression<'a>]), // function returning value
+/// Expressions
+#[derive(Clone)]
+pub struct Expr {
+    pub data: ExprKind,
+    pub loc: SrcLoc,
 }
 
-/// Literals are...
-pub enum Literal {
-    Bool(bool),
-    Int(i32),
-    Float(f64),
-    Str(String),
-    // TODO maybe currency and date?
-    Struct(Vec<Literal>),
-    Array(Vec<Literal>),
+#[derive(Clone)]
+pub enum ExprKind {
+    /// A literal
+    Literal,
+
+    /// A "named thing"; e.g. `x` or `mod1.y`
+    Name(Path),
+
+    /// An indexing expression `e1[e2]`
+    Index(Box<Expr>, Box<Expr>),
+
+    /// A function call `f(a1, a2, ...)`
+    Call(Box<Path>, Vec<Expr>),
+
+    /// A unary application e.g. `-x`
+    UnOpApp(Box<Expr>, UnOp),
+
+    /// A binary application e.g. `x + y`
+    BinOpApp(Box<Expr>, Box<Expr>, BinOp),
+
+    // a conditional expression e.g. `x == 2 ? y : z`
+    /* for later...
+    CondExpr {
+        cond: Box<Expr>,
+        if_expr: Box<Expr>,
+        else_expr: Box<Expr>,
+    },
+    */
 }
 
-#[derive(Clone, Copy)]
-/// Built-in unary operators
-pub enum UnOp {
-    Minus,
-    LogNot,
-    BitNot,
-}
+/// Module, item, variable, or type identifiers
+#[derive(Clone)]
+pub struct Ident(String);
 
-/// Built-in binary operators
-#[derive(Clone, Copy)]
-pub enum BinOp {
-    Dot,
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Pow,
-    StrConcat,
-    Eq,
-    NotEq,
-    Lt,
-    Gt,
-    LtEq,
-    GtEq,
-    LogAnd,
-    LogOr,
-    // these may emit the same code, but I'm not using the same syntax for it
-    BitAnd,
-    BitOr,
-    BitXor,
-}
+/// A "name path" e.g. a.b.c.d
+#[derive(Clone)]
+pub struct Path(Vec<Ident>);
 
-/// Access specifiers
-#[derive(Clone, Copy)]
-pub enum AccessMode {
-    /// (Module- or class-) private
+/// Item access specifiers (private by default)
+#[derive(Copy, Clone)]
+pub enum Access {
+    /// (Module- or class-) private (default)
     Private,
-    /// Public
+    /// Public (requires `pub` keyword)
     Public,
 }
 
 /// Parameter passing modes
 #[derive(Clone, Copy)]
 pub enum ParamMode {
-    /// Pass by value
+    /// Pass by value (default)
     ByVal,
-    /// Pass by reference
+    /// Pass by reference (requires `&`)
     ByRef,
 }
 
-/// Valid types (some placeholder () members for now)
-pub enum Type<'a> {
-    Boolean,
-    Byte,
-    Integer,
-    Long,
-    LongPtr,
-    Single,
-    Double,
+/// Primitive types of trashcan
+#[derive(Clone)]
+pub enum Type {
+    /// bool
+    Bool,
+    /// i8
+    Int8,
+    /// i16
+    Int16,
+    /// i32
+    Int32,
+    /// isize
+    IntPtr,
+    /// f32
+    Float32,
+    /// f64
+    Float64,
+    /// str
     String,
+    /// currency
     Currency,
+    /// date
     Date,
+    /// var
     Variant,
-    Object(Ident<'a>),
-    Struct(Ident<'a>),
-    Enum(Ident<'a>),
-    Array(&'a Type<'a>, Option<u32>),
+    /// named object type
+    Object(Ident),
+    /// named structure type
+    Struct(Ident),
+    /// named enum type
+    Enum(Ident),
+    /// T[] (multidimensional?)
+    Array(Box<Type>, Option<u32>),
+    // eventually... FnPtr ( args, ret )
 }
 
 #[derive(Clone, Copy)]
-/// Identifiers
-pub struct Ident<'a>(pub &'a str);
+/// Assignment operators
+pub enum AssignOp {
+    /// `x = y`
+    Assign,
+    /// `x += y`
+    AddAssign,
+    /// `x -= y`
+    SubAssign,
+    /// `x *= y`
+    MulAssign,
+    /// `x /= y`
+    DivAssign,
+    /// `x %= y`
+    ModAssign,
+    /// `x ^= y`
+    PowAssign,
+    // for now: later this is just AddAssign on string expressions
+    /// `x @= y`
+    StrCatAssign,
+    /// `x &= y`
+    BitAndAssign,
+    /// `x |= y`
+    BitOrAssign,
+    // nah
+    // /// `x = y`
+    // BitXorAssign,
+    /// `x &&= y`
+    LogAndAssign,
+    /// `x ||= y`
+    LogOrAssign,
+}
 
-// as I write this comment, I am watching Donald Trump take the oath of office
-//   of the President of the United States
-// yes, that Donald Trump
-// what a fucking trip
+#[derive(Clone, Copy)]
+/// Unary operators
+pub enum UnOp {
+    Negate,
+    BitNot,
+    LogNot,
+}
 
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn array_type() {
-        let _ = Type::Array(&Type::Array(&Type::Long, None), None);
-    }
-
-    #[test]
-    fn struct_type() {
-        let _ = Type::Struct(Ident("my_struct"));
-    }
-
-    #[test]
-    fn struct_item() {
-        let _ = Item {
-            kind: ItemKind::StructDef(&StructDef {
-                name: Ident("my_struct"),
-                members: &[
-                    VariableDeclaration {
-                        name: Ident("my_arr"),
-                        typ: &Type::Array(&Type::Double, Some(10)),
-                        loc: SrcLoc {
-                            file: String::from("<test literal>"),
-                            line: 0,
-                            start: 0,
-                            len: 0,
-                        },
-                    },
-                    VariableDeclaration {
-                        name: Ident("my_dbl"),
-                        typ: &Type::Double,
-                        loc: SrcLoc {
-                            file: String::from("<test literal>"),
-                            line: 0,
-                            start: 0,
-                            len: 0,
-                        },
-                    },
-                ],
-            }),
-            access: AccessMode::Public,
-            loc: SrcLoc {
-                file: String::from("<test literal>"),
-                line: 0,
-                start: 0,
-                len: 0,
-            },
-        };
-    }
+/// Binary operators
+#[derive(Clone, Copy)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Pow,
+    StrCat,
+    Eq,
+    NotEq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    BitAnd,
+    BitOr,
+    // nah
+    // BitXor,
+    LogAnd,
+    LogOr,
 }

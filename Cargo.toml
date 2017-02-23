@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["derrickturk <dwt@terminusdatascience.com>"]
 
 [dependencies]
+nom = "^2.1"

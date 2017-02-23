@@ -8,19 +8,21 @@ const INDENT: &'static str = "    ";
 
 // TODO: probably more like emit(&self, symtab: &..., indent: u32)
 
+/*
+
 /// trait for all emittable types
 pub trait Emit {
     fn emit(&self, indent: u32) -> String;
 }
 
-impl<'a> Emit for Module<'a> {
+impl Emit for Module {
     fn emit(&self, indent: u32) -> String {
-        match self.kind {
-            ModuleKind::Normal(_, items) => items.iter()
+        match self {
+            &Module { name, kind: ModuleKind::Normal, items, .. } => items.iter()
                 .fold(String::new(), |mut acc, ref item| {
                     acc.push_str(&item.emit(indent)); acc
                 }),
-            ModuleKind::Class(_, items) => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 }
@@ -43,7 +45,7 @@ impl<'a> Emit for FunctionParameter<'a> {
     fn emit(&self, _indent: u32) -> String {
         match self.typ {
             &Type::Array(ref inner, _) => FunctionParameter {
-                name: Ident(&{
+                name: Ident({
                     let mut s = String::from(self.name.0);
                     s.push_str("()");
                     s
@@ -63,7 +65,7 @@ impl<'a> Emit for VariableDeclaration<'a> {
     fn emit(&self, indent: u32) -> String {
         match self.typ {
             &Type::Array(ref inner, dim) => VariableDeclaration {
-                name: Ident(&{
+                name: Ident({
                     let mut s = String::from(self.name.0);
                     match dim {
                         Some(n) => s.push_str(&format!("({})", n)),
@@ -363,7 +365,7 @@ fn emit_enum(mode: AccessMode, def: &EnumDef,
       name = def.name.0,
       members = def.members.iter().map(|ref i| {
             let mut s = emit_indent(indent + 1);
-            s.push_str(i.0);
+            s.push_str(&i.0);
             s
         })
         .collect::<Vec<_>>().join("\n"))
@@ -376,6 +378,9 @@ fn escape_string(s: &str) -> String {
     format!("\"{}\"", s)
 }
 
+*/
+
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -583,3 +588,4 @@ mod test {
         println!("{}", s);
     }
 }
+*/

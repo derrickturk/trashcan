@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use ast;
 
+/*
 pub struct SymbolTable<'a>(HashMap<String, HashMap<String, Symbol<'a>>>);
 
 /// a symbol definition
@@ -21,3 +22,4 @@ pub enum Symbol<'a> {
     Module,
     ClassModule
 }
+*/
