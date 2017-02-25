@@ -1,0 +1,26 @@
+// already I am eating from this trashcan
+
+// define ordinary module
+mod example {
+
+pub fn f(x: i32, y: f64[]) -> string {
+    // while loop
+    while x < 17 {
+        x = x + 1;
+        x += 3;
+        print y[x]; // Debug.Print
+    }
+    return "lo siento";
+}
+
+// = Private Sub
+fn do_something(x: /* ByRef Long */ &i32) {
+    let y: i32, z: var = "string literal"
+
+    if x != 7 {
+        x /= 2; // inferred integer divide
+    }
+    `Debug.Print "hi mom"` // literal VBA
+}
+
+}
