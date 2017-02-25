@@ -2,17 +2,20 @@
 
 use parser::SrcLoc;
 
+/// A trashcan "project" is of course referred to as a dumpster
 #[derive(Clone, Debug)]
 pub struct Dumpster {
     pub modules: Vec<Module>,
 }
 
+/// Modules may be ordinary or class modules
 #[derive(Clone, Debug)]
 pub enum ModuleKind {
     Normal(Vec<NormalItem>),
     // Class(Vec<ClassItem>),
 }
 
+/// Modules are the basic unit of code organization, and make up a dumpster
 #[derive(Clone, Debug)]
 pub struct Module {
     pub name: Ident,
@@ -20,12 +23,15 @@ pub struct Module {
     pub loc: SrcLoc,
 }
 
+/// Items define functions or types, and make up modules
 #[derive(Clone, Debug)]
 pub enum NormalItem {
     Function(FunDef),
+    // Struct(StructDef)
+    // Enm(EnmDef)
 }
 
-/// Function definitions
+/// A function (or "sub") definition
 #[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Ident,
@@ -36,6 +42,7 @@ pub struct FunDef {
     pub loc: SrcLoc,
 }
 
+/// An individual function parameter
 #[derive(Clone, Debug)]
 pub struct FunParam {
     pub name: Ident,
@@ -51,6 +58,7 @@ pub struct Stmt {
     pub loc: SrcLoc,
 }
 
+/// Statements are ...
 #[derive(Clone, Debug)]
 pub enum StmtKind {
     /// expression-as-statement
@@ -93,6 +101,7 @@ pub struct Expr {
     pub loc: SrcLoc,
 }
 
+/// Expressions are...
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// A literal
@@ -251,6 +260,7 @@ pub enum BinOp {
     MemInvoke,
 }
 
+/// Literals are...
 #[derive(Clone, Debug)]
 pub enum Literal {
     /// bool
