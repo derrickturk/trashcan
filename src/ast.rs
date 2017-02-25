@@ -155,7 +155,7 @@ pub enum Type {
     /// bool
     Bool,
     /// i8
-    Int8,
+    UInt8,
     /// i16
     Int16,
     /// i32
@@ -249,4 +249,29 @@ pub enum BinOp {
     LogAnd,
     LogOr,
     MemInvoke,
+}
+
+#[derive(Clone)]
+pub enum Literal {
+    /// bool
+    Bool(bool),
+    /// u8
+    UInt8(u8),
+    /// i16
+    Int16(i16),
+    /// i32
+    Int32(i32),
+    /// isize
+    IntPtr(i64),
+    /// f32
+    Float32(f32),
+    /// f64
+    Float64(f64),
+    /// str
+    String(String),
+    /// currency
+    Currency(i64),
+    /// date
+    Date(f64),
+    // later: array literals & struct literals & ...
 }

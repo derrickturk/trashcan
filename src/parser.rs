@@ -63,7 +63,7 @@ enum MaybeType {
 
 named!(typename<MaybeType>, alt_complete!(
     map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
-  | map!(tag!("i8"), |_| MaybeType::Known(Type::Int8))
+  | map!(tag!("u8"), |_| MaybeType::Known(Type::UInt8))
   | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
   | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
   | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
@@ -122,10 +122,58 @@ named!(bin_op<BinOp>, alt_complete!(
     })
 ));
 
+named!(literal<Literal>, alt_complete!(
+    literal_bool
+  | literal_int
+//  | literal_float
+//  | literal_string
+//  | literal_currency
+//  | literal_date));
+));
+
+named!(literal_bool<Literal>, alt!(
+    map!(tag!("true"), |_| Literal::Bool(true))
+  | map!(tag!("false"), |_| Literal::Bool(false))));
+
+named!(literal_int<Literal>, map_res!(do_parse!(
+    num: call!(nom::digit) >>
+    tag: alt_complete!(
+            tag!("u8")
+          | tag!("i16")
+          | tag!("i32")
+          | tag!("isize")) >>
+    (num, tag)), |(num, tag)| {
+        let num = unsafe { str::from_utf8_unchecked(num) };
+        let tag = unsafe { str::from_utf8_unchecked(tag) };
+        match tag {
+            "u8" => num.parse::<u8>().map(Literal::UInt8),
+            "i16" => num.parse::<i16>().map(Literal::Int16),
+            "i32" => num.parse::<i32>().map(Literal::Int32),
+            "isize" => num.parse::<i64>().map(Literal::IntPtr),
+            _ => panic!("internal parser error")
+        }
+    }));
+
 #[cfg(test)]
 mod test {
     use super::*;
     use nom::IResult;
+
+    #[test]
+    fn parse_literal() {
+        if let IResult::Done(_, Literal::Bool(true)) = literal("true".as_bytes()) {
+        } else {
+            panic!("didn't parse literal true");
+        }
+
+        if let IResult::Done(_, Literal::UInt8(17u8)) = literal("17u8".as_bytes()) {
+        } else {
+            panic!("didn't parse literal 17u8");
+        }
+
+        let res = literal("not!good".as_bytes());
+        assert!(res.is_err());
+    }
 
     #[test]
     fn parse_assign_ops() {
