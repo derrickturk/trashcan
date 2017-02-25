@@ -39,10 +39,11 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
-named!(path<Path>, map!(
-    separated_nonempty_list!(ws!(char!('.')), ident), Path));
+named!(path<Path>, complete!(map!(
+    separated_nonempty_list!(ws!(char!('.')), ident), Path)));
 
-named!(ident<Ident>, map!(do_parse!(
+named!(ident<Ident>, complete!(map!(do_parse!(
+        opt!(call!(nom::multispace)) >>
  first: call!(nom::alpha) >>
   rest: opt!(is_a_s!(IDENT_CONT_CHARS)) >>
         (first, rest)
@@ -54,73 +55,85 @@ named!(ident<Ident>, map!(do_parse!(
         }
         Ident(s)
     }
-}));
+})));
 
 enum MaybeType {
     Known(Type),
     Deferred(Ident),
 }
 
-named!(typename<MaybeType>, alt_complete!(
-    map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
-  | map!(tag!("u8"), |_| MaybeType::Known(Type::UInt8))
-  | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
-  | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
-  | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
-  | map!(tag!("f32"), |_| MaybeType::Known(Type::Float32))
-  | map!(tag!("f64"), |_| MaybeType::Known(Type::Float64))
-  | map!(tag!("str"), |_| MaybeType::Known(Type::String))
-  | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
-  | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
-  | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
-  | map!(ident, |i| MaybeType::Deferred(i))
-));
+named!(typename<MaybeType>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt_complete!(
+        map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
+      | map!(tag!("u8"), |_| MaybeType::Known(Type::UInt8))
+      | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
+      | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
+      | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
+      | map!(tag!("f32"), |_| MaybeType::Known(Type::Float32))
+      | map!(tag!("f64"), |_| MaybeType::Known(Type::Float64))
+      | map!(tag!("str"), |_| MaybeType::Known(Type::String))
+      | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
+      | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
+      | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
+      | map!(ident, |i| MaybeType::Deferred(i))
+    )
+)));
 
-named!(assign_op<AssignOp>, alt_complete!(
-    map!(char!('='), |_| AssignOp::Assign)
-  | map!(tag!("+="), |_| AssignOp::AddAssign)
-  | map!(tag!("-="), |_| AssignOp::SubAssign)
-  | map!(tag!("*="), |_| AssignOp::MulAssign)
-  | map!(tag!("/="), |_| AssignOp::DivAssign)
-  | map!(tag!("%="), |_| AssignOp::ModAssign)
-  | map!(tag!("^="), |_| AssignOp::PowAssign)
-  | map!(tag!("@="), |_| AssignOp::StrCatAssign)
-  | map!(tag!("&="), |_| AssignOp::BitAndAssign)
-  | map!(tag!("|="), |_| AssignOp::BitOrAssign)
-  | map!(tag!("&&="), |_| AssignOp::LogAndAssign)
-  | map!(tag!("||="), |_| AssignOp::LogOrAssign)
-));
+named!(assign_op<AssignOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt_complete!(
+        map!(char!('='), |_| AssignOp::Assign)
+      | map!(tag!("+="), |_| AssignOp::AddAssign)
+      | map!(tag!("-="), |_| AssignOp::SubAssign)
+      | map!(tag!("*="), |_| AssignOp::MulAssign)
+      | map!(tag!("/="), |_| AssignOp::DivAssign)
+      | map!(tag!("%="), |_| AssignOp::ModAssign)
+      | map!(tag!("^="), |_| AssignOp::PowAssign)
+      | map!(tag!("@="), |_| AssignOp::StrCatAssign)
+      | map!(tag!("&="), |_| AssignOp::BitAndAssign)
+      | map!(tag!("|="), |_| AssignOp::BitOrAssign)
+      | map!(tag!("&&="), |_| AssignOp::LogAndAssign)
+      | map!(tag!("||="), |_| AssignOp::LogOrAssign)
+    )
+)));
 
-named!(un_op<UnOp>, map!(one_of!("-~!"), |c| match c {
-    '-' => UnOp::Negate,
-    '~' => UnOp::BitNot,
-    '!' => UnOp::LogNot,
-    _ => panic!("internal parser error")
-}));
-
-named!(bin_op<BinOp>, alt_complete!(
-    map!(tag!("=="), |_| BinOp::Eq)
-  | map!(tag!("!="), |_| BinOp::NotEq)
-  | map!(tag!("<="), |_| BinOp::LtEq)
-  | map!(tag!(">="), |_| BinOp::GtEq)
-  | map!(tag!("&&"), |_| BinOp::LogAnd)
-  | map!(tag!("||"), |_| BinOp::LogOr)
-  | map!(one_of!("+-*/%^@<>&|."), |c| match c {
-        '+' => BinOp::Add,
-        '-' => BinOp::Sub,
-        '*' => BinOp::Mul,
-        '/' => BinOp::Div,
-        '%' => BinOp::Mod,
-        '^' => BinOp::Pow,
-        '@' => BinOp::StrCat,
-        '<' => BinOp::Lt,
-        '>' => BinOp::Gt,
-        '&' => BinOp::BitAnd,
-        '|' => BinOp::BitOr,
-        '.' => BinOp::MemInvoke,
+named!(un_op<UnOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(one_of!("-~!"), |c| match c {
+        '-' => UnOp::Negate,
+        '~' => UnOp::BitNot,
+        '!' => UnOp::LogNot,
         _ => panic!("internal parser error")
     })
-));
+)));
+
+named!(bin_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt_complete!(
+        map!(tag!("=="), |_| BinOp::Eq)
+      | map!(tag!("!="), |_| BinOp::NotEq)
+      | map!(tag!("<="), |_| BinOp::LtEq)
+      | map!(tag!(">="), |_| BinOp::GtEq)
+      | map!(tag!("&&"), |_| BinOp::LogAnd)
+      | map!(tag!("||"), |_| BinOp::LogOr)
+      | map!(one_of!("+-*/%^@<>&|."), |c| match c {
+            '+' => BinOp::Add,
+            '-' => BinOp::Sub,
+            '*' => BinOp::Mul,
+            '/' => BinOp::Div,
+            '%' => BinOp::Mod,
+            '^' => BinOp::Pow,
+            '@' => BinOp::StrCat,
+            '<' => BinOp::Lt,
+            '>' => BinOp::Gt,
+            '&' => BinOp::BitAnd,
+            '|' => BinOp::BitOr,
+            '.' => BinOp::MemInvoke,
+            _ => panic!("internal parser error")
+        })
+    )
+)));
 
 named!(literal<Literal>, alt_complete!(
     literal_bool
@@ -131,18 +144,23 @@ named!(literal<Literal>, alt_complete!(
 //  | literal_date));
 ));
 
-named!(literal_bool<Literal>, alt!(
-    map!(tag!("true"), |_| Literal::Bool(true))
-  | map!(tag!("false"), |_| Literal::Bool(false))));
+named!(literal_bool<Literal>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt!(
+        map!(tag!("true"), |_| Literal::Bool(true))
+      | map!(tag!("false"), |_| Literal::Bool(false))
+    )
+)));
 
-named!(literal_int<Literal>, map_res!(do_parse!(
+named!(literal_int<Literal>, complete!(map_res!(do_parse!(
+         opt!(call!(nom::multispace)) >>
     num: call!(nom::digit) >>
-    tag: opt!(alt_complete!(
+    tag: opt!(complete!(alt!(
             tag!("u8")
           | tag!("i16")
           | tag!("i32")
           | tag!("isize")
-         )) >>
+         ))) >>
     (num, tag)), |(num, tag): (&[u8], Option<&[u8]>)| {
         let num = unsafe { str::from_utf8_unchecked(num) };
         let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
@@ -155,16 +173,17 @@ named!(literal_int<Literal>, map_res!(do_parse!(
             None => num.parse::<i32>().map(Literal::Int32),
             _ => panic!("internal parser error")
         }
-    }));
+    })));
 
-named!(literal_float<Literal>, map_res!(do_parse!(
+named!(literal_float<Literal>, complete!(map_res!(do_parse!(
+         opt!(call!(nom::multispace)) >>
   whole: call!(nom::digit) >>
          char!('.') >> // mandatory decimal point
-   frac: opt!(call!(nom::digit)) >>
-    tag: opt!(alt_complete!(
+   frac: opt!(complete!(call!(nom::digit))) >>
+    tag: opt!(complete!(alt!(
             tag!("f32")
           | tag!("f64")
-         )) >>
+         ))) >>
     (whole, frac, tag)), |(w, f, tag): (&[u8], Option<&[u8]>, Option<&[u8]>)| {
         let num = unsafe {
             let mut s = String::from(str::from_utf8_unchecked(w));
@@ -185,7 +204,7 @@ named!(literal_float<Literal>, map_res!(do_parse!(
             None => num.parse::<f64>().map(Literal::Float64),
             _ => panic!("internal parser error")
         }
-    }));
+    })));
 
 #[cfg(test)]
 mod test {
@@ -199,9 +218,9 @@ mod test {
             panic!("didn't parse literal 17u8");
         }
 
-        match literal("12345 ".as_bytes()) {
+        match literal("12345".as_bytes()) {
             IResult::Done(_, Literal::Int32(12345)) => { },
-            _ => panic!("didn't parse literal 12345")
+            res => panic!("didn't parse literal 12345: {:?}", res)
         }
 
         match literal("12345u8".as_bytes()) {
@@ -212,7 +231,7 @@ mod test {
 
     #[test]
     fn parse_literal_floats() {
-        match literal("1. ".as_bytes()) {
+        match literal("1.".as_bytes()) {
             IResult::Done(_, Literal::Float64(1.0)) => { },
             res => panic!("didn't parse literal 1.: {:?}", res),
         }
