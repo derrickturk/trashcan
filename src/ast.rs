@@ -233,6 +233,7 @@ pub enum UnOp {
     Negate,
     BitNot,
     LogNot,
+    AddressOf, // -> VarPtr, ObjPtr, AddressOf
 }
 
 /// Binary operators

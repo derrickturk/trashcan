@@ -104,6 +104,7 @@ named!(un_op<UnOp>, complete!(preceded!(
         '-' => UnOp::Negate,
         '~' => UnOp::BitNot,
         '!' => UnOp::LogNot,
+        '&' => UnOp::AddressOf,
         _ => panic!("internal parser error")
     })
 )));
