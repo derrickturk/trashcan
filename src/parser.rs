@@ -1,5 +1,11 @@
 //! trashcan's parser and affiliated types
 
+use std::str;
+
+use nom;
+
+use ast::*;
+
 #[derive(Clone)]
 pub struct SrcLoc {
     pub file: String,
@@ -8,7 +14,11 @@ pub struct SrcLoc {
     pub len: u32,
 }
 
-use ast::*;
+const IDENT_CONT_CHARS: &'static str =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+     abcdefghijklmnopqrstuvwxyz\
+     0123456789\
+     _";
 
 /*
 
@@ -29,7 +39,39 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
-named!(assign_op(&[u8]) -> AssignOp, alt_complete!(
+named!(ident(&[u8]) -> Ident, map!(do_parse!(
+ first: call!(nom::alpha) >>
+  rest: is_a_s!(IDENT_CONT_CHARS) >>
+        (first, rest)
+), |(first, rest)| {
+    unsafe { // we know characters are valid utf8
+        let mut s = String::from(str::from_utf8_unchecked(first));
+        s.push_str(str::from_utf8_unchecked(rest));
+        Ident(s)
+    }
+}));
+
+enum MaybeType {
+    Known(Type),
+    Deferred(Ident),
+}
+
+named!(typename<MaybeType>, alt_complete!(
+    map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
+  | map!(tag!("i8"), |_| MaybeType::Known(Type::Int8))
+  | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
+  | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
+  | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
+  | map!(tag!("f32"), |_| MaybeType::Known(Type::Float32))
+  | map!(tag!("f64"), |_| MaybeType::Known(Type::Float64))
+  | map!(tag!("str"), |_| MaybeType::Known(Type::String))
+  | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
+  | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
+  | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
+  | map!(ident, |i| MaybeType::Deferred(i))
+));
+
+named!(assign_op<AssignOp>, alt_complete!(
     map!(char!('='), |_| AssignOp::Assign)
   | map!(tag!("+="), |_| AssignOp::AddAssign)
   | map!(tag!("-="), |_| AssignOp::SubAssign)
@@ -44,14 +86,14 @@ named!(assign_op(&[u8]) -> AssignOp, alt_complete!(
   | map!(tag!("||="), |_| AssignOp::LogOrAssign)
 ));
 
-named!(un_op(&[u8]) -> UnOp, map!(one_of!("-~!"), |c| match c {
+named!(un_op<UnOp>, map!(one_of!("-~!"), |c| match c {
     '-' => UnOp::Negate,
     '~' => UnOp::BitNot,
     '!' => UnOp::LogNot,
     _ => panic!("internal parser error")
 }));
 
-named!(bin_op(&[u8]) -> BinOp, alt_complete!(
+named!(bin_op<BinOp>, alt_complete!(
     map!(tag!("=="), |_| BinOp::Eq)
   | map!(tag!("!="), |_| BinOp::NotEq)
   | map!(tag!("<="), |_| BinOp::LtEq)
@@ -124,4 +166,35 @@ mod test {
         assert!(bin_op("xx".as_bytes()).is_err());
     }
 
+    #[test]
+    fn parse_ident() {
+        let res = ident("_abcdef".as_bytes());
+        assert!(res.is_err());
+
+        match ident("a_23".as_bytes()) {
+            IResult::Done(_, Ident(s)) => assert!(s == "a_23"),
+            _ => panic!("couldn't parse ident")
+        }
+
+        let res = ident("big bad sally".as_bytes());
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn parse_type() {
+        let res = typename("_abcdef".as_bytes());
+        assert!(res.is_err());
+
+        match typename("boogaloo".as_bytes()) {
+            IResult::Done(_, MaybeType::Deferred(Ident(s))) => {
+                assert!(s == "boogaloo")
+            },
+            _ => panic!("couldn't parse deferred-ident type")
+        }
+
+        match typename("i32".as_bytes()) {
+            IResult::Done(_, MaybeType::Known(Int32)) => { },
+            _ => panic!("couldn't parse i32")
+        }
+    }
 }

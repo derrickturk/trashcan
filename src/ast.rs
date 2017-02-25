@@ -56,8 +56,8 @@ pub enum StmtKind {
     /// expression-as-statement
     ExprStmt(Expr),
 
-    /// variable declaration with optional initializer
-    VarDecl(Ident, Type, Option<Expr>),
+    /// variable declaration(s) with optional initializer(s)
+    VarDecl(Vec<(Ident, Type, Option<Expr>)>),
 
     /// assignment statement (including += et. al)
     Assign(Expr, AssignOp, Expr),
@@ -125,11 +125,11 @@ pub enum ExprKind {
 
 /// Module, item, variable, or type identifiers
 #[derive(Clone)]
-pub struct Ident(String);
+pub struct Ident(pub String);
 
 /// A "name path" e.g. a.b.c.d
 #[derive(Clone)]
-pub struct Path(Vec<Ident>);
+pub struct Path(pub Vec<Ident>);
 
 /// Item access specifiers (private by default)
 #[derive(Copy, Clone)]
