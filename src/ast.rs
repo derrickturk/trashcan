@@ -183,6 +183,8 @@ pub enum Type {
     Date,
     /// var
     Variant,
+    /// obj (unspecified object type)
+    Obj,
     /// named object type
     Object(Ident),
     /// named structure type

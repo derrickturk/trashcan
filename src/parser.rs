@@ -76,6 +76,7 @@ named!(typename<MaybeType>, complete!(preceded!(
       | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
       | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
       | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
+      | map!(tag!("obj"), |_| MaybeType::Known(Type::Obj))
       | map!(ident, |i| MaybeType::Deferred(i))
     )
 )));
