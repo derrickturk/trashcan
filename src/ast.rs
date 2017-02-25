@@ -2,31 +2,31 @@
 
 use parser::SrcLoc;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Dumpster {
     pub modules: Vec<Module>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ModuleKind {
     Normal(Vec<NormalItem>),
     // Class(Vec<ClassItem>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Module {
     pub name: Ident,
     pub data: ModuleKind,
     pub loc: SrcLoc,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum NormalItem {
     Function(FunDef),
 }
 
 /// Function definitions
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Ident,
     pub access: Access,
@@ -36,7 +36,7 @@ pub struct FunDef {
     pub loc: SrcLoc,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FunParam {
     pub name: Ident,
     pub typ: Type,
@@ -45,13 +45,13 @@ pub struct FunParam {
 }
 
 /// Statements
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Stmt {
     pub data: StmtKind,
     pub loc: SrcLoc,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StmtKind {
     /// expression-as-statement
     ExprStmt(Expr),
@@ -87,13 +87,13 @@ pub enum StmtKind {
 }
 
 /// Expressions
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Expr {
     pub data: ExprKind,
     pub loc: SrcLoc,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ExprKind {
     /// A literal
     Literal,
@@ -124,15 +124,15 @@ pub enum ExprKind {
 }
 
 /// Module, item, variable, or type identifiers
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Ident(pub String);
 
 /// A "name path" e.g. a.b.c.d
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Path(pub Vec<Ident>);
 
 /// Item access specifiers (private by default)
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Access {
     /// (Module- or class-) private (default)
     Private,
@@ -141,7 +141,7 @@ pub enum Access {
 }
 
 /// Parameter passing modes
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ParamMode {
     /// Pass by value (default)
     ByVal,
@@ -150,7 +150,7 @@ pub enum ParamMode {
 }
 
 /// Primitive types of trashcan
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Type {
     /// bool
     Bool,
@@ -185,7 +185,7 @@ pub enum Type {
     // eventually... FnPtr ( args, ret )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 /// Assignment operators
 pub enum AssignOp {
     /// `x = y`
@@ -218,7 +218,7 @@ pub enum AssignOp {
     LogOrAssign,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 /// Unary operators
 pub enum UnOp {
     Negate,
@@ -227,7 +227,7 @@ pub enum UnOp {
 }
 
 /// Binary operators
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum BinOp {
     Add,
     Sub,
@@ -251,7 +251,7 @@ pub enum BinOp {
     MemInvoke,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     /// bool
     Bool(bool),

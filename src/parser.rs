@@ -6,7 +6,7 @@ use nom;
 
 use ast::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SrcLoc {
     pub file: String,
     pub line: u32,
@@ -124,8 +124,8 @@ named!(bin_op<BinOp>, alt_complete!(
 
 named!(literal<Literal>, alt_complete!(
     literal_bool
+  | literal_float // try this before int
   | literal_int
-//  | literal_float
 //  | literal_string
 //  | literal_currency
 //  | literal_date));
@@ -157,19 +157,35 @@ named!(literal_int<Literal>, map_res!(do_parse!(
         }
     }));
 
-/*
-named!(literal_int<Literal>, map_res!(do_parse!(
-   num: call!(nom::digit) >>
-suffix: opt!(alt!(
-            tag!("u8")
-          | tag!("i16")
-          | tag!("i32")
-          | tag!("i64")
-          | tag!("f32")
+named!(literal_float<Literal>, map_res!(do_parse!(
+  whole: call!(nom::digit) >>
+         char!('.') >> // mandatory decimal point
+   frac: opt!(call!(nom::digit)) >>
+    tag: opt!(alt_complete!(
+            tag!("f32")
           | tag!("f64")
-        )) >>
-        (num, suffix)), |
-*/
+         )) >>
+    (whole, frac, tag)), |(w, f, tag): (&[u8], Option<&[u8]>, Option<&[u8]>)| {
+        let num = unsafe {
+            let mut s = String::from(str::from_utf8_unchecked(w));
+            match f {
+                Some(frac) => {
+                    s.push_str(".");
+                    s.push_str(str::from_utf8_unchecked(frac));
+                }
+                None => {}
+            }
+            s
+        };
+        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
+        match tag {
+            Some("f32") => num.parse::<f32>().map(Literal::Float32),
+            Some("f64") => num.parse::<f64>().map(Literal::Float64),
+            // default f64
+            None => num.parse::<f64>().map(Literal::Float64),
+            _ => panic!("internal parser error")
+        }
+    }));
 
 #[cfg(test)]
 mod test {
@@ -177,12 +193,7 @@ mod test {
     use nom::IResult;
 
     #[test]
-    fn parse_literal() {
-        if let IResult::Done(_, Literal::Bool(true)) = literal("true".as_bytes()) {
-        } else {
-            panic!("didn't parse literal true");
-        }
-
+    fn parse_literal_ints() {
         if let IResult::Done(_, Literal::UInt8(17u8)) = literal("17u8".as_bytes()) {
         } else {
             panic!("didn't parse literal 17u8");
@@ -196,6 +207,27 @@ mod test {
         match literal("12345u8".as_bytes()) {
             IResult::Done(_, _) => panic!("parsed 12345u8"),
             _ => { }
+        }
+    }
+
+    #[test]
+    fn parse_literal_floats() {
+        match literal("1. ".as_bytes()) {
+            IResult::Done(_, Literal::Float64(1.0)) => { },
+            res => panic!("didn't parse literal 1.: {:?}", res),
+        }
+
+        match literal("1.3f32".as_bytes()) {
+            IResult::Done(_, Literal::Float32(1.3f32)) => { },
+            _ => panic!("didn't parse literal 1.3f32")
+        }
+    }
+
+    #[test]
+    fn parse_literal() {
+        if let IResult::Done(_, Literal::Bool(true)) = literal("true".as_bytes()) {
+        } else {
+            panic!("didn't parse literal true");
         }
 
         let res = literal("not!good".as_bytes());
