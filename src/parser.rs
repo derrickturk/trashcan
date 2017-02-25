@@ -105,7 +105,7 @@ named!(bin_op<BinOp>, alt_complete!(
   | map!(tag!(">="), |_| BinOp::GtEq)
   | map!(tag!("&&"), |_| BinOp::LogAnd)
   | map!(tag!("||"), |_| BinOp::LogOr)
-  | map!(one_of!("+-*/%^@<>&|"), |c| match c {
+  | map!(one_of!("+-*/%^@<>&|."), |c| match c {
         '+' => BinOp::Add,
         '-' => BinOp::Sub,
         '*' => BinOp::Mul,
@@ -117,6 +117,7 @@ named!(bin_op<BinOp>, alt_complete!(
         '>' => BinOp::Gt,
         '&' => BinOp::BitAnd,
         '|' => BinOp::BitOr,
+        '.' => BinOp::MemInvoke,
         _ => panic!("internal parser error")
     })
 ));
