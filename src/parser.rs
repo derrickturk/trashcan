@@ -39,14 +39,19 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
-named!(ident(&[u8]) -> Ident, map!(do_parse!(
+named!(path<Path>, map!(
+    separated_nonempty_list!(ws!(char!('.')), ident), Path));
+
+named!(ident<Ident>, map!(do_parse!(
  first: call!(nom::alpha) >>
-  rest: is_a_s!(IDENT_CONT_CHARS) >>
+  rest: opt!(is_a_s!(IDENT_CONT_CHARS)) >>
         (first, rest)
 ), |(first, rest)| {
     unsafe { // we know characters are valid utf8
         let mut s = String::from(str::from_utf8_unchecked(first));
-        s.push_str(str::from_utf8_unchecked(rest));
+        if let Some(rest) = rest {
+            s.push_str(str::from_utf8_unchecked(rest));
+        }
         Ident(s)
     }
 }));
@@ -172,12 +177,14 @@ mod test {
         assert!(res.is_err());
 
         match ident("a_23".as_bytes()) {
-            IResult::Done(_, Ident(s)) => assert!(s == "a_23"),
+            IResult::Done(_, Ident(s)) => assert_eq!(s, "a_23"),
             _ => panic!("couldn't parse ident")
         }
 
-        let res = ident("big bad sally".as_bytes());
-        assert!(res.is_err());
+        match ident("this".as_bytes()) {
+            IResult::Done(_, Ident(s)) => assert_eq!(s, "this"),
+            _ => panic!("couldn't parse 'this' as ident")
+        }
     }
 
     #[test]
@@ -195,6 +202,37 @@ mod test {
         match typename("i32".as_bytes()) {
             IResult::Done(_, MaybeType::Known(Int32)) => { },
             _ => panic!("couldn't parse i32")
+        }
+    }
+
+    #[test]
+    fn parse_path() {
+        let res = path("_this::wont::even::start".as_bytes());
+        assert!(res.is_err());
+
+        match path("ident".as_bytes()) {
+            IResult::Done(_, Path(vec)) => assert_eq!(vec.len(), 1),
+            _ => panic!("didn't parse single-ident path")
+        }
+
+        match path("an_ident".as_bytes()) {
+            IResult::Done(_, Path(vec)) => assert_eq!(vec.len(), 1),
+            _ => panic!("didn't parse single-ident path")
+        }
+
+        match path("some_module.an_ident".as_bytes()) {
+            IResult::Done(_, Path(vec)) => assert_eq!(vec.len(), 2),
+            _ => panic!("didn't parse two-ident path")
+        }
+
+        match path("some_module.some.\nother .  thing".as_bytes()) {
+            IResult::Done(_, Path(vec)) => {
+                for &Ident(ref s) in &vec {
+                    println!("ident: {}", s);
+                }
+                assert_eq!(vec.len(), 4);
+            }
+            _ => panic!("didn't parse messy path")
         }
     }
 }

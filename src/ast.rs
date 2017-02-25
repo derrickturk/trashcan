@@ -127,6 +127,7 @@ pub enum ExprKind {
 #[derive(Clone)]
 pub struct Ident(pub String);
 
+// TODO: what about x.f().g()? (we need to distinguish path and method-call)
 /// A "name path" e.g. a.b.c.d
 #[derive(Clone)]
 pub struct Path(pub Vec<Ident>);
