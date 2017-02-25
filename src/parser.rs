@@ -137,22 +137,39 @@ named!(literal_bool<Literal>, alt!(
 
 named!(literal_int<Literal>, map_res!(do_parse!(
     num: call!(nom::digit) >>
-    tag: alt_complete!(
+    tag: opt!(alt_complete!(
             tag!("u8")
           | tag!("i16")
           | tag!("i32")
-          | tag!("isize")) >>
-    (num, tag)), |(num, tag)| {
+          | tag!("isize")
+         )) >>
+    (num, tag)), |(num, tag): (&[u8], Option<&[u8]>)| {
         let num = unsafe { str::from_utf8_unchecked(num) };
-        let tag = unsafe { str::from_utf8_unchecked(tag) };
+        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
         match tag {
-            "u8" => num.parse::<u8>().map(Literal::UInt8),
-            "i16" => num.parse::<i16>().map(Literal::Int16),
-            "i32" => num.parse::<i32>().map(Literal::Int32),
-            "isize" => num.parse::<i64>().map(Literal::IntPtr),
+            Some("u8") => num.parse::<u8>().map(Literal::UInt8),
+            Some("i16") => num.parse::<i16>().map(Literal::Int16),
+            Some("i32") => num.parse::<i32>().map(Literal::Int32),
+            Some("isize") => num.parse::<i64>().map(Literal::IntPtr),
+            // default i32
+            None => num.parse::<i32>().map(Literal::Int32),
             _ => panic!("internal parser error")
         }
     }));
+
+/*
+named!(literal_int<Literal>, map_res!(do_parse!(
+   num: call!(nom::digit) >>
+suffix: opt!(alt!(
+            tag!("u8")
+          | tag!("i16")
+          | tag!("i32")
+          | tag!("i64")
+          | tag!("f32")
+          | tag!("f64")
+        )) >>
+        (num, suffix)), |
+*/
 
 #[cfg(test)]
 mod test {
@@ -169,6 +186,16 @@ mod test {
         if let IResult::Done(_, Literal::UInt8(17u8)) = literal("17u8".as_bytes()) {
         } else {
             panic!("didn't parse literal 17u8");
+        }
+
+        match literal("12345 ".as_bytes()) {
+            IResult::Done(_, Literal::Int32(12345)) => { },
+            _ => panic!("didn't parse literal 12345")
+        }
+
+        match literal("12345u8".as_bytes()) {
+            IResult::Done(_, _) => panic!("parsed 12345u8"),
+            _ => { }
         }
 
         let res = literal("not!good".as_bytes());
