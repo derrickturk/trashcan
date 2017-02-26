@@ -48,6 +48,7 @@ const KEYWORDS: [&'static str; 23] = [
 
 enum CustomErrors {
     KeywordAsIdent,
+    InvalidEscape,
 }
 
 /*
@@ -183,7 +184,7 @@ named!(literal<Literal>, alt_complete!(
     literal_bool
   | literal_float // try this before int
   | literal_int
-//  | literal_string
+  | literal_string
 //  | literal_currency
 //  | literal_date));
 ));
@@ -250,20 +251,47 @@ named!(literal_float<Literal>, complete!(map_res!(do_parse!(
         }
     })));
 
-/*
-
-named!(literal_string<Literal>, complete!(preceded!(
+named!(literal_string<Literal>, map_res!(complete!(preceded!(
     opt!(call!(nom::multispace)),
     delimited!(
         char!('"'),
-        many0!(escape_char),
+        escaped_string,
         char!('"')
     )
-)));
+)), |bytes| {
+    String::from_utf8(bytes).map(Literal::String)
+}));
 
-pub fn escape_char(input: &[u8]) -> nom::IResult<&[u8], char> {
-    // something something peekable?
+fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
+    let mut s = Vec::new();
+    let mut bytes = input.iter();
+    while let Some(c) = bytes.next() {
+        if *c == b'"' {
+            break;
+        }
+
+        if *c == b'\\' {
+            match bytes.next() {
+                Some(&b'n') => s.push(b'\n'),
+                Some(&b't') => s.push(b'\t'),
+                // TODO: more escapes here
+                _ => return IResult::Error(
+                    ErrorKind::Custom(CustomErrors::InvalidEscape as u32))
+            }
+        }
+
+        // TODO: it'd be nice to allow rust style multiline strings
+        //   (or maybe C-style adjacent-literal concatenation)
+        // first option needs peek here; second just needs a change to the
+        // literal_string production
+
+        s.push(*c);
+    }
+
+    IResult::Done(&input[s.len()..], s)
 }
+
+/*
 
 named!(escape_char<char>, complete!(alt!(
     map!(preceded!(char!('\\'), take!(1)), |c| {
@@ -280,16 +308,30 @@ named!(escape_char<char>, complete!(alt!(
 
 */
 
-// TODO: we need an array of keywords, and a not! in ident
-
 // TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
 //   forbid them?
 //   prepend some goofy ©high-ASCII char?
+// answer: yes, in codegen (not here)
 
 #[cfg(test)]
 mod test {
     use super::*;
     use nom::{self, IResult, ErrorKind};
+
+    #[test]
+    fn parse_literal_strs() {
+        let s = "it is only fitting that\ttabs are embedded here.\n";
+        let lit_s = format!("\"{}\"", s);
+
+        if let IResult::Done(_, Literal::String(l)) = literal(lit_s.as_bytes()) {
+            assert_eq!(s, l);
+        } else {
+            panic!("failed to parse literal string.");
+        }
+
+        let res = literal(b"\"an invalid \\xescape sequence\\\"");
+        assert!(res.is_err());
+    }
 
     #[test]
     fn parse_literal_ints() {
