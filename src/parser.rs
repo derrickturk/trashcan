@@ -119,8 +119,14 @@ named!(expr<Expr>, complete!(map!(do_parse!(
 
 // a non (left) recursive expr
 named!(nonrec_expr<Expr>, alt_complete!(
+    // unary operator application (TODO: fix precedence)
+    tuple!(un_op, expr) => { |(op, e)| Expr {
+        data: ExprKind::UnOpApp(Box::new(e), op),
+        loc: empty_loc!(),
+    }}
+
     // if we ever allow indirect fncalls this will become left-recursive
-    fncall
+  | fncall
 
   | path => { |p| Expr {
         data: ExprKind::Name(p),
@@ -610,6 +616,10 @@ mod test {
         assert!(expr(e).is_done());
 
         let e = b"x ? f(23) : y[17]";
+        assert!(expr(e).is_done());
+
+        let e = b"!f(2) ? f(~23) : y[17]";
+        panic!("{:?}", expr(e));
         assert!(expr(e).is_done());
     }
 }
