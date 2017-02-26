@@ -14,6 +14,18 @@ pub struct SrcLoc {
     pub len: u32,
 }
 
+// for now...
+macro_rules! empty_loc {
+    () => {
+        SrcLoc {
+            file: String::new(),
+            line: 0,
+            start: 0,
+            len: 0,
+        }
+    }
+}
+
 const IDENT_CONT_CHARS: &'static str =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ\
      abcdefghijklmnopqrstuvwxyz\
@@ -67,6 +79,54 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
             )));
 
 */
+
+// we have to handle left recursion very carefully
+//   when parsing expressions (see https://en.wikipedia.org/wiki/Left_recursion)
+//   and an example at https://github.com/Geal/nom/blob/master/tests/arithmetic_ast.rs
+
+// the "rest" (recursive part) of a recursive expr
+enum RecExprRest {
+    Indexed(Expr),
+}
+
+// pull a nonrecursive expr, and maybe a recursive rest
+named!(expr<Expr>, complete!(map!(do_parse!(
+    first: call!(nonrec_expr) >>
+     rest: opt!(call!(indexed)) >>
+           (first, rest)),
+   |(first, rest)| {
+       match rest {
+           None => first,
+           Some(RecExprRest::Indexed(e)) => Expr {
+               data: ExprKind::Index(Box::new(first), Box::new(e)),
+               loc: empty_loc!(),
+           },
+       }
+})));
+
+// a nonrecursive expr
+named!(nonrec_expr<Expr>, alt_complete!(
+    path => { |p| Expr {
+        data: ExprKind::Name(p),
+        loc: empty_loc!(),
+    }}
+
+  | literal => { |lit| Expr {
+        data: ExprKind::Lit(lit),
+        loc: empty_loc!(),
+    }}
+));
+
+// various possible recursive "rests" of exprs
+
+named!(indexed<RecExprRest>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('[') >>
+ index: call!(expr) >>
+        opt!(call!(nom::multispace)) >>
+        char!(']') >>
+        (RecExprRest::Indexed(index))
+)));
 
 named!(path<Path>, complete!(map!(
     separated_nonempty_list!(ws!(char!('.')), ident), Path)));
@@ -185,6 +245,7 @@ named!(literal<Literal>, alt_complete!(
   | literal_float // try this before int
   | literal_int
   | literal_string
+//  TODO: "wacky" literal types
 //  | literal_currency
 //  | literal_date));
 ));
@@ -494,5 +555,34 @@ mod test {
             }
             _ => panic!("didn't parse messy path")
         }
+    }
+
+    #[test]
+    fn parse_expr() {
+        let e = b"32.5";
+        match expr(e) {
+            IResult::Done(_, Expr { data: ExprKind::Lit(Literal::Float64(32.5)), loc: _ }) => { },
+            res => panic!("didn't parse literal expr: {:?}", res)
+        }
+
+        let e = b"some.modules.array[23]";
+        match expr(e) {
+            IResult::Done(_, Expr { data: ExprKind::Index(e1, e2), loc: _ }) => {
+                match *e1 {
+                    Expr { data: ExprKind::Name(p), loc: _ } => { },
+                    res => panic!("indexing expr: didn't parse e1 as path: {:?}", res)
+                }
+
+                match *e2 {
+                    Expr { data: ExprKind::Lit(Literal::Int32(23)), loc: _ } => { },
+                    res => panic!("indexing expr: didn't parse e2 as literal: {:?}", res)
+                }
+            },
+            res => panic!("didn't parse indexing expr: {:?}", res)
+        }
+
+        // will it blend?
+        let e = b"some.modules.array[some.other.array[23]]";
+        assert!(expr(e).is_done());
     }
 }

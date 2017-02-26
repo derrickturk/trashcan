@@ -105,7 +105,7 @@ pub struct Expr {
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// A literal
-    Literal,
+    Lit(Literal),
 
     /// A "named thing"; e.g. `x` or `mod1.y`
     Name(Path),
