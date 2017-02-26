@@ -122,14 +122,12 @@ pub enum ExprKind {
     /// A binary application e.g. `x + y`
     BinOpApp(Box<Expr>, Box<Expr>, BinOp),
 
-    // a conditional expression e.g. `x == 2 ? y : z`
-    /* for later...
+    /// a conditional expression e.g. `x == 2 ? y : z`
     CondExpr {
         cond: Box<Expr>,
         if_expr: Box<Expr>,
         else_expr: Box<Expr>,
     },
-    */
 }
 
 // TODO: maybe fix order of operations with multiple

@@ -87,12 +87,17 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
     Indexed(Expr),
+    // FunCall(Vec<Expr>),
+    CondExpr(Expr, Expr),
 }
 
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(expr<Expr>, complete!(map!(do_parse!(
     first: call!(nonrec_expr) >>
-     rest: opt!(call!(indexed)) >>
+     rest: opt!(alt_complete!(
+               call!(indexed)
+             | call!(condexpr)
+           )) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
@@ -101,12 +106,23 @@ named!(expr<Expr>, complete!(map!(do_parse!(
                data: ExprKind::Index(Box::new(first), Box::new(e)),
                loc: empty_loc!(),
            },
+           Some(RecExprRest::CondExpr(ifexpr, elseexpr)) => Expr {
+               data: ExprKind::CondExpr {
+                         cond: Box::new(first),
+                         if_expr: Box::new(ifexpr),
+                         else_expr: Box::new(elseexpr),
+                     },
+               loc: empty_loc!(),
+           },
        }
 })));
 
-// a nonrecursive expr
+// a non (left) recursive expr
 named!(nonrec_expr<Expr>, alt_complete!(
-    path => { |p| Expr {
+    // if we ever allow indirect fncalls this will become left-recursive
+    fncall
+
+  | path => { |p| Expr {
         data: ExprKind::Name(p),
         loc: empty_loc!(),
     }}
@@ -117,6 +133,18 @@ named!(nonrec_expr<Expr>, alt_complete!(
     }}
 ));
 
+named!(fncall<Expr>, complete!(do_parse!(
+    name: call!(path) >>
+          opt!(call!(nom::multispace)) >>
+          char!('(') >>
+    args: separated_list!(ws!(char!(',')), expr) >>
+          char!(')') >>
+          (Expr {
+              data: ExprKind::Call(Box::new(name), args),
+              loc: empty_loc!(),
+          })
+)));
+
 // various possible recursive "rests" of exprs
 
 named!(indexed<RecExprRest>, complete!(do_parse!(
@@ -126,6 +154,17 @@ named!(indexed<RecExprRest>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!(']') >>
         (RecExprRest::Indexed(index))
+)));
+
+named!(condexpr<RecExprRest>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            char!('?') >>
+    ifexpr: call!(expr) >>
+            opt!(call!(nom::multispace)) >>
+            char!(':') >>
+            opt!(call!(nom::multispace)) >>
+  elseexpr: call!(expr) >>
+            (RecExprRest::CondExpr(ifexpr, elseexpr))
 )));
 
 named!(path<Path>, complete!(map!(
@@ -352,23 +391,6 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
     IResult::Done(&input[s.len()..], s)
 }
 
-/*
-
-named!(escape_char<char>, complete!(alt!(
-    map!(preceded!(char!('\\'), take!(1)), |c| {
-        match c[0] {
-            b'n' => '\n',
-            b't' => '\t',
-            b'\\' => '\\',
-            // that's all for now
-            _ => return_error!(ErrorKind::Char)
-        }
-    })
-  | map!(take!(1), |c| c[0])
-)));
-
-*/
-
 // TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
 //   forbid them?
 //   prepend some goofy ©high-ASCII char?
@@ -581,8 +603,13 @@ mod test {
             res => panic!("didn't parse indexing expr: {:?}", res)
         }
 
-        // will it blend?
         let e = b"some.modules.array[some.other.array[23]]";
+        assert!(expr(e).is_done());
+
+        let e = b"some.fun(1, 2, x[2], other())";
+        assert!(expr(e).is_done());
+
+        let e = b"x ? f(23) : y[17]";
         assert!(expr(e).is_done());
     }
 }
