@@ -2,7 +2,7 @@
 
 use std::str;
 
-use nom;
+use nom::{self, IResult, ErrorKind};
 
 use ast::*;
 
@@ -20,6 +20,36 @@ const IDENT_CONT_CHARS: &'static str =
      0123456789\
      _";
 
+const KEYWORDS: [&'static str; 23] = [
+    "let",
+    "print",
+    "return",
+    "for",
+    "while",
+    "pub",
+    "mod",
+    "fn",
+    "class",
+    "struct",
+    "enum",
+    "bool",
+    "u8",
+    "i16",
+    "i32",
+    "i64",
+    "f32",
+    "f64",
+    "str",
+    "currency",
+    "date",
+    "var",
+    "obj",
+];
+
+enum CustomErrors {
+    KeywordAsIdent,
+}
+
 /*
 
 named!(dumpster(&[u8]) -> Dumpster, map!(
@@ -35,14 +65,12 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
             unimplemented!()
             )));
 
-// named!(ident(&[u8]) -> Ident, 
-
 */
 
 named!(path<Path>, complete!(map!(
     separated_nonempty_list!(ws!(char!('.')), ident), Path)));
 
-named!(ident<Ident>, complete!(map!(do_parse!(
+named!(maybe_ident<Ident>, complete!(map!(do_parse!(
         opt!(call!(nom::multispace)) >>
  first: call!(nom::alpha) >>
   rest: opt!(is_a_s!(IDENT_CONT_CHARS)) >>
@@ -56,6 +84,20 @@ named!(ident<Ident>, complete!(map!(do_parse!(
         Ident(s)
     }
 })));
+
+pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
+    let res = maybe_ident(input);
+    match res {
+        IResult::Done(rest, Ident(name)) =>
+            if KEYWORDS.contains(&name.as_str()) {
+                IResult::Error(
+                    ErrorKind::Custom(CustomErrors::KeywordAsIdent as u32))
+            } else {
+                IResult::Done(rest, Ident(name))
+            },
+        err => err,
+    }
+}
 
 enum MaybeType {
     Known(Type),
@@ -208,10 +250,46 @@ named!(literal_float<Literal>, complete!(map_res!(do_parse!(
         }
     })));
 
+/*
+
+named!(literal_string<Literal>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    delimited!(
+        char!('"'),
+        many0!(escape_char),
+        char!('"')
+    )
+)));
+
+pub fn escape_char(input: &[u8]) -> nom::IResult<&[u8], char> {
+    // something something peekable?
+}
+
+named!(escape_char<char>, complete!(alt!(
+    map!(preceded!(char!('\\'), take!(1)), |c| {
+        match c[0] {
+            b'n' => '\n',
+            b't' => '\t',
+            b'\\' => '\\',
+            // that's all for now
+            _ => return_error!(ErrorKind::Char)
+        }
+    })
+  | map!(take!(1), |c| c[0])
+)));
+
+*/
+
+// TODO: we need an array of keywords, and a not! in ident
+
+// TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
+//   forbid them?
+//   prepend some goofy ©high-ASCII char?
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use nom::IResult;
+    use nom::{self, IResult, ErrorKind};
 
     #[test]
     fn parse_literal_ints() {
@@ -313,6 +391,17 @@ mod test {
         match ident("this".as_bytes()) {
             IResult::Done(_, Ident(s)) => assert_eq!(s, "this"),
             _ => panic!("couldn't parse 'this' as ident")
+        }
+
+        match ident(b"for") {
+            IResult::Error(ErrorKind::Custom(e))
+                if e == CustomErrors::KeywordAsIdent as u32 => { },
+            res => panic!("didn't fail keyword-as-ident: {:?}, res")
+        }
+
+        match ident("fortuna".as_bytes()) {
+            IResult::Done(_, Ident(s)) => assert_eq!(s, "fortuna"),
+            _ => panic!("couldn't parse ident")
         }
     }
 

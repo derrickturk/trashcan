@@ -132,6 +132,9 @@ pub enum ExprKind {
     */
 }
 
+// TODO: maybe fix order of operations with multiple
+//   productions here?
+
 /// Module, item, variable, or type identifiers
 #[derive(Clone, Debug)]
 pub struct Ident(pub String);
