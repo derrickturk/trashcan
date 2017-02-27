@@ -8,7 +8,7 @@ pub fn f(x: i32, y: f64[]) -> string {
     while x < 17 {
         x = x + 1;
         x += 3;
-        print y[x]; // Debug.Print
+        print other_mod::y[x]; // Debug.Print
     }
     return "lo siento";
 }
