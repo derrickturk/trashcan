@@ -114,7 +114,13 @@ pub enum ExprKind {
     Index(Box<Expr>, Box<Expr>),
 
     /// A function call `f(a1, a2, ...)`
-    Call(Box<Path>, Vec<Expr>),
+    Call(Path, Vec<Expr>),
+
+    /// A member invoke (expr).m
+    Member(Box<Expr>, Ident),
+
+    /// A member function invoke (expr).f(args, ...)
+    MemberInvoke(Box<Expr>, Ident, Vec<Expr>),
 
     /// A unary application e.g. `-x`
     UnOpApp(Box<Expr>, UnOp),
@@ -261,7 +267,6 @@ pub enum BinOp {
     // BitXor,
     LogAnd,
     LogOr,
-    MemInvoke,
 }
 
 /// Literals are...

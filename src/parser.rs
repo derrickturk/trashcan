@@ -93,6 +93,8 @@ enum RecExprRest {
 // the "rest" (recursive part) of a "unitary" recursive expr
 enum UnitaryRecExprRest {
     Indexed(Expr),
+    Member(Ident),
+    MemberInvoke(Ident, Vec<Expr>),
     // FunCall(Vec<Expr>),
 }
 
@@ -226,13 +228,28 @@ named!(unitary_op_expr<Expr>, alt_complete!(
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(unitary_expr<Expr>, complete!(map!(do_parse!(
     first: call!(nonrec_unitary_expr) >>
-     rest: opt!(call!(indexed)) >>
+     rest: opt!(alt_complete!(
+               indexed
+             | memberinvoke
+             | member
+           )) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
            None => first,
+
            Some(UnitaryRecExprRest::Indexed(e)) => Expr {
                data: ExprKind::Index(Box::new(first), Box::new(e)),
+               loc: empty_loc!(),
+           },
+
+           Some(UnitaryRecExprRest::Member(i)) => Expr {
+               data: ExprKind::Member(Box::new(first), i),
+               loc: empty_loc!(),
+           },
+
+           Some(UnitaryRecExprRest::MemberInvoke(i, args)) => Expr {
+               data: ExprKind::MemberInvoke(Box::new(first), i, args),
                loc: empty_loc!(),
            },
        }
@@ -263,7 +280,7 @@ named!(fncall<Expr>, complete!(do_parse!(
     args: separated_list!(ws!(char!(',')), expr) >>
           char!(')') >>
           (Expr {
-              data: ExprKind::Call(Box::new(name), args),
+              data: ExprKind::Call(name, args),
               loc: empty_loc!(),
           })
 )));
@@ -287,6 +304,23 @@ named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!(']') >>
         (UnitaryRecExprRest::Indexed(index))
+)));
+
+named!(member<UnitaryRecExprRest>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('.') >>
+ name:  call!(ident) >>
+        (UnitaryRecExprRest::Member(name))
+)));
+
+named!(memberinvoke<UnitaryRecExprRest>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('.') >>
+ name:  call!(ident) >>
+        char!('(') >>
+  args: separated_list!(ws!(char!(',')), expr) >>
+        char!(')') >>
+        (UnitaryRecExprRest::MemberInvoke(name, args))
 )));
 
 named!(path<Path>, complete!(map!(
@@ -781,6 +815,9 @@ mod test {
         assert!(expr(e).is_done());
 
         let e = b"(2 + 3 * 7 && f(9) | ~x[17]) @ \"bob\"";
+        assert!(expr(e).is_done());
+
+        let e = b"f(17).x + f(23).foo(99)";
         panic!("{:?}", expr(e));
         assert!(expr(e).is_done());
     }
