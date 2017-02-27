@@ -113,16 +113,8 @@ enum UnitaryRecExprRest {
 
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(expr<Expr>, complete!(map!(do_parse!(
-    first: call!(unitary_op_expr) >>
-     rest: opt!(alt_complete!(
-               powexpr
-             | muldivexpr
-             | addsubexpr
-             | cmpexpr
-             | eqexpr
-             | bitandexpr
-             | condexpr
-           )) >>
+    first: call!(logorexpr) >>
+     rest: opt!(call!(condexpr)) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
@@ -144,44 +136,70 @@ named!(expr<Expr>, complete!(map!(do_parse!(
        }
 })));
 
-// various recursive rests of non-unitary exprs,
-//   in decreasing precedence order...
+// non-unitary exprs, in decreasing precedence order...
 
-named!(powexpr<RecExprRest>, map!(tuple!(pow_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
+    rest.into_iter().fold(first, |sofar, (op, e)| {
+        Expr {
+            data: ExprKind::BinOpApp(Box::new(sofar), Box::new(e), op),
+            loc: empty_loc!(),
+        }
+    })
+}
 
-named!(muldivexpr<RecExprRest>, map!(tuple!(muldiv_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(powexpr<Expr>, complete!(do_parse!(
+    first: unitary_op_expr >>
+     rest: many0!(tuple!(pow_op, unitary_op_expr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(addsubexpr<RecExprRest>, map!(tuple!(addsub_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(muldivexpr<Expr>, complete!(do_parse!(
+    first: powexpr >>
+     rest: many0!(tuple!(muldiv_op, powexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(cmpexpr<RecExprRest>, map!(tuple!(cmp_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(addsubexpr<Expr>, complete!(do_parse!(
+    first: muldivexpr >>
+     rest: many0!(tuple!(addsub_op, muldivexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(eqexpr<RecExprRest>, map!(tuple!(eq_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(cmpexpr<Expr>, complete!(do_parse!(
+    first: addsubexpr >>
+     rest: many0!(tuple!(cmp_op, addsubexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(bitandexpr<RecExprRest>, map!(tuple!(bitand_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(eqexpr<Expr>, complete!(do_parse!(
+    first: cmpexpr >>
+     rest: many0!(tuple!(eq_op, cmpexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(bitorexpr<RecExprRest>, map!(tuple!(bitor_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(bitandexpr<Expr>, complete!(do_parse!(
+    first: eqexpr >>
+     rest: many0!(tuple!(bitand_op, eqexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(logandexpr<RecExprRest>, map!(tuple!(logand_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(bitorexpr<Expr>, complete!(do_parse!(
+    first: bitandexpr >>
+     rest: many0!(tuple!(bitor_op, bitandexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
-named!(logorexpr<RecExprRest>, map!(tuple!(logor_op, expr), |(op, e)|
-    RecExprRest::BinOpExpr(op, e)
-));
+named!(logandexpr<Expr>, complete!(do_parse!(
+    first: bitorexpr >>
+     rest: many0!(tuple!(logand_op, bitorexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
+
+named!(logorexpr<Expr>, complete!(do_parse!(
+    first: logandexpr >>
+     rest: many0!(tuple!(logor_op, logandexpr)) >>
+           (fold_bin_exprs(first, rest))
+)));
 
 named!(condexpr<RecExprRest>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -759,8 +777,7 @@ mod test {
         let e = b"!(f(2) ? f(~23) : y[17])";
         assert!(expr(e).is_done());
 
-        let e = b"7 * 2 ^ 3 + 7";
-        panic!("{:?}", expr(e));
+        let e = b"2 ^ 3";
         assert!(expr(e).is_done());
 
         let e = b"(2 + 3 * 7 && f(9) | ~x[17]) @ \"bob\"";
