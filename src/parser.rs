@@ -324,7 +324,7 @@ named!(memberinvoke<UnitaryRecExprRest>, complete!(do_parse!(
 )));
 
 named!(path<Path>, complete!(map!(
-    separated_nonempty_list!(ws!(char!('.')), ident), Path)));
+    separated_nonempty_list!(ws!(tag!("::")), ident), Path)));
 
 named!(maybe_ident<Ident>, complete!(map!(do_parse!(
         opt!(call!(nom::multispace)) >>
@@ -756,12 +756,12 @@ mod test {
             _ => panic!("didn't parse single-ident path")
         }
 
-        match path("some_module.an_ident".as_bytes()) {
+        match path("some_module::an_ident".as_bytes()) {
             IResult::Done(_, Path(vec)) => assert_eq!(vec.len(), 2),
             _ => panic!("didn't parse two-ident path")
         }
 
-        match path("some_module.some.\nother .  thing".as_bytes()) {
+        match path("some_module::some::\nother ::  thing".as_bytes()) {
             IResult::Done(_, Path(vec)) => {
                 for &Ident(ref s) in &vec {
                     println!("ident: {}", s);
@@ -780,7 +780,7 @@ mod test {
             res => panic!("didn't parse literal expr: {:?}", res)
         }
 
-        let e = b"some.modules.array[23]";
+        let e = b"some::modules::array[23]";
         match expr(e) {
             IResult::Done(_, Expr { data: ExprKind::Index(e1, e2), loc: _ }) => {
                 match *e1 {
@@ -796,10 +796,10 @@ mod test {
             res => panic!("didn't parse indexing expr: {:?}", res)
         }
 
-        let e = b"some.modules.array[some.other.array[23]]";
+        let e = b"some::modules::array[some.other.array[23]]";
         assert!(expr(e).is_done());
 
-        let e = b"some.fun(1, 2, x[2], other())";
+        let e = b"some::fun(1, 2, x[2], other())";
         assert!(expr(e).is_done());
 
         let e = b"x ? f(23) : y[17]";
@@ -817,8 +817,7 @@ mod test {
         let e = b"(2 + 3 * 7 && f(9) | ~x[17]) @ \"bob\"";
         assert!(expr(e).is_done());
 
-        let e = b"f(17).x + f(23).foo(99)";
-        panic!("{:?}", expr(e));
+        let e = b"f(17).x + some_mod::f(23).foo(99)";
         assert!(expr(e).is_done());
     }
 }

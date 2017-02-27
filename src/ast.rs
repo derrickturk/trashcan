@@ -29,6 +29,7 @@ pub enum NormalItem {
     Function(FunDef),
     // Struct(StructDef)
     // Enm(EnmDef)
+    // Constant(...)
 }
 
 /// A function (or "sub") definition
