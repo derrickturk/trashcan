@@ -86,26 +86,23 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
+    CondExpr(Expr, Expr),
+}
+
+// the "rest" (recursive part) of a "unitary" recursive expr
+enum UnitaryRecExprRest {
     Indexed(Expr),
     // FunCall(Vec<Expr>),
-    CondExpr(Expr, Expr),
 }
 
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(expr<Expr>, complete!(map!(do_parse!(
-    first: call!(nonrec_expr) >>
-     rest: opt!(alt_complete!(
-               call!(indexed)
-             | call!(condexpr)
-           )) >>
+    first: call!(unitary_op_expr) >>
+     rest: opt!(call!(condexpr)) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
            None => first,
-           Some(RecExprRest::Indexed(e)) => Expr {
-               data: ExprKind::Index(Box::new(first), Box::new(e)),
-               loc: empty_loc!(),
-           },
            Some(RecExprRest::CondExpr(ifexpr, elseexpr)) => Expr {
                data: ExprKind::CondExpr {
                          cond: Box::new(first),
@@ -117,16 +114,35 @@ named!(expr<Expr>, complete!(map!(do_parse!(
        }
 })));
 
-// a non (left) recursive expr
-named!(nonrec_expr<Expr>, alt_complete!(
-    // unary operator application (TODO: fix precedence)
-    tuple!(un_op, expr) => { |(op, e)| Expr {
+// "unitary" exprs, possibly preceded by unary operators
+named!(unitary_op_expr<Expr>, alt_complete!(
+    unitary_expr
+  | tuple!(un_op, unitary_op_expr) => { |(op, e)| Expr {
         data: ExprKind::UnOpApp(Box::new(e), op),
         loc: empty_loc!(),
     }}
+));
 
+// "unitary" exprs (bind to unary ops for precedence)
+// pull a nonrecursive expr, and maybe a recursive rest
+named!(unitary_expr<Expr>, complete!(map!(do_parse!(
+    first: call!(nonrec_unitary_expr) >>
+     rest: opt!(call!(indexed)) >>
+           (first, rest)),
+   |(first, rest)| {
+       match rest {
+           None => first,
+           Some(UnitaryRecExprRest::Indexed(e)) => Expr {
+               data: ExprKind::Index(Box::new(first), Box::new(e)),
+               loc: empty_loc!(),
+           },
+       }
+})));
+
+// a non left-recursive unitary expr
+named!(nonrec_unitary_expr<Expr>, alt_complete!(
     // if we ever allow indirect fncalls this will become left-recursive
-  | fncall
+    fncall
 
   | path => { |p| Expr {
         data: ExprKind::Name(p),
@@ -153,13 +169,13 @@ named!(fncall<Expr>, complete!(do_parse!(
 
 // various possible recursive "rests" of exprs
 
-named!(indexed<RecExprRest>, complete!(do_parse!(
+named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('[') >>
  index: call!(expr) >>
         opt!(call!(nom::multispace)) >>
         char!(']') >>
-        (RecExprRest::Indexed(index))
+        (UnitaryRecExprRest::Indexed(index))
 )));
 
 named!(condexpr<RecExprRest>, complete!(do_parse!(
@@ -619,7 +635,6 @@ mod test {
         assert!(expr(e).is_done());
 
         let e = b"!f(2) ? f(~23) : y[17]";
-        panic!("{:?}", expr(e));
         assert!(expr(e).is_done());
     }
 }
