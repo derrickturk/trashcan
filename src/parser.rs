@@ -114,6 +114,8 @@ named!(expr<Expr>, complete!(map!(do_parse!(
        }
 })));
 
+// 
+
 // "unitary" exprs, possibly preceded by unary operators
 named!(unitary_op_expr<Expr>, alt_complete!(
     unitary_expr
@@ -153,6 +155,8 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
         data: ExprKind::Lit(lit),
         loc: empty_loc!(),
     }}
+
+  | grouped
 ));
 
 named!(fncall<Expr>, complete!(do_parse!(
@@ -165,6 +169,16 @@ named!(fncall<Expr>, complete!(do_parse!(
               data: ExprKind::Call(Box::new(name), args),
               loc: empty_loc!(),
           })
+)));
+
+// an expr grouped in parentheses, to force precedence
+named!(grouped<Expr>, complete!(do_parse!(
+       opt!(call!(nom::multispace)) >>
+       char!('(') >>
+    e: expr >>
+       opt!(call!(nom::multispace)) >>
+       char!(')') >>
+       (e)
 )));
 
 // various possible recursive "rests" of exprs
@@ -635,6 +649,9 @@ mod test {
         assert!(expr(e).is_done());
 
         let e = b"!f(2) ? f(~23) : y[17]";
+        assert!(expr(e).is_done());
+
+        let e = b"!(f(2) ? f(~23) : y[17])";
         assert!(expr(e).is_done());
     }
 }
