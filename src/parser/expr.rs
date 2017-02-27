@@ -1,7 +1,12 @@
+//! trashcan's sub-parsers for expressions
+
 use nom::{self, IResult, ErrorKind};
 
 use ast::*;
 use super::*;
+use super::op::*;
+use super::lit::*;
+use super::ident::*;
 
 // we have to handle left recursion very carefully
 //   when parsing expressions (see https://en.wikipedia.org/wiki/Left_recursion)

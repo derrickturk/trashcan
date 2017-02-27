@@ -19,6 +19,12 @@ macro_rules! empty_loc {
 
 mod expr;
 use self::expr::*;
+mod ident;
+use self::ident::*;
+mod op;
+use self::op::*;
+mod lit;
+use self::lit::*;
 
 #[derive(Clone, Debug)]
 pub struct SrcLoc {
@@ -28,41 +34,14 @@ pub struct SrcLoc {
     pub len: u32,
 }
 
-const IDENT_CONT_CHARS: &'static str =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-     abcdefghijklmnopqrstuvwxyz\
-     0123456789\
-     _";
-
-const KEYWORDS: [&'static str; 23] = [
-    "let",
-    "print",
-    "return",
-    "for",
-    "while",
-    "pub",
-    "mod",
-    "fn",
-    "class",
-    "struct",
-    "enum",
-    "bool",
-    "u8",
-    "i16",
-    "i32",
-    "i64",
-    "f32",
-    "f64",
-    "str",
-    "currency",
-    "date",
-    "var",
-    "obj",
-];
-
-enum CustomErrors {
+pub enum CustomErrors {
     KeywordAsIdent,
     InvalidEscape,
+}
+
+pub enum MaybeType {
+    Known(Type),
+    Deferred(Ident),
 }
 
 /*
@@ -81,269 +60,6 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
             )));
 
 */
-
-named!(path<Path>, complete!(map!(
-    separated_nonempty_list!(ws!(tag!("::")), ident), Path)));
-
-named!(maybe_ident<Ident>, complete!(map!(do_parse!(
-        opt!(call!(nom::multispace)) >>
- first: call!(nom::alpha) >>
-  rest: opt!(is_a_s!(IDENT_CONT_CHARS)) >>
-        (first, rest)
-), |(first, rest)| {
-    unsafe { // we know characters are valid utf8
-        let mut s = String::from(str::from_utf8_unchecked(first));
-        if let Some(rest) = rest {
-            s.push_str(str::from_utf8_unchecked(rest));
-        }
-        Ident(s)
-    }
-})));
-
-pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
-    let res = maybe_ident(input);
-    match res {
-        IResult::Done(rest, Ident(name)) =>
-            if KEYWORDS.contains(&name.as_str()) {
-                IResult::Error(
-                    ErrorKind::Custom(CustomErrors::KeywordAsIdent as u32))
-            } else {
-                IResult::Done(rest, Ident(name))
-            },
-        err => err,
-    }
-}
-
-enum MaybeType {
-    Known(Type),
-    Deferred(Ident),
-}
-
-named!(typename<MaybeType>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt_complete!(
-        map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
-      | map!(tag!("u8"), |_| MaybeType::Known(Type::UInt8))
-      | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
-      | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
-      | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
-      | map!(tag!("f32"), |_| MaybeType::Known(Type::Float32))
-      | map!(tag!("f64"), |_| MaybeType::Known(Type::Float64))
-      | map!(tag!("str"), |_| MaybeType::Known(Type::String))
-      | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
-      | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
-      | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
-      | map!(tag!("obj"), |_| MaybeType::Known(Type::Obj))
-      | map!(ident, |i| MaybeType::Deferred(i))
-    )
-)));
-
-named!(assign_op<AssignOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt_complete!(
-        map!(char!('='), |_| AssignOp::Assign)
-      | map!(tag!("+="), |_| AssignOp::AddAssign)
-      | map!(tag!("-="), |_| AssignOp::SubAssign)
-      | map!(tag!("*="), |_| AssignOp::MulAssign)
-      | map!(tag!("/="), |_| AssignOp::DivAssign)
-      | map!(tag!("%="), |_| AssignOp::ModAssign)
-      | map!(tag!("^="), |_| AssignOp::PowAssign)
-      | map!(tag!("@="), |_| AssignOp::StrCatAssign)
-      | map!(tag!("&="), |_| AssignOp::BitAndAssign)
-      | map!(tag!("|="), |_| AssignOp::BitOrAssign)
-      | map!(tag!("&&="), |_| AssignOp::LogAndAssign)
-      | map!(tag!("||="), |_| AssignOp::LogOrAssign)
-    )
-)));
-
-named!(un_op<UnOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(one_of!("-~!"), |c| match c {
-        '-' => UnOp::Negate,
-        '~' => UnOp::BitNot,
-        '!' => UnOp::LogNot,
-        '&' => UnOp::AddressOf,
-        _ => panic!("internal parser error")
-    })
-)));
-
-named!(pow_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(char!('^'), |_| BinOp::Pow)
-)));
-
-named!(muldiv_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(one_of!("*/%"), |c| match c {
-        '*' => BinOp::Mul,
-        '/' => BinOp::Div,
-        '%' => BinOp::Mod,
-        _ => panic!("internal parser error")
-    })
-)));
-
-named!(addsub_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(one_of!("+-@"), |c| match c {
-        '+' => BinOp::Add,
-        '-' => BinOp::Sub,
-        '@' => BinOp::StrCat,
-        _ => panic!("internal parser error")
-    })
-)));
-
-named!(cmp_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt_complete!(
-        map!(tag!("<="), |_| BinOp::LtEq)
-      | map!(tag!(">="), |_| BinOp::GtEq)
-      | map!(one_of!("<>"), |c| match c {
-            '<' => BinOp::Lt,
-            '>' => BinOp::Gt,
-            _ => panic!("internal parser error")
-        })
-    )
-)));
-
-named!(eq_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt_complete!(
-        map!(tag!("=="), |_| BinOp::Eq)
-      | map!(tag!("!="), |_| BinOp::NotEq)
-    )
-)));
-
-named!(bitand_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(char!('&'), |_| BinOp::BitAnd)
-)));
-
-named!(bitor_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(char!('|'), |_| BinOp::BitOr)
-)));
-
-named!(logand_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(tag!("&&"), |_| BinOp::LogAnd)
-)));
-
-named!(logor_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(tag!("||"), |_| BinOp::LogOr)
-)));
-
-named!(literal<Literal>, alt_complete!(
-    literal_bool
-  | literal_float // try this before int
-  | literal_int
-  | literal_string
-//  TODO: "wacky" literal types
-//  | literal_currency
-//  | literal_date));
-));
-
-named!(literal_bool<Literal>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt!(
-        map!(tag!("true"), |_| Literal::Bool(true))
-      | map!(tag!("false"), |_| Literal::Bool(false))
-    )
-)));
-
-named!(literal_int<Literal>, complete!(map_res!(do_parse!(
-         opt!(call!(nom::multispace)) >>
-    num: call!(nom::digit) >>
-    tag: opt!(complete!(alt!(
-            tag!("u8")
-          | tag!("i16")
-          | tag!("i32")
-          | tag!("isize")
-         ))) >>
-    (num, tag)), |(num, tag): (&[u8], Option<&[u8]>)| {
-        let num = unsafe { str::from_utf8_unchecked(num) };
-        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
-        match tag {
-            Some("u8") => num.parse::<u8>().map(Literal::UInt8),
-            Some("i16") => num.parse::<i16>().map(Literal::Int16),
-            Some("i32") => num.parse::<i32>().map(Literal::Int32),
-            Some("isize") => num.parse::<i64>().map(Literal::IntPtr),
-            // default i32
-            None => num.parse::<i32>().map(Literal::Int32),
-            _ => panic!("internal parser error")
-        }
-    })));
-
-named!(literal_float<Literal>, complete!(map_res!(do_parse!(
-         opt!(call!(nom::multispace)) >>
-  whole: call!(nom::digit) >>
-         char!('.') >> // mandatory decimal point
-   frac: opt!(complete!(call!(nom::digit))) >>
-    tag: opt!(complete!(alt!(
-            tag!("f32")
-          | tag!("f64")
-         ))) >>
-    (whole, frac, tag)), |(w, f, tag): (&[u8], Option<&[u8]>, Option<&[u8]>)| {
-        let num = unsafe {
-            let mut s = String::from(str::from_utf8_unchecked(w));
-            match f {
-                Some(frac) => {
-                    s.push_str(".");
-                    s.push_str(str::from_utf8_unchecked(frac));
-                }
-                None => {}
-            }
-            s
-        };
-        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
-        match tag {
-            Some("f32") => num.parse::<f32>().map(Literal::Float32),
-            Some("f64") => num.parse::<f64>().map(Literal::Float64),
-            // default f64
-            None => num.parse::<f64>().map(Literal::Float64),
-            _ => panic!("internal parser error")
-        }
-    })));
-
-named!(literal_string<Literal>, map_res!(complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    delimited!(
-        char!('"'),
-        escaped_string,
-        char!('"')
-    )
-)), |bytes| {
-    String::from_utf8(bytes).map(Literal::String)
-}));
-
-fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
-    let mut s = Vec::new();
-    let mut bytes = input.iter();
-    while let Some(c) = bytes.next() {
-        if *c == b'"' {
-            break;
-        }
-
-        if *c == b'\\' {
-            match bytes.next() {
-                Some(&b'n') => s.push(b'\n'),
-                Some(&b't') => s.push(b'\t'),
-                // TODO: more escapes here
-                _ => return IResult::Error(
-                    ErrorKind::Custom(CustomErrors::InvalidEscape as u32))
-            }
-        }
-
-        // TODO: it'd be nice to allow rust style multiline strings
-        //   (or maybe C-style adjacent-literal concatenation)
-        // first option needs peek here; second just needs a change to the
-        // literal_string production
-
-        s.push(*c);
-    }
-
-    IResult::Done(&input[s.len()..], s)
-}
 
 // TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
 //   forbid them?
