@@ -86,6 +86,7 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
+    BinOpExpr(BinOp, Expr),
     CondExpr(Expr, Expr),
 }
 
@@ -95,14 +96,43 @@ enum UnitaryRecExprRest {
     // FunCall(Vec<Expr>),
 }
 
+// official table of intended operator precedence!
+//   shamelessly stolen from C
+// 1 : arrays[], fncalls(), (parens), weird(mbr).invokes
+// 2 : !unaryops
+// 3 : ^
+// 4 : * / %
+// 5 : + - @
+// 6 : > < >= <=
+// 7 : == !=
+// 8 : &
+// 9 : |
+// 10: &&
+// 11: ||
+// 12: x ? y : z
+
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(expr<Expr>, complete!(map!(do_parse!(
     first: call!(unitary_op_expr) >>
-     rest: opt!(call!(condexpr)) >>
+     rest: opt!(alt_complete!(
+               powexpr
+             | muldivexpr
+             | addsubexpr
+             | cmpexpr
+             | eqexpr
+             | bitandexpr
+             | condexpr
+           )) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
            None => first,
+
+           Some(RecExprRest::BinOpExpr(op, e)) => Expr {
+               data: ExprKind::BinOpApp(Box::new(first), Box::new(e), op),
+               loc: empty_loc!(),
+           },
+
            Some(RecExprRest::CondExpr(ifexpr, elseexpr)) => Expr {
                data: ExprKind::CondExpr {
                          cond: Box::new(first),
@@ -114,9 +144,58 @@ named!(expr<Expr>, complete!(map!(do_parse!(
        }
 })));
 
-// 
+// various recursive rests of non-unitary exprs,
+//   in decreasing precedence order...
+
+named!(powexpr<RecExprRest>, map!(tuple!(pow_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(muldivexpr<RecExprRest>, map!(tuple!(muldiv_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(addsubexpr<RecExprRest>, map!(tuple!(addsub_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(cmpexpr<RecExprRest>, map!(tuple!(cmp_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(eqexpr<RecExprRest>, map!(tuple!(eq_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(bitandexpr<RecExprRest>, map!(tuple!(bitand_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(bitorexpr<RecExprRest>, map!(tuple!(bitor_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(logandexpr<RecExprRest>, map!(tuple!(logand_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(logorexpr<RecExprRest>, map!(tuple!(logor_op, expr), |(op, e)|
+    RecExprRest::BinOpExpr(op, e)
+));
+
+named!(condexpr<RecExprRest>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            char!('?') >>
+    ifexpr: call!(expr) >>
+            opt!(call!(nom::multispace)) >>
+            char!(':') >>
+            opt!(call!(nom::multispace)) >>
+  elseexpr: call!(expr) >>
+            (RecExprRest::CondExpr(ifexpr, elseexpr))
+)));
 
 // "unitary" exprs, possibly preceded by unary operators
+// this alt_complete is arguably backwards
 named!(unitary_op_expr<Expr>, alt_complete!(
     unitary_expr
   | tuple!(un_op, unitary_op_expr) => { |(op, e)| Expr {
@@ -181,7 +260,7 @@ named!(grouped<Expr>, complete!(do_parse!(
        (e)
 )));
 
-// various possible recursive "rests" of exprs
+// various possible recursive "rests" of unitary exprs
 
 named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
@@ -190,17 +269,6 @@ named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!(']') >>
         (UnitaryRecExprRest::Indexed(index))
-)));
-
-named!(condexpr<RecExprRest>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
-            char!('?') >>
-    ifexpr: call!(expr) >>
-            opt!(call!(nom::multispace)) >>
-            char!(':') >>
-            opt!(call!(nom::multispace)) >>
-  elseexpr: call!(expr) >>
-            (RecExprRest::CondExpr(ifexpr, elseexpr))
 )));
 
 named!(path<Path>, complete!(map!(
@@ -288,31 +356,70 @@ named!(un_op<UnOp>, complete!(preceded!(
     })
 )));
 
-named!(bin_op<BinOp>, complete!(preceded!(
+named!(pow_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(char!('^'), |_| BinOp::Pow)
+)));
+
+named!(muldiv_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(one_of!("*/%"), |c| match c {
+        '*' => BinOp::Mul,
+        '/' => BinOp::Div,
+        '%' => BinOp::Mod,
+        _ => panic!("internal parser error")
+    })
+)));
+
+named!(addsub_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(one_of!("+-@"), |c| match c {
+        '+' => BinOp::Add,
+        '-' => BinOp::Sub,
+        '@' => BinOp::StrCat,
+        _ => panic!("internal parser error")
+    })
+)));
+
+named!(cmp_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt_complete!(
+        map!(tag!("<="), |_| BinOp::LtEq)
+      | map!(tag!(">="), |_| BinOp::GtEq)
+      | map!(one_of!("<>"), |c| match c {
+            '<' => BinOp::Lt,
+            '>' => BinOp::Gt,
+            _ => panic!("internal parser error")
+        })
+    )
+)));
+
+named!(eq_op<BinOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(
         map!(tag!("=="), |_| BinOp::Eq)
       | map!(tag!("!="), |_| BinOp::NotEq)
-      | map!(tag!("<="), |_| BinOp::LtEq)
-      | map!(tag!(">="), |_| BinOp::GtEq)
-      | map!(tag!("&&"), |_| BinOp::LogAnd)
-      | map!(tag!("||"), |_| BinOp::LogOr)
-      | map!(one_of!("+-*/%^@<>&|."), |c| match c {
-            '+' => BinOp::Add,
-            '-' => BinOp::Sub,
-            '*' => BinOp::Mul,
-            '/' => BinOp::Div,
-            '%' => BinOp::Mod,
-            '^' => BinOp::Pow,
-            '@' => BinOp::StrCat,
-            '<' => BinOp::Lt,
-            '>' => BinOp::Gt,
-            '&' => BinOp::BitAnd,
-            '|' => BinOp::BitOr,
-            '.' => BinOp::MemInvoke,
-            _ => panic!("internal parser error")
-        })
     )
+)));
+
+named!(bitand_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(char!('&'), |_| BinOp::BitAnd)
+)));
+
+named!(bitor_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(char!('|'), |_| BinOp::BitOr)
+)));
+
+named!(logand_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(tag!("&&"), |_| BinOp::LogAnd)
+)));
+
+named!(logor_op<BinOp>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    map!(tag!("||"), |_| BinOp::LogOr)
 )));
 
 named!(literal<Literal>, alt_complete!(
@@ -521,22 +628,20 @@ mod test {
 
     #[test]
     fn parse_bin_ops() {
-        if let IResult::Done(_, BinOp::Add) = bin_op("+".as_bytes()) {
+        if let IResult::Done(_, BinOp::Add) = addsub_op("+".as_bytes()) {
         } else {
             panic!("didn't parse BinOp::Add");
         }
 
-        if let IResult::Done(_, BinOp::BitAnd) = bin_op("&".as_bytes()) {
+        if let IResult::Done(_, BinOp::BitAnd) = bitand_op("&".as_bytes()) {
         } else {
             panic!("didn't parse BinOp::BitAnd");
         }
 
-        if let IResult::Done(_, BinOp::LogAnd) = bin_op("&&".as_bytes()) {
+        if let IResult::Done(_, BinOp::LogAnd) = logand_op("&&".as_bytes()) {
         } else {
             panic!("didn't parse BinOp::LogAnd");
         }
-
-        assert!(bin_op("xx".as_bytes()).is_err());
     }
 
     #[test]
@@ -652,6 +757,14 @@ mod test {
         assert!(expr(e).is_done());
 
         let e = b"!(f(2) ? f(~23) : y[17])";
+        assert!(expr(e).is_done());
+
+        let e = b"7 * 2 ^ 3 + 7";
+        panic!("{:?}", expr(e));
+        assert!(expr(e).is_done());
+
+        let e = b"(2 + 3 * 7 && f(9) | ~x[17]) @ \"bob\"";
+        panic!("{:?}", expr(e));
         assert!(expr(e).is_done());
     }
 }
