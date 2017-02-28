@@ -69,6 +69,10 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
+named!(pub module<Module>, alt_complete!(
+    normal_module
+));
+
 named!(normal_module<Module>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             tag!("mod") >>
@@ -422,6 +426,6 @@ mod test {
             }
 
         }";
-        expect_parse!(m; normal_module => Module { data: ModuleKind::Normal(_), .. });
+        expect_parse!(m; module => Module { data: ModuleKind::Normal(_), .. });
     }
 }
