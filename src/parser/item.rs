@@ -8,6 +8,10 @@ use super::ident::*;
 use super::expr::*;
 use super::stmt::*;
 
+named!(pub normal_item<NormalItem>, alt_complete!(
+    fundef => { |f| NormalItem::Function(f) }
+));
+
 named!(pub fundef<FunDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
     access: opt_access >>

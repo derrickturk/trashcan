@@ -69,6 +69,23 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
+named!(normal_module<Module>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("mod") >>
+            call!(nom::multispace) >>
+      name: ident >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+    items:  many0!(normal_item) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (Module {
+                name: name,
+                data: ModuleKind::Normal(items),
+                loc: empty_loc!(),
+            })
+)));
+
 // TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
 //   forbid them?
 //   prepend some goofy ©high-ASCII char?
@@ -388,6 +405,23 @@ mod test {
         expect_parse!(f; fundef => FunDef { access: Access::Private, ret: None, .. });
 
         let f = b"pub fn g (y: f64, z: udt) -> udt { z.x += y; return z; }";
-        expect_parse!(f; fundef => FunDef { access: Access::Private, ret: None, .. });
+        expect_parse!(f; fundef => FunDef { access: Access::Public, ret: Some(_), .. });
+    }
+
+    #[test]
+    fn parse_mod() {
+        let m = b"mod example {
+
+            pub fn f (y: f64) {
+                print y / 17.0;
+            }
+
+            pub fn g (y: f64, z: udt) -> udt {
+                z.x += y;
+                return z;
+            }
+
+        }";
+        expect_parse!(m; normal_module => Module { data: ModuleKind::Normal(_), .. });
     }
 }
