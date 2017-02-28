@@ -52,22 +52,11 @@ pub enum CustomErrors {
     InvalidEscape,
 }
 
-/*
-
-named!(dumpster(&[u8]) -> Dumpster, map!(
+named!(pub dumpster<Dumpster>, complete!(map!(
     many1!(module),
-    |mods| Dumpster { modules: mods }
-));
-
-// no idea WTF this is blowing up on
-named!(module(&[u8]) -> Module, ws!(do_parse!(
-            tag!("mod") >>
-      name: ident >>
-  contents: delimited!(char!('{'), tag!("meat"), char!('}')) >>
-            unimplemented!()
-            )));
-
-*/
+    |mods| Dumpster {
+        modules: mods
+    })));
 
 named!(pub module<Module>, alt_complete!(
     normal_module
@@ -427,5 +416,15 @@ mod test {
 
         }";
         expect_parse!(m; module => Module { data: ModuleKind::Normal(_), .. });
+    }
+
+    #[test]
+    fn parse_dumpster() {
+        let d = b"
+        mod example { }
+        mod actual_stuff {
+            fn x() { print \"whatever\"; }
+        }";
+        expect_parse!(d; dumpster => Dumpster { .. });
     }
 }
