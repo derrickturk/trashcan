@@ -56,23 +56,44 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 */
 
-/*
 named!(pub stmt<Stmt>, alt_complete!(
-    terminated!(expr) => { |e| Stmt {
-        data: StmtKind::ExprStmt(e),
-        loc: e.loc.clone(),
+    decl
+  | terminated!(expr, terminator) => { |e: Expr| {
+        let loc = e.loc.clone();
+        Stmt {
+          data: StmtKind::ExprStmt(e),
+          loc: loc,
+        }
     }}
 ));
-*/
 
-/*
 named!(decl<Stmt>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         tag!("let") >>
+        call!(nom::multispace) >>
+ decls: separated_list!(ws!(char!(',')), vardecl) >>
+        terminator >>
+        (Stmt {
+            data: StmtKind::VarDecl(decls),
+            loc: empty_loc!()
+        })
+)));
+
+named!(vardecl<(Ident, Type, Option<Expr>)>, complete!(do_parse!(
   name: ident >>
         opt!(call!(nom::multispace)) >>
-        char!(':') >> ty
-        */
+        char!(':') >>
+    ty: typename >>
+  init: varinit >>
+        (name, ty, init)
+)));
+
+named!(varinit<Option<Expr>>, complete!(opt!(do_parse!(
+    opt!(call!(nom::multispace)) >>
+    char!('=') >>
+ e: expr >>
+    (e)
+))));
 
 named!(terminator<char>, complete!(preceded!(
     opt!(call!(nom::multispace)),
@@ -222,14 +243,14 @@ mod test {
         assert!(res.is_err());
 
         match typename("boogaloo".as_bytes()) {
-            IResult::Done(_, MaybeType::Deferred(Ident(s))) => {
+            IResult::Done(_, Type::Deferred(Ident(s))) => {
                 assert!(s == "boogaloo")
             },
             _ => panic!("couldn't parse deferred-ident type")
         }
 
         match typename("i32".as_bytes()) {
-            IResult::Done(_, MaybeType::Known(Int32)) => { },
+            IResult::Done(_, Type::Int32) => { },
             _ => panic!("couldn't parse i32")
         }
     }
@@ -312,5 +333,23 @@ mod test {
 
         let e = b"f(17).x + some_mod::f(23).foo(99)";
         assert!(expr(e).is_done());
+    }
+
+    #[test]
+    fn parse_stmt() {
+        let s = b"f(17);"; 
+        assert!(stmt(s).is_done());
+
+        let s = b"let x: i32 = 17;"; 
+        assert!(stmt(s).is_done());
+
+        let s = b"let y: unknown, x: i32 = 17;"; 
+        assert!(stmt(s).is_done());
+
+        let s = b"lety: unknown, x: i32 = 17;"; 
+        assert!(stmt(s).is_err());
+
+        let s = b"17"; 
+        assert!(stmt(s).is_err());
     }
 }
