@@ -53,7 +53,9 @@ pub enum CustomErrors {
 }
 
 named!(pub dumpster<Dumpster>, complete!(map!(
-    many1!(module),
+    terminated!(
+        many1!(module),
+        opt!(call!(nom::multispace))),
     |mods| Dumpster {
         modules: mods
     })));
