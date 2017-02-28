@@ -39,11 +39,6 @@ pub enum CustomErrors {
     InvalidEscape,
 }
 
-pub enum MaybeType {
-    Known(Type),
-    Deferred(Ident),
-}
-
 /*
 
 named!(dumpster(&[u8]) -> Dumpster, map!(
@@ -60,6 +55,29 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
             )));
 
 */
+
+/*
+named!(pub stmt<Stmt>, alt_complete!(
+    terminated!(expr) => { |e| Stmt {
+        data: StmtKind::ExprStmt(e),
+        loc: e.loc.clone(),
+    }}
+));
+*/
+
+/*
+named!(decl<Stmt>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        tag!("let") >>
+  name: ident >>
+        opt!(call!(nom::multispace)) >>
+        char!(':') >> ty
+        */
+
+named!(terminator<char>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    char!(';')
+)));
 
 // TODO: do we need to pre-emptively tag idents that conflict with VB keywords?
 //   forbid them?

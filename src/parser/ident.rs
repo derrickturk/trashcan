@@ -69,21 +69,21 @@ pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
     }
 }
 
-named!(pub typename<MaybeType>, complete!(preceded!(
+named!(pub typename<Type>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(
-        map!(tag!("bool"), |_| MaybeType::Known(Type::Bool))
-      | map!(tag!("u8"), |_| MaybeType::Known(Type::UInt8))
-      | map!(tag!("i16"), |_| MaybeType::Known(Type::Int16))
-      | map!(tag!("i32"), |_| MaybeType::Known(Type::Int32))
-      | map!(tag!("isize"), |_| MaybeType::Known(Type::IntPtr))
-      | map!(tag!("f32"), |_| MaybeType::Known(Type::Float32))
-      | map!(tag!("f64"), |_| MaybeType::Known(Type::Float64))
-      | map!(tag!("str"), |_| MaybeType::Known(Type::String))
-      | map!(tag!("currency"), |_| MaybeType::Known(Type::Currency))
-      | map!(tag!("date"), |_| MaybeType::Known(Type::Date))
-      | map!(tag!("var"), |_| MaybeType::Known(Type::Variant))
-      | map!(tag!("obj"), |_| MaybeType::Known(Type::Obj))
-      | map!(ident, |i| MaybeType::Deferred(i))
+        tag!("bool") => { |_| Type::Bool }
+      | tag!("u8") => { |_| Type::UInt8 }
+      | tag!("i16") => { |_| Type::Int16 }
+      | tag!("i32") => { |_| Type::Int32 }
+      | tag!("isize") => { |_| Type::IntPtr }
+      | tag!("f32") => { |_| Type::Float32 }
+      | tag!("f64") => { |_| Type::Float64 }
+      | tag!("str") => { |_| Type::String }
+      | tag!("currency") => { |_| Type::Currency }
+      | tag!("date") => { |_| Type::Date }
+      | tag!("var") => { |_| Type::Variant }
+      | tag!("obj") => { |_| Type::Obj }
+      | ident => { |i| Type::Deferred(i) }
     )
 )));

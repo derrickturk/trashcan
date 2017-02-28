@@ -193,15 +193,16 @@ pub enum Type {
     Variant,
     /// obj (unspecified object type)
     Obj,
+    /// T[] (multidimensional?)
+    Array(Box<Type>, Option<u32>),
     /// named object type
     Object(Ident),
     /// named structure type
     Struct(Ident),
     /// named enum type
     Enum(Ident),
-    /// T[] (multidimensional?)
-    Array(Box<Type>, Option<u32>),
-    // eventually... FnPtr ( args, ret )
+    /// identifier-as-typename; unknown until symbol table construction
+    Deferred(Ident),
 }
 
 #[derive(Clone, Copy, Debug)]
