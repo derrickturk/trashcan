@@ -69,6 +69,7 @@ pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
     }
 }
 
+// TODO urgent: arrays
 named!(pub typename<Type>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(

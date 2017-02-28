@@ -26,6 +26,8 @@ macro_rules! expect_parse {
     }
 }
 
+mod item;
+use self::item::*;
 mod stmt;
 use self::stmt::*;
 mod expr;
@@ -378,5 +380,14 @@ mod test {
 
         let s = b"`Debug.Print UBound(x)`;";
         expect_parse!(s; stmt => Stmt { data: StmtKind::VbStmt { .. }, .. });
+    }
+
+    #[test]
+    fn parse_fn() {
+        let f = b"fn f (x: i32, y: &obj) { print x; }";
+        expect_parse!(f; fundef => FunDef { access: Access::Private, ret: None, .. });
+
+        let f = b"pub fn g (y: f64, z: udt) -> udt { z.x += y; return z; }";
+        expect_parse!(f; fundef => FunDef { access: Access::Private, ret: None, .. });
     }
 }
