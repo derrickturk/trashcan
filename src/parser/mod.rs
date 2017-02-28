@@ -375,5 +375,8 @@ mod test {
             i += 1;
         }";
         expect_parse!(s; stmt => Stmt { data: StmtKind::WhileLoop { .. }, .. });
+
+        let s = b"`Debug.Print UBound(x)`;";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::VbStmt { .. }, .. });
     }
 }

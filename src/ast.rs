@@ -91,8 +91,8 @@ pub enum StmtKind {
     /// `print` statement (i.e. Debug.Print)
     Print(Expr),
 
-    /// pass-through literal VB statement
-    VbStmt(String),
+    /// pass-through literal VB statement (raw bytes)
+    VbStmt(Vec<u8>),
 }
 
 /// Expressions
