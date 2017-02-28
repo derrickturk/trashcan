@@ -70,6 +70,7 @@ named!(pub stmt<Stmt>, alt_complete!(
   | ret
   | print
   | ifstmt
+  | whileloop
   | assignment
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
@@ -177,6 +178,25 @@ named!(els<Vec<Stmt>>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('}') >>
         (body)
+)));
+
+named!(whileloop<Stmt>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("while") >>
+            call!(nom::multispace) >>
+      cond: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+      body: many0!(stmt) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (Stmt {
+                data: StmtKind::WhileLoop {
+                    cond: cond,
+                    body: body,
+                },
+                loc: empty_loc!(),
+            })
 )));
 
 named!(print<Stmt>, complete!(do_parse!(
@@ -496,5 +516,12 @@ mod test {
             x @= \"bob\";
         }";
         expect_parse!(s; stmt => Stmt { data: StmtKind::IfStmt { .. }, .. });
+
+        let s = b"
+        while i < len(arr) {
+            print arr[x];
+            i += 1;
+        }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::WhileLoop { .. }, .. });
     }
 }
