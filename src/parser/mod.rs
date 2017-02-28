@@ -68,6 +68,7 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 named!(pub stmt<Stmt>, alt_complete!(
     decl
   | ret
+  | print
   | ifstmt
   | assignment
   | terminated!(expr, terminator) => { |e: Expr| {
@@ -176,6 +177,17 @@ named!(els<Vec<Stmt>>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('}') >>
         (body)
+)));
+
+named!(print<Stmt>, complete!(do_parse!(
+    opt!(call!(nom::multispace)) >>
+    tag!("print") >>
+ e: preceded!(call!(nom::multispace), expr) >>
+    terminator >>
+    (Stmt {
+        data: StmtKind::Print(e),
+        loc: empty_loc!(),
+    })
 )));
 
 named!(terminator<char>, complete!(preceded!(
@@ -458,6 +470,9 @@ mod test {
 
         let s = b"return17;";
         expect_parse!(s; stmt => Stmt { data: StmtKind::ExprStmt(_), .. });
+
+        let s = b"print f(17);";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::Print(_), .. });
 
         let s = b"if x > 17 { return 3; }";
         expect_parse!(s; stmt => Stmt { data: StmtKind::IfStmt { .. }, .. });
