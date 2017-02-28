@@ -58,6 +58,9 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 named!(pub stmt<Stmt>, alt_complete!(
     decl
+
+  | assignment
+
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
         Stmt {
@@ -94,6 +97,17 @@ named!(varinit<Option<Expr>>, complete!(opt!(do_parse!(
  e: expr >>
     (e)
 ))));
+
+named!(assignment<Stmt>, complete!(do_parse!(
+    e1: expr >>
+    op: assign_op >>
+    e2: expr >>
+        terminator >>
+        (Stmt {
+            data: StmtKind::Assign(e1, op, e2),
+            loc: empty_loc!()
+        })
+)));
 
 named!(terminator<char>, complete!(preceded!(
     opt!(call!(nom::multispace)),
@@ -333,6 +347,15 @@ mod test {
 
         let e = b"f(17).x + some_mod::f(23).foo(99)";
         assert!(expr(e).is_done());
+
+        let e = b"x.f[3]";
+        assert!(expr(e).is_done());
+
+        let e = b"f().x.g()[17][3]";
+        assert!(expr(e).is_done());
+
+        let e = b"!!!!!f().x.g()[17][3] @ \"bob\"";
+        assert!(expr(e).is_done());
     }
 
     #[test]
@@ -351,5 +374,12 @@ mod test {
 
         let s = b"17"; 
         assert!(stmt(s).is_err());
+
+        let s = b"some_mod::x = f[17] * 3 + x::y.g(9);";
+        assert!(stmt(s).is_done());
+
+        let s = b"x::y[17].g @= \"bob\" @ damn ? \"jones\" : \"eh\";";
+        panic!("{:?}", stmt(s));
+        assert!(stmt(s).is_done());
     }
 }

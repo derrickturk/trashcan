@@ -152,36 +152,38 @@ named!(unitary_op_expr<Expr>, alt_complete!(
     }}
 ));
 
+fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
+    rest.into_iter().fold(first, |sofar, rest| {
+        match rest {
+            UnitaryRecExprRest::Indexed(e) => Expr {
+                data: ExprKind::Index(Box::new(sofar), Box::new(e)),
+                loc: empty_loc!(),
+            },
+
+            UnitaryRecExprRest::Member(i) => Expr {
+                data: ExprKind::Member(Box::new(sofar), i),
+                loc: empty_loc!(),
+            },
+
+            UnitaryRecExprRest::MemberInvoke(i, args) => Expr {
+                data: ExprKind::MemberInvoke(Box::new(sofar), i, args),
+                loc: empty_loc!(),
+            },
+        }
+    })
+}
+
 // "unitary" exprs (bind to unary ops for precedence)
 // pull a nonrecursive expr, and maybe a recursive rest
-named!(unitary_expr<Expr>, complete!(map!(do_parse!(
+named!(unitary_expr<Expr>, complete!(do_parse!(
     first: call!(nonrec_unitary_expr) >>
-     rest: opt!(alt_complete!(
+     rest: many0!(alt_complete!(
                indexed
              | memberinvoke
              | member
            )) >>
-           (first, rest)),
-   |(first, rest)| {
-       match rest {
-           None => first,
-
-           Some(UnitaryRecExprRest::Indexed(e)) => Expr {
-               data: ExprKind::Index(Box::new(first), Box::new(e)),
-               loc: empty_loc!(),
-           },
-
-           Some(UnitaryRecExprRest::Member(i)) => Expr {
-               data: ExprKind::Member(Box::new(first), i),
-               loc: empty_loc!(),
-           },
-
-           Some(UnitaryRecExprRest::MemberInvoke(i, args)) => Expr {
-               data: ExprKind::MemberInvoke(Box::new(first), i, args),
-               loc: empty_loc!(),
-           },
-       }
-})));
+           (fold_unitary_exprs(first, rest))
+)));
 
 // a non left-recursive unitary expr
 named!(nonrec_unitary_expr<Expr>, alt_complete!(
