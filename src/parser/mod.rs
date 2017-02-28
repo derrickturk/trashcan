@@ -17,6 +17,15 @@ macro_rules! empty_loc {
     }
 }
 
+macro_rules! expect_parse {
+    ($e:expr ; $i:ident => $p:pat) => {
+        match $i($e) {
+            IResult::Done(s, $p) => { assert_eq!(s.len(), 0) },
+            r => panic!("{:?}", r),
+        }
+    }
+}
+
 mod expr;
 use self::expr::*;
 mod ident;
@@ -58,9 +67,8 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 
 named!(pub stmt<Stmt>, alt_complete!(
     decl
-
+  | ret
   | assignment
-
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
         Stmt {
@@ -107,6 +115,17 @@ named!(assignment<Stmt>, complete!(do_parse!(
             data: StmtKind::Assign(e1, op, e2),
             loc: empty_loc!()
         })
+)));
+
+named!(ret<Stmt>, complete!(do_parse!(
+    opt!(call!(nom::multispace)) >>
+    tag!("return") >>
+ e: opt!(preceded!(call!(nom::multispace), expr)) >>
+    terminator >>
+    (Stmt {
+        data: StmtKind::Return(e),
+        loc: empty_loc!(),
+    })
 )));
 
 named!(terminator<char>, complete!(preceded!(
@@ -379,7 +398,15 @@ mod test {
         assert!(stmt(s).is_done());
 
         let s = b"x::y[17].g @= \"bob\" @ damn ? \"jones\" : \"eh\";";
-        panic!("{:?}", stmt(s));
         assert!(stmt(s).is_done());
+
+        let s = b"return;";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::Return(None), .. });
+
+        let s = b"return 17;";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::Return(_), .. });
+
+        let s = b"return17;";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::ExprStmt(_), .. });
     }
 }

@@ -72,7 +72,7 @@ pub enum StmtKind {
     Assign(Expr, AssignOp, Expr),
 
     /// return statement
-    Return(Expr),
+    Return(Option<Expr>),
 
     /// conditional statement (if, else if, else)
     IfStmt {
