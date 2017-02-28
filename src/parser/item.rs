@@ -21,6 +21,7 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('(') >>
     params: separated_list!(ws!(char!(',')), fnparam) >>
+            opt!(call!(nom::multispace)) >>
             char!(')') >>
        ret: opt!(fnret) >>
             opt!(call!(nom::multispace)) >>

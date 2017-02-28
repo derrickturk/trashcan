@@ -52,13 +52,93 @@ pub enum CustomErrors {
     InvalidEscape,
 }
 
-named!(pub dumpster<Dumpster>, complete!(map!(
+pub fn strip_comments(input: &[u8]) -> Vec<u8> {
+    let mut in_line_comment = false;
+    let mut in_block_comment = false;
+    let mut in_quote = false;
+
+    let mut res = vec![];
+    let mut bytes = input.iter().cloned();
+    while let Some(c) = bytes.next() {
+        if in_line_comment {
+            if c == b'\n' {
+                in_line_comment = false;
+                res.push(b'\n');
+            }
+            continue;
+        }
+
+        if in_block_comment {
+            if c == b'*' {
+                match bytes.next() {
+                    Some(b'/') => {
+                        in_block_comment = false;
+                        res.push(b' '); // replace block comment by space
+                    },
+                    Some(b'\n') => {
+                        res.push(b'\n');
+                    },
+                    None => {
+                        return res;
+                    },
+                    _ => {}
+                }
+            } else if c == b'\n' {
+                res.push(b'\n');
+            }
+            continue;
+        }
+
+        if in_quote {
+            if c == b'\\' {
+                match bytes.next() {
+                    Some(c) => {
+                        res.push(b'\\');
+                        res.push(c);
+                    },
+                    None => {
+                        return res;
+                    }
+                }
+                continue;
+            } else if c == b'"' {
+                in_quote = false;
+            }
+            res.push(c);
+        } else if c == b'/' {
+            match bytes.next() {
+                Some(b'/') => {
+                    in_line_comment = true;
+                },
+                Some(b'*') => {
+                    in_block_comment = true;
+                },
+                Some(c) => {
+                    res.push(b'/');
+                    res.push(c);
+                }
+                None => {
+                    return res;
+                }
+            }
+        } else {
+            if c == b'"' {
+                in_quote = true;
+            }
+
+            res.push(c);
+        }
+    }
+    res
+}
+
+named!(pub dumpster<Dumpster>, dbg_dmp!(complete!(map!(
     terminated!(
         many1!(module),
-        opt!(call!(nom::multispace))),
+        opt!(complete!(call!(nom::multispace)))),
     |mods| Dumpster {
         modules: mods
-    })));
+    }))));
 
 named!(pub module<Module>, alt_complete!(
     normal_module
@@ -428,5 +508,17 @@ mod test {
             fn x() { print \"whatever\"; }
         }";
         expect_parse!(d; dumpster => Dumpster { .. });
+    }
+
+    #[test]
+    fn test_comments() {
+        let thing = b"
+            // some goofy comment
+            print /* not this but instead */ that
+            \"here's a quote /* ignore this comment */ and // that one\"
+            /* \"quotes cant hide\" here */ or // here \"whatever\"
+            ";
+        let nc = strip_comments(thing);
+        // any easy way to compare &[u8]?
     }
 }
