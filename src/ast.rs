@@ -79,7 +79,7 @@ pub enum StmtKind {
         cond: Expr,
         body: Vec<Stmt>,
         elsifs: Vec<(Expr, Vec<Stmt>)>,
-        els: Vec<Stmt>,
+        els: Option<Vec<Stmt>>,
     },
 
     /// while loop

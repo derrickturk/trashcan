@@ -68,6 +68,7 @@ named!(module(&[u8]) -> Module, ws!(do_parse!(
 named!(pub stmt<Stmt>, alt_complete!(
     decl
   | ret
+  | ifstmt
   | assignment
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
@@ -126,6 +127,55 @@ named!(ret<Stmt>, complete!(do_parse!(
         data: StmtKind::Return(e),
         loc: empty_loc!(),
     })
+)));
+
+named!(ifstmt<Stmt>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("if") >>
+            call!(nom::multispace) >>
+      cond: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+      body: many0!(stmt) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+    elsifs: many0!(elsif) >>
+       els: opt!(els) >>
+            (Stmt {
+                data: StmtKind::IfStmt {
+                    cond: cond,
+                    body: body,
+                    elsifs: elsifs,
+                    els: els,
+                },
+                loc: empty_loc!(),
+            })
+)));
+
+named!(elsif<(Expr, Vec<Stmt>)>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("else") >>
+            call!(nom::multispace) >>
+            tag!("if") >>
+            call!(nom::multispace) >>
+      cond: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+      body: many0!(stmt) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (cond, body)
+)));
+
+named!(els<Vec<Stmt>>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        tag!("else") >>
+        opt!(call!(nom::multispace)) >>
+        char!('{') >>
+  body: many0!(stmt) >>
+        opt!(call!(nom::multispace)) >>
+        char!('}') >>
+        (body)
 )));
 
 named!(terminator<char>, complete!(preceded!(
@@ -398,7 +448,7 @@ mod test {
         assert!(stmt(s).is_done());
 
         let s = b"x::y[17].g @= \"bob\" @ damn ? \"jones\" : \"eh\";";
-        assert!(stmt(s).is_done());
+        expect_parse!(s; stmt => Stmt { data: StmtKind::Assign(_, _, _), .. });
 
         let s = b"return;";
         expect_parse!(s; stmt => Stmt { data: StmtKind::Return(None), .. });
@@ -408,5 +458,28 @@ mod test {
 
         let s = b"return17;";
         expect_parse!(s; stmt => Stmt { data: StmtKind::ExprStmt(_), .. });
+
+        let s = b"if x > 17 { return 3; }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::IfStmt { .. }, .. });
+
+        let s = b"
+        if x > 17 {
+            return 3;
+        } else if y > 3 {
+            x = y^2;
+        } else if f(x) {
+            return 2;
+        }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::IfStmt { .. }, .. });
+
+        let s = b"
+        if x > 17 {
+            return 3;
+        } else if f(x) {
+            return 2;\
+        } else {\
+            x @= \"bob\";
+        }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::IfStmt { .. }, .. });
     }
 }
