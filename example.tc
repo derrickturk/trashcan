@@ -38,3 +38,13 @@ fn do_something(x: /* ByRef Long */ &i32) {
 }
 
 }
+
+mod more_examples {
+    fn is_null(o: obj) -> bool {
+        return o === nullptr;
+    }
+
+    fn is_db_null(v: var) -> bool {
+        return v == nullvar;
+    }
+}

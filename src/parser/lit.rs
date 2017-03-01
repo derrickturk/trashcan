@@ -6,7 +6,8 @@ use ast::*;
 use super::*;
 
 named!(pub literal<Literal>, alt_complete!(
-    literal_bool
+    literal_null
+  | literal_bool
   | literal_float // try this before int
   | literal_int
   | literal_string
@@ -15,11 +16,19 @@ named!(pub literal<Literal>, alt_complete!(
 //  | literal_date));
 ));
 
+named!(literal_null<Literal>, complete!(preceded!(
+    opt!(call!(nom::multispace)),
+    alt!(
+        tag!("nullptr") => { |_| Literal::NullPtr }
+      | tag!("nullvar") => { |_| Literal::NullVar }
+    )
+)));
+
 named!(literal_bool<Literal>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt!(
-        map!(tag!("true"), |_| Literal::Bool(true))
-      | map!(tag!("false"), |_| Literal::Bool(false))
+        tag!("true") => { |_| Literal::Bool(true) }
+      | tag!("false") => { |_| Literal::Bool(false) }
     )
 )));
 

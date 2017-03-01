@@ -8,18 +8,18 @@ use super::*;
 named!(pub assign_op<AssignOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(
-        map!(char!('='), |_| AssignOp::Assign)
-      | map!(tag!("+="), |_| AssignOp::AddAssign)
-      | map!(tag!("-="), |_| AssignOp::SubAssign)
-      | map!(tag!("*="), |_| AssignOp::MulAssign)
-      | map!(tag!("/="), |_| AssignOp::DivAssign)
-      | map!(tag!("%="), |_| AssignOp::ModAssign)
-      | map!(tag!("^="), |_| AssignOp::PowAssign)
-      | map!(tag!("@="), |_| AssignOp::StrCatAssign)
-      | map!(tag!("&="), |_| AssignOp::BitAndAssign)
-      | map!(tag!("|="), |_| AssignOp::BitOrAssign)
-      | map!(tag!("&&="), |_| AssignOp::LogAndAssign)
-      | map!(tag!("||="), |_| AssignOp::LogOrAssign)
+        char!('=') => { |_| AssignOp::Assign }
+      | tag!("+=") => { |_| AssignOp::AddAssign }
+      | tag!("-=") => { |_| AssignOp::SubAssign }
+      | tag!("*=") => { |_| AssignOp::MulAssign }
+      | tag!("/=") => { |_| AssignOp::DivAssign }
+      | tag!("%=") => { |_| AssignOp::ModAssign }
+      | tag!("^=") => { |_| AssignOp::PowAssign }
+      | tag!("@=") => { |_| AssignOp::StrCatAssign }
+      | tag!("&=") => { |_| AssignOp::BitAndAssign }
+      | tag!("|=") => { |_| AssignOp::BitOrAssign }
+      | tag!("&&=") => { |_| AssignOp::LogAndAssign }
+      | tag!("||=") => { |_| AssignOp::LogOrAssign }
     )
 )));
 
@@ -61,21 +61,23 @@ named!(pub addsub_op<BinOp>, complete!(preceded!(
 named!(pub cmp_op<BinOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(
-        map!(tag!("<="), |_| BinOp::LtEq)
-      | map!(tag!(">="), |_| BinOp::GtEq)
-      | map!(one_of!("<>"), |c| match c {
+        tag!("<=") => { |_| BinOp::LtEq }
+      | tag!(">=") => { |_| BinOp::GtEq }
+      | one_of!("<>") => { |c| match c {
             '<' => BinOp::Lt,
             '>' => BinOp::Gt,
             _ => panic!("internal parser error")
-        })
+        }}
     )
 )));
 
 named!(pub eq_op<BinOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),
     alt_complete!(
-        map!(tag!("=="), |_| BinOp::Eq)
-      | map!(tag!("!="), |_| BinOp::NotEq)
+        tag!("===") => { |_| BinOp::IdentEq }
+      | tag!("!==") => { |_| BinOp::NotIdentEq }
+      | tag!("==") => { |_| BinOp::Eq }
+      | tag!("!=") => { |_| BinOp::NotEq }
     )
 )));
 

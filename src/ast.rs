@@ -273,6 +273,8 @@ pub enum BinOp {
     StrCat,
     Eq,
     NotEq,
+    IdentEq,
+    NotIdentEq,
     Lt,
     Gt,
     LtEq,
@@ -288,6 +290,10 @@ pub enum BinOp {
 /// Literals are...
 #[derive(Clone, Debug)]
 pub enum Literal {
+    /// null pointer literal (= VB6 Nothing)
+    NullPtr,
+    /// null variant literal (= VB6 Null)
+    NullVar,
     /// bool
     Bool(bool),
     /// u8
