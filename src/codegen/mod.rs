@@ -18,6 +18,7 @@ pub trait Emit {
 
 mod module;
 mod item;
+mod bits;
 
 /*
 
