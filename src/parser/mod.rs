@@ -397,6 +397,10 @@ mod test {
 
         let e = b"!!!!!f().x.g()[17][3] @ \"bob\"";
         assert!(expr(e).is_done());
+
+        // yup, it's an expr (we don't make promises)
+        let e = b"`Debug.Print UBound(x)`";
+        expect_parse!(e; expr => Expr { data: ExprKind::VbExpr { .. }, .. });
     }
 
     #[test]
@@ -463,9 +467,6 @@ mod test {
             i += 1;
         }";
         expect_parse!(s; stmt => Stmt { data: StmtKind::WhileLoop { .. }, .. });
-
-        let s = b"`Debug.Print UBound(x)`;";
-        expect_parse!(s; stmt => Stmt { data: StmtKind::VbStmt { .. }, .. });
 
         let s = b"for x: i32 = 1:7 { print x; }";
         expect_parse!(s; stmt => Stmt { data: StmtKind::ForLoop { .. }, .. });

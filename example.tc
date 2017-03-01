@@ -30,6 +30,10 @@ fn do_something(x: /* ByRef Long */ &i32) {
         print x;
     }
 
+    if x && `Application.WorksheetFunction("SIN", 7)` > 3 {
+        print "what";
+    }
+
     `Debug.Print "hi mom"`; // literal VBA
 }
 

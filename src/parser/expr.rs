@@ -201,6 +201,11 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
     }}
 
   | grouped
+
+  | vbexpr => { |e| Expr {
+      data: ExprKind::VbExpr(e),
+      loc: empty_loc!(),
+    }}
 ));
 
 named!(fncall<Expr>, complete!(do_parse!(
@@ -223,6 +228,17 @@ named!(grouped<Expr>, complete!(do_parse!(
        opt!(call!(nom::multispace)) >>
        char!(')') >>
        (e)
+)));
+
+// a passthrough VB expression
+// TODO: this needs work to pass through location,
+//   and handle escaping ` inside vb stmts
+named!(vbexpr<Vec<u8>>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('`') >>
+    vb: is_not!("`") >>
+        char!('`') >>
+        (vb.iter().cloned().collect())
 )));
 
 // various possible recursive "rests" of unitary exprs

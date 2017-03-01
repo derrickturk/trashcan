@@ -97,9 +97,6 @@ pub enum StmtKind {
 
     /// `print` statement (i.e. Debug.Print)
     Print(Expr),
-
-    /// pass-through literal VB statement (raw bytes)
-    VbStmt(Vec<u8>),
 }
 
 /// For loop specs: range (from, to, step) or each (expr)
@@ -149,6 +146,9 @@ pub enum ExprKind {
         if_expr: Box<Expr>,
         else_expr: Box<Expr>,
     },
+
+    /// pass-through literal VB expression (raw bytes)
+    VbExpr(Vec<u8>),
 }
 
 // TODO: maybe fix order of operations with multiple

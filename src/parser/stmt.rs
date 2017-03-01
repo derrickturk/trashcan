@@ -14,10 +14,6 @@ named!(pub stmt<Stmt>, alt_complete!(
   | whileloop
   | forloop
   | assignment
-  | vbstmt => { |s| { Stmt {
-        data: StmtKind::VbStmt(s),
-        loc: empty_loc!(),
-    }}}
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
         Stmt {
@@ -208,17 +204,6 @@ named!(print<Stmt>, complete!(do_parse!(
         data: StmtKind::Print(e),
         loc: empty_loc!(),
     })
-)));
-
-// TODO: this needs work to pass through location,
-//   and handle escaping ` inside vb stmts
-named!(vbstmt<Vec<u8>>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('`') >>
-    vb: is_not!("`") >>
-        char!('`') >>
-        terminator >>
-        (vb.iter().cloned().collect())
 )));
 
 named!(terminator<char>, complete!(preceded!(
