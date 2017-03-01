@@ -3,7 +3,7 @@
 // define ordinary module
 mod example {
 
-pub fn f(x: i32, y: f64 /* no arrays yet [] */) -> str {
+pub fn f(x: i32, y: f64[]) -> str {
     // while loop
     while x < 17 {
         x = x + 1;
@@ -20,6 +20,16 @@ fn do_something(x: /* ByRef Long */ &i32) {
     if x != 7 {
         x /= 2; // inferred integer divide
     }
+
+    for x: i32 = 1 ? 23 : 5 : 7 : 1 {
+        // brutal
+    }
+
+    for x: obj in o.arr {
+        x.f(3);
+        print x;
+    }
+
     `Debug.Print "hi mom"`; // literal VBA
 }
 

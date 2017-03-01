@@ -93,17 +93,17 @@ named!(pub typename<Type>, complete!(do_parse!(
         })
 )));
 
-named!(array_spec<Vec<(u32, u32)>>, complete!(do_parse!(
+named!(array_spec<Vec<(i64, i64)>>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('[') >>
-  dims: separated_list!(ws!(char!(';')), range) >>
+  dims: separated_list!(ws!(char!(';')), array_dim) >>
         opt!(call!(nom::multispace)) >>
         char!(']') >>
         (dims)
 )));
 
 // TODO: handle bounds-too-big-case
-named!(pub range<(u32, u32)>, map_res!(complete!(do_parse!(
+named!(array_dim<(i64, i64)>, map_res!(complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
  first: call!(nom::digit) >>
         opt!(call!(nom::multispace)) >>
@@ -117,7 +117,7 @@ named!(pub range<(u32, u32)>, map_res!(complete!(do_parse!(
 )), |(first, end)| make_range(first, end)));
 
 fn make_range(first: &[u8], end: Option<&[u8]>)
-  -> Result<(u32, u32), <u32 as str::FromStr>::Err> {
+  -> Result<(i64, i64), <i64 as str::FromStr>::Err> {
     let first = unsafe { str::from_utf8_unchecked(first).parse()? };
     match end {
         None => Ok((0, first - 1)),

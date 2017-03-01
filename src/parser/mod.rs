@@ -132,13 +132,13 @@ pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     res
 }
 
-named!(pub dumpster<Dumpster>, dbg_dmp!(complete!(map!(
+named!(pub dumpster<Dumpster>, complete!(map!(
     terminated!(
         many1!(module),
         opt!(complete!(call!(nom::multispace)))),
     |mods| Dumpster {
         modules: mods
-    }))));
+    })));
 
 named!(pub module<Module>, alt_complete!(
     normal_module
@@ -466,6 +466,15 @@ mod test {
 
         let s = b"`Debug.Print UBound(x)`;";
         expect_parse!(s; stmt => Stmt { data: StmtKind::VbStmt { .. }, .. });
+
+        let s = b"for x: i32 = 1:7 { print x; }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::ForLoop { .. }, .. });
+
+        let s = b"for x: i32 = y ? 7 : 8 : f(3) : -2 { print x; }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::ForLoop { .. }, .. });
+
+        let s = b"for x: f64 in arr { x *= 7; }";
+        expect_parse!(s; stmt => Stmt { data: StmtKind::ForLoop { .. }, .. });
     }
 
     #[test]

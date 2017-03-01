@@ -12,6 +12,7 @@ named!(pub stmt<Stmt>, alt_complete!(
   | print
   | ifstmt
   | whileloop
+  | forloop
   | assignment
   | vbstmt => { |s| { Stmt {
         data: StmtKind::VbStmt(s),
@@ -30,7 +31,7 @@ named!(decl<Stmt>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         tag!("let") >>
         call!(nom::multispace) >>
- decls: separated_list!(ws!(char!(',')), vardecl) >>
+ decls: separated_list!(ws!(char!(',')), vardeclinit) >>
         terminator >>
         (Stmt {
             data: StmtKind::VarDecl(decls),
@@ -38,21 +39,26 @@ named!(decl<Stmt>, complete!(do_parse!(
         })
 )));
 
-named!(vardecl<(Ident, Type, Option<Expr>)>, complete!(do_parse!(
+named!(vardeclinit<(Ident, Type, Option<Expr>)>, complete!(do_parse!(
+          decl: vardecl >>
+          init: opt!(varinit) >>
+                (decl.0, decl.1, init)
+)));
+
+named!(vardecl<(Ident, Type)>, complete!(do_parse!(
   name: ident >>
         opt!(call!(nom::multispace)) >>
         char!(':') >>
     ty: typename >>
-  init: varinit >>
-        (name, ty, init)
+        (name, ty)
 )));
 
-named!(varinit<Option<Expr>>, complete!(opt!(do_parse!(
+named!(varinit<Expr>, complete!(do_parse!(
     opt!(call!(nom::multispace)) >>
     char!('=') >>
  e: expr >>
     (e)
-))));
+)));
 
 named!(assignment<Stmt>, complete!(do_parse!(
     e1: expr >>
@@ -142,6 +148,55 @@ named!(whileloop<Stmt>, complete!(do_parse!(
                 },
                 loc: empty_loc!(),
             })
+)));
+
+named!(forloop<Stmt>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("for") >>
+            call!(nom::multispace) >>
+       var: vardecl >>
+      spec: alt_complete!(
+                for_range => { |(from, to, step)|
+                    ForSpec::Range(from, to, step) }
+              | for_each => { ForSpec::Each }
+            ) >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+      body: many0!(stmt) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (Stmt {
+                data: StmtKind::ForLoop {
+                    var: var,
+                    spec: spec,
+                    body: body,
+                },
+                loc: empty_loc!(),
+            })
+)));
+
+named!(for_range<(Expr, Expr, Option<Expr>)>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('=') >>
+ first: expr >>
+        opt!(call!(nom::multispace)) >>
+        char!(':') >>
+  last: expr >>
+  step: opt!(do_parse!(
+                opt!(call!(nom::multispace)) >>
+                char!(':') >>
+           step: expr >>
+                (step)
+        )) >>
+        (first, last, step)
+)));
+
+named!(for_each<Expr>, complete!(do_parse!(
+        call!(nom::multispace) >>
+        tag!("in") >>
+        call!(nom::multispace) >>
+     e: expr >>
+        (e)
 )));
 
 named!(print<Stmt>, complete!(do_parse!(

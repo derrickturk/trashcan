@@ -88,11 +88,25 @@ pub enum StmtKind {
         body: Vec<Stmt>,
     },
 
+    /// while loop
+    ForLoop {
+        var: (Ident, Type),
+        spec: ForSpec,
+        body: Vec<Stmt>,
+    },
+
     /// `print` statement (i.e. Debug.Print)
     Print(Expr),
 
     /// pass-through literal VB statement (raw bytes)
     VbStmt(Vec<u8>),
+}
+
+/// For loop specs: range (from, to, step) or each (expr)
+#[derive(Clone, Debug)]
+pub enum ForSpec {
+    Range(Expr, Expr, Option<Expr>),
+    Each(Expr),
 }
 
 /// Expressions
@@ -194,7 +208,7 @@ pub enum Type {
     /// obj (unspecified object type)
     Obj,
     /// T[] (possibly multidimensional)
-    Array(Box<Type>, Vec<(u32, u32)>),
+    Array(Box<Type>, Vec<(i64, i64)>),
     /// named object type
     Object(Ident),
     /// named structure type
