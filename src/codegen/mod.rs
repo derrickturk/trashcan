@@ -1,44 +1,25 @@
 //! code generator: emit VB6 from trashcan ASTs
 
-use ast::*;
-use symtab;
-use parser;
+use std::io;
+use std::io::Write;
 
-const INDENT: &'static str = "    ";
+use ast::*;
+use parser::SrcLoc;
+use symtab;
+
+const INDENT: u32 = 4;
 
 // TODO: probably more like emit(&self, symtab: &..., indent: u32)
 
-/*
-
 /// trait for all emittable types
 pub trait Emit {
-    fn emit(&self, indent: u32) -> String;
+    fn emit<W: Write>(&self, out: &mut W, indent: u32) -> io::Result<()>;
 }
 
-impl Emit for Module {
-    fn emit(&self, indent: u32) -> String {
-        match self {
-            &Module { name, kind: ModuleKind::Normal, items, .. } => items.iter()
-                .fold(String::new(), |mut acc, ref item| {
-                    acc.push_str(&item.emit(indent)); acc
-                }),
-            _ => unimplemented!(),
-        }
-    }
-}
+mod module;
+mod item;
 
-impl<'a> Emit for Item<'a> {
-    fn emit(&self, indent: u32) -> String {
-        match self.kind {
-            ItemKind::Function(ref func) =>
-                emit_func(self.access, func, indent),
-            ItemKind::StructDef(ref def) =>
-                emit_struct(self.access, def, indent),
-            ItemKind::EnumDef(ref def) =>
-                emit_enum(self.access, def, indent),
-        }
-    }
-}
+/*
 
 // TODO: handle multidimensional arrays properly
 impl<'a> Emit for FunctionParameter<'a> {

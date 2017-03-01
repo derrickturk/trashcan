@@ -1,11 +1,15 @@
 use std::env;
 use std::fs::File;
+
+use std::io;
 use std::io::Read;
+use std::io::Write;
 
 extern crate nom;
 
 extern crate trashcan;
 use trashcan::parser;
+use trashcan::codegen::Emit;
 
 fn main() {
     let args = env::args_os().collect::<Vec<_>>();
@@ -41,7 +45,10 @@ fn main() {
         }
     }
 
+    let mut stdout = io::LineWriter::new(io::stdout());
     for d in dumpsters {
-        println!("{:?}", d);
+        for m in d.modules {
+            m.emit(&mut stdout, 0).unwrap();
+        }
     }
 }
