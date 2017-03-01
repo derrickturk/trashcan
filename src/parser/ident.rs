@@ -69,22 +69,61 @@ pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
     }
 }
 
-// TODO urgent: arrays
-named!(pub typename<Type>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt_complete!(
-        tag!("bool") => { |_| Type::Bool }
-      | tag!("u8") => { |_| Type::UInt8 }
-      | tag!("i16") => { |_| Type::Int16 }
-      | tag!("i32") => { |_| Type::Int32 }
-      | tag!("isize") => { |_| Type::IntPtr }
-      | tag!("f32") => { |_| Type::Float32 }
-      | tag!("f64") => { |_| Type::Float64 }
-      | tag!("str") => { |_| Type::String }
-      | tag!("currency") => { |_| Type::Currency }
-      | tag!("date") => { |_| Type::Date }
-      | tag!("var") => { |_| Type::Variant }
-      | tag!("obj") => { |_| Type::Obj }
-      | ident => { |i| Type::Deferred(i) }
-    )
+named!(pub typename<Type>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+  base: alt_complete!(
+            tag!("bool") => { |_| Type::Bool }
+          | tag!("u8") => { |_| Type::UInt8 }
+          | tag!("i16") => { |_| Type::Int16 }
+          | tag!("i32") => { |_| Type::Int32 }
+          | tag!("isize") => { |_| Type::IntPtr }
+          | tag!("f32") => { |_| Type::Float32 }
+          | tag!("f64") => { |_| Type::Float64 }
+          | tag!("str") => { |_| Type::String }
+          | tag!("currency") => { |_| Type::Currency }
+          | tag!("date") => { |_| Type::Date }
+          | tag!("var") => { |_| Type::Variant }
+          | tag!("obj") => { |_| Type::Obj }
+          | ident => { |i| Type::Deferred(i) }
+        ) >>
+  spec: opt!(array_spec) >>
+        (match spec {
+            Some(spec) => Type::Array(Box::new(base), spec),
+            None => base
+        })
 )));
+
+named!(array_spec<Vec<(u32, u32)>>, complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+        char!('[') >>
+  dims: separated_list!(ws!(char!(';')), range) >>
+        opt!(call!(nom::multispace)) >>
+        char!(']') >>
+        (dims)
+)));
+
+// TODO: handle bounds-too-big-case
+named!(pub range<(u32, u32)>, map_res!(complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+ first: call!(nom::digit) >>
+        opt!(call!(nom::multispace)) >>
+   end: opt!(do_parse!(
+                char!(':') >>
+                opt!(call!(nom::multispace)) >>
+           end: call!(nom::digit) >>
+                (end)
+        )) >>
+        (first, end)
+)), |(first, end)| make_range(first, end)));
+
+fn make_range(first: &[u8], end: Option<&[u8]>)
+  -> Result<(u32, u32), <u32 as str::FromStr>::Err> {
+    let first = unsafe { str::from_utf8_unchecked(first).parse()? };
+    match end {
+        None => Ok((0, first - 1)),
+        Some (end) => {
+            let end = unsafe { str::from_utf8_unchecked(end).parse()? };
+            Ok((first, end))
+        }
+    }
+}

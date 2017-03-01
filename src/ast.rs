@@ -193,8 +193,8 @@ pub enum Type {
     Variant,
     /// obj (unspecified object type)
     Obj,
-    /// T[] (multidimensional?)
-    Array(Box<Type>, Option<u32>),
+    /// T[] (possibly multidimensional)
+    Array(Box<Type>, Vec<(u32, u32)>),
     /// named object type
     Object(Ident),
     /// named structure type

@@ -303,17 +303,11 @@ mod test {
         let res = typename("_abcdef".as_bytes());
         assert!(res.is_err());
 
-        match typename("boogaloo".as_bytes()) {
-            IResult::Done(_, Type::Deferred(Ident(s))) => {
-                assert!(s == "boogaloo")
-            },
-            _ => panic!("couldn't parse deferred-ident type")
-        }
-
-        match typename("i32".as_bytes()) {
-            IResult::Done(_, Type::Int32) => { },
-            _ => panic!("couldn't parse i32")
-        }
+        expect_parse!(b"boogaloo"; typename => Type::Deferred(_));
+        expect_parse!(b"i32"; typename => Type::Int32);
+        expect_parse!(b"f64[]"; typename => Type::Array(_, _));
+        expect_parse!(b"f64[10]"; typename => Type::Array(_, _));
+        expect_parse!(b"f64[10; 1:17]"; typename => Type::Array(_, _));
     }
 
     #[test]
