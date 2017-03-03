@@ -14,7 +14,8 @@ impl<'a> Emit<&'a FunDef> for Stmt {
       -> io::Result<()> {
         match self.data {
             StmtKind::ExprStmt(ref e) => {
-                e.emit(out, ExprPos::Stmt, indent)
+                e.emit(out, ExprPos::Stmt, indent)?;
+                out.write_all(b"\n")
             },
 
             StmtKind::VarDecl(ref decls) => {
@@ -56,9 +57,16 @@ impl<'a> Emit<&'a FunDef> for Stmt {
                     &None => {}
                 }
 
-                // TODO: don't need this if last stmt in fundef
-                write!(out, "{:in$}Exit {}\n", "", fnsub,
-                  in = (indent * INDENT) as usize)
+                // if we're the last statement in the function body,
+                //   we don't need an "Exit Function"; we use a ptr cast here
+                //   because we really will be a reference to
+                //   ctxt.body.last().unwrap()
+                if self as *const _ != ctxt.body.last().unwrap() as *const _ {
+                    write!(out, "{:in$}Exit {}\n", "", fnsub,
+                      in = (indent * INDENT) as usize)?;
+                }
+
+                Ok(())
             },
 
             StmtKind::Print(ref expr) => {
