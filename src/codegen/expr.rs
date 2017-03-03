@@ -20,6 +20,8 @@ impl<'a> Emit<ExprPos> for Expr {
     fn emit<W: Write>(&self, out: &mut W, ctxt: ExprPos, indent: u32)
       -> io::Result<()> {
         match self.data {
+            ExprKind::Lit(ref literal) => literal.emit(out, (), indent),
+
             ExprKind::VbExpr(ref bytes) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 out.write_all(bytes)

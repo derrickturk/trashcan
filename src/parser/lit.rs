@@ -33,6 +33,8 @@ named!(literal_bool<Literal>, complete!(preceded!(
     )
 )));
 
+// TODO: negative signs and other oddities
+
 named!(literal_int<Literal>, complete!(map_res!(do_parse!(
          opt!(call!(nom::multispace)) >>
     num: call!(nom::digit) >>
@@ -100,6 +102,7 @@ named!(literal_string<Literal>, map_res!(complete!(preceded!(
 
 fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
     let mut s = Vec::new();
+    let mut bytes_consumed = 0;
     let mut bytes = input.iter();
     while let Some(c) = bytes.next() {
         if *c == b'"' {
@@ -110,10 +113,13 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
             match bytes.next() {
                 Some(&b'n') => s.push(b'\n'),
                 Some(&b't') => s.push(b'\t'),
+                Some(&b'"') => s.push(b'"'),
                 // TODO: more escapes here
                 _ => return IResult::Error(
                     ErrorKind::Custom(CustomErrors::InvalidEscape as u32))
             }
+            bytes_consumed += 2;
+            continue;
         }
 
         // TODO: it'd be nice to allow rust style multiline strings
@@ -121,8 +127,9 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
         // first option needs peek here; second just needs a change to the
         // literal_string production
 
+        bytes_consumed += 1;
         s.push(*c);
     }
 
-    IResult::Done(&input[s.len()..], s)
+    IResult::Done(&input[bytes_consumed..], s)
 }

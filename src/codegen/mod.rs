@@ -22,6 +22,7 @@ mod item;
 mod stmt;
 mod expr;
 mod ty;
+mod lit;
 mod bits;
 
 /*

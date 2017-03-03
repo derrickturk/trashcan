@@ -62,5 +62,7 @@ mod more_examples {
         let x: i32[10];
         let y: obj[];
         let z: SomeType[2:17];
+
+        let weird_str: str = "You're not\tmy \"supervisor\"";
     }
 }
