@@ -26,8 +26,16 @@ impl<'a> Emit<&'a FunDef> for Stmt {
             },
 
             StmtKind::Assign(ref place, ref op, ref expr) => {
+                // TODO: type inference on place (for Set)
                 place.emit(out, ExprPos::Expr, indent)?;
-                write!(out, " {:?} ", op)?;
+                out.write_all(b" = ")?;
+                match op {
+                    &AssignOp::Assign => {},
+                    _ => {
+                        place.emit(out, ExprPos::Expr, 0)?;
+                        op.emit(out, (), 0)?;
+                    }
+                }
                 expr.emit(out, ExprPos::Expr, 0)?;
                 out.write_all(b"\n")
             },
