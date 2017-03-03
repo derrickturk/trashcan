@@ -47,7 +47,10 @@ fn main() {
 
     let mut stdout = io::LineWriter::new(io::stdout());
     for d in dumpsters {
-        for m in d.modules {
+        for (i, m) in d.modules.iter().enumerate() {
+            if i != 0 {
+                stdout.write_all(b"\n").unwrap();
+            }
             m.emit(&mut stdout, (), 0).unwrap();
         }
     }

@@ -12,7 +12,10 @@ impl Emit<()> for Module {
         match self.data {
             ModuleKind::Normal(ref items) => {
                 write_normal_header(&self.name, out, indent)?;
-                for item in items {
+                for (i, item) in items.iter().enumerate() {
+                    if i != 0 {
+                        out.write_all(b"\n")?;
+                    }
                     item.emit(out, self, indent)?;
                 }
                 Ok(())
