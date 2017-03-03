@@ -87,6 +87,8 @@ impl<'a> Emit<&'a FunDef> for Stmt {
                 }
 
                 if let &Some(ref body) = els {
+                    write!(out, "{:in$}Else\n", "",
+                      in = (indent * INDENT) as usize)?;
                     for stmt in body {
                         stmt.emit(out, ctxt, indent + 1)?;
                     }
