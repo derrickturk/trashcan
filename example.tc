@@ -64,5 +64,9 @@ mod more_examples {
         let z: SomeType[2:17];
 
         let weird_str: str = "You're not\tmy \"supervisor\"";
+
+        other_mod::fun(x);
+
+        let res: bool = other_mod::fun2(x, y, z);
     }
 }
