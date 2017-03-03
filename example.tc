@@ -57,4 +57,10 @@ mod more_examples {
             return Sheet1.Range("A1");
         }
     }
+
+    fn arrays() {
+        let x: i32[10];
+        let y: obj[];
+        let z: SomeType[2:17];
+    }
 }

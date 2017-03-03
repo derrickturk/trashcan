@@ -6,6 +6,7 @@ use nom::{self, IResult, ErrorKind};
 use ast::*;
 
 // for now...
+#[macro_export]
 macro_rules! empty_loc {
     () => {
         SrcLoc {

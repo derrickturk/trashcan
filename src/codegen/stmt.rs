@@ -9,6 +9,8 @@ use super::expr::*;
 use super::ty::*;
 use super::bits::*;
 
+#[macro_use] use super::super::parser;
+
 impl<'a> Emit<&'a FunDef> for Stmt {
     fn emit<W: Write>(&self, out: &mut W, ctxt: &'a FunDef, indent: u32)
       -> io::Result<()> {
@@ -20,7 +22,7 @@ impl<'a> Emit<&'a FunDef> for Stmt {
 
             StmtKind::VarDecl(ref decls) => {
                 for decl in decls {
-                    emit_decl(out, decl, indent)?;
+                    emit_decl(out, decl, ctxt, indent)?;
                 }
                 Ok(())
             },
@@ -114,6 +116,68 @@ impl<'a> Emit<&'a FunDef> for Stmt {
                   in = (indent * INDENT) as usize)
             },
 
+            StmtKind::WhileLoop { ref cond, ref body } => {
+                write!(out, "{:in$}Do While ", "",
+                  in = (indent * INDENT) as usize)?;
+                cond.emit(out, ExprPos::Expr, 0)?;
+                out.write_all(b"\n")?;
+
+                for stmt in body {
+                    stmt.emit(out, ctxt, indent + 1)?;
+                }
+
+                write!(out, "{:in$}Loop\n", "",
+                  in = (indent * INDENT) as usize)
+            },
+
+            StmtKind::ForLoop { ref var, ref spec, ref body } => {
+                let vardecl = Stmt {
+                    data: StmtKind::VarDecl(
+                              vec![(var.0.clone(), var.1.clone(), None)]),
+                    loc: empty_loc!(),
+                };
+                vardecl.emit(out, ctxt, indent)?;
+
+                write!(out, "{:in$}For ", "",
+                  in = (indent * INDENT) as usize)?;
+
+                // TODO: somewhere decide what foreach means on arrays
+                match *spec {
+                    ForSpec::Range(ref from, ref to, ref by) => {
+                        var.0.emit(out, (), 0)?;
+                        out.write_all(b" = ")?;
+                        from.emit(out, ExprPos::Expr, 0)?;
+                        out.write_all(b" To ")?;
+                        to.emit(out, ExprPos::Expr, 0)?;
+                        match *by {
+                            Some(ref step) => {
+                                out.write_all(b" Step ")?;
+                                step.emit(out, ExprPos::Expr, 0)?;
+                            },
+                            None => {},
+                        }
+                        out.write_all(b"\n");
+                    },
+
+                    ForSpec::Each(ref expr) => {
+                        out.write_all(b"Each ")?;
+                        var.0.emit(out, (), 0)?;
+                        out.write_all(b" In ")?;
+                        expr.emit(out, ExprPos::Expr, 0)?;
+                        out.write_all(b"\n")?;
+                    },
+                }
+
+                for stmt in body {
+                    stmt.emit(out, ctxt, indent + 1)?;
+                }
+
+                write!(out, "{:in$}Next ", "",
+                  in = (indent * INDENT) as usize)?;
+                var.0.emit(out, (), 0)?;
+                out.write_all(b"\n")
+            }
+
             ref other => {
                 write!(out, "{:in$}{:?}\n", "", other,
                   in = (indent * INDENT) as usize)
@@ -122,7 +186,31 @@ impl<'a> Emit<&'a FunDef> for Stmt {
     }
 }
 
-fn emit_decl<W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
-  indent: u32) -> io::Result<()> {
-    write!(out, "{:in$}{:?}\n", "", decl, in = (indent * INDENT) as usize)
+fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
+  ctxt: &'a FunDef, indent: u32) -> io::Result<()> {
+    write!(out, "{:in$}Dim ", "", in = (indent * INDENT) as usize)?;
+    decl.0.emit(out, (), 0)?;
+    decl.1.emit(out, TypePos::Decl, 0)?;
+    out.write_all(b"\n")?;
+    
+    match decl.2 {
+        Some(ref init) => {
+            let assign_stmt = Stmt {
+                data: StmtKind::Assign(
+                          Expr {
+                              data: ExprKind::Name(Path(vec![decl.0.clone()])),
+                              loc: empty_loc!(),
+                          },
+                          AssignOp::Assign,
+                          init.clone()
+                      ),
+                      loc: empty_loc!(),
+            };
+            assign_stmt.emit(out, ctxt, indent)?;
+        },
+
+        None => {},
+    }
+    
+    Ok(())
 }
