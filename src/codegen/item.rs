@@ -36,7 +36,7 @@ impl<'a> Emit<&'a Module> for FunDef {
             if i != 0 {
                 out.write_all(b", ")?;
             }
-            out.write_all(b"type goes here")?;
+            p.emit(out, (), 0)?;
         }
         out.write_all(b")")?;
 
@@ -48,5 +48,15 @@ impl<'a> Emit<&'a Module> for FunDef {
         write!(out, "End {}\n", fnsub)?;
 
         Ok(())
+    }
+}
+
+impl Emit<()> for FunParam {
+    fn emit<W: Write>(&self, out: &mut W, ctxt: (), indent: u32)
+      -> io::Result<()> {
+        self.mode.emit(out, (), indent)?;
+        out.write_all(b" ")?;
+        self.name.emit(out, (), 0)?;
+        self.typ.emit(out, TypePos::FunParam, 0)
     }
 }
