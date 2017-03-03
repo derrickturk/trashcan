@@ -19,8 +19,9 @@ pub trait Emit<Ctxt> {
 
 mod module;
 mod item;
-mod bits;
+mod stmt;
 mod ty;
+mod bits;
 
 /*
 

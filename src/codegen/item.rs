@@ -45,6 +45,10 @@ impl<'a> Emit<&'a Module> for FunDef {
         }
         out.write_all(b"\n")?;
 
+        for stmt in self.body.iter() {
+            stmt.emit(out, self, indent + 1)?;
+        }
+
         write!(out, "End {}\n", fnsub)?;
 
         Ok(())
