@@ -5,7 +5,6 @@ use std::io::Write;
 
 use ast::*;
 use parser::SrcLoc;
-use symtab;
 
 const INDENT: u32 = 4;
 

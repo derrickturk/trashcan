@@ -37,6 +37,8 @@ fn do_something(x: /* ByRef Long */ &i32) {
     `Debug.Print "hi mom"`; // literal VBA
 }
 
+// pub fn f() {}
+
 }
 
 mod more_examples {
