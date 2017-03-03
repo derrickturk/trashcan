@@ -12,13 +12,15 @@ const INDENT: u32 = 4;
 // TODO: probably more like emit(&self, symtab: &..., indent: u32)
 
 /// trait for all emittable types
-pub trait Emit {
-    fn emit<W: Write>(&self, out: &mut W, indent: u32) -> io::Result<()>;
+pub trait Emit<Ctxt> {
+    fn emit<W: Write>(&self, out: &mut W, ctxt: Ctxt, indent: u32)
+      -> io::Result<()>;
 }
 
 mod module;
 mod item;
 mod bits;
+mod ty;
 
 /*
 

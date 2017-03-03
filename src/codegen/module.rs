@@ -6,13 +6,14 @@ use std::io::Write;
 use ast::*;
 use super::*;
 
-impl Emit for Module {
-    fn emit<W: Write>(&self, out: &mut W, indent: u32) -> io::Result<()> {
+impl Emit<()> for Module {
+    fn emit<W: Write>(&self, out: &mut W, _ctxt: (), indent: u32)
+      -> io::Result<()> {
         match self.data {
             ModuleKind::Normal(ref items) => {
                 write_normal_header(&self.name, out, indent)?;
                 for item in items {
-                    item.emit(out, indent)?;
+                    item.emit(out, self, indent)?;
                 }
                 Ok(())
             },

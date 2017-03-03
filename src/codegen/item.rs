@@ -6,18 +6,21 @@ use std::io::Write;
 use ast::*;
 use super::*;
 use super::bits::*;
+use super::ty::*;
 
-impl Emit for NormalItem {
-    fn emit<W: Write>(&self, out: &mut W, indent: u32) -> io::Result<()> {
+impl<'a> Emit<&'a Module> for NormalItem {
+    fn emit<W: Write>(&self, out: &mut W, ctxt: &'a Module, indent: u32)
+      -> io::Result<()> {
         match self {
-            &NormalItem::Function(ref def) => def.emit(out, indent)
+            &NormalItem::Function(ref def) => def.emit(out, ctxt, indent)
         }
     }
 }
 
-impl Emit for FunDef {
-    fn emit<W: Write>(&self, out: &mut W, indent: u32) -> io::Result<()> {
-        self.access.emit(out, indent)?;
+impl<'a> Emit<&'a Module> for FunDef {
+    fn emit<W: Write>(&self, out: &mut W, ctxt: &'a Module, indent: u32)
+      -> io::Result<()> {
+        self.access.emit(out, (), indent)?;
 
         let fnsub = match self.ret {
             None => "Sub",
@@ -26,7 +29,7 @@ impl Emit for FunDef {
 
         write!(out, " {} ", fnsub)?;
 
-        self.name.emit(out, 0)?;
+        self.name.emit(out, (), 0)?;
 
         out.write_all(b"(")?;
         for (i, p) in self.params.iter().enumerate() {
@@ -38,8 +41,7 @@ impl Emit for FunDef {
         out.write_all(b")")?;
 
         if let Some(ref ty) = self.ret {
-            out.write_all(b" As ")?;
-            out.write_all(b"type goes here")?;
+            ty.emit(out, TypePos::FunRet, 0)?;
         }
         out.write_all(b"\n")?;
 
