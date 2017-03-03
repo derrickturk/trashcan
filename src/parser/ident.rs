@@ -11,7 +11,7 @@ pub const IDENT_CONT_CHARS: &'static str =
      0123456789\
      _";
 
-pub const KEYWORDS: [&'static str; 25] = [
+pub const KEYWORDS: [&'static str; 28] = [
     "let",
     "print",
     "return",
@@ -23,13 +23,16 @@ pub const KEYWORDS: [&'static str; 25] = [
     "class",
     "struct",
     "enum",
+    "new",
     "nullptr",
+    "emptyvar",
     "nullvar",
     "bool",
     "u8",
     "i16",
     "i32",
     "i64",
+    "isize",
     "f32",
     "f64",
     "str",
@@ -95,7 +98,7 @@ named!(pub typename<Type>, complete!(do_parse!(
         })
 )));
 
-named!(array_spec<Vec<(i64, i64)>>, complete!(do_parse!(
+named!(array_spec<Vec<(i32, i32)>>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('[') >>
   dims: separated_list!(ws!(char!(';')), array_dim) >>
@@ -104,8 +107,7 @@ named!(array_spec<Vec<(i64, i64)>>, complete!(do_parse!(
         (dims)
 )));
 
-// TODO: handle bounds-too-big-case
-named!(array_dim<(i64, i64)>, map_res!(complete!(do_parse!(
+named!(array_dim<(i32, i32)>, map_res!(complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
  first: call!(nom::digit) >>
         opt!(call!(nom::multispace)) >>
@@ -119,7 +121,7 @@ named!(array_dim<(i64, i64)>, map_res!(complete!(do_parse!(
 )), |(first, end)| make_range(first, end)));
 
 fn make_range(first: &[u8], end: Option<&[u8]>)
-  -> Result<(i64, i64), <i64 as str::FromStr>::Err> {
+  -> Result<(i32, i32), <i32 as str::FromStr>::Err> {
     let first = unsafe { str::from_utf8_unchecked(first).parse()? };
     match end {
         None => Ok((0, first - 1)),

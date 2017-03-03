@@ -21,6 +21,7 @@ named!(literal_null<Literal>, complete!(preceded!(
     alt!(
         tag!("nullptr") => { |_| Literal::NullPtr }
       | tag!("nullvar") => { |_| Literal::NullVar }
+      | tag!("emptyvar") => { |_| Literal::EmptyVar }
     )
 )));
 

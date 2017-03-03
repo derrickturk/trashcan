@@ -59,7 +59,7 @@ fn basename(ty: &Type) -> &str {
     }
 }
 
-fn emit_bounds<W: Write>(out: &mut W, bounds: &Vec<(i64, i64)>)
+fn emit_bounds<W: Write>(out: &mut W, bounds: &Vec<(i32, i32)>)
   -> io::Result<()> {
     for &(l, u) in bounds {
         write!(out, "{} To {}", l, u)?;

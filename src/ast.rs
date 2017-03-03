@@ -208,7 +208,7 @@ pub enum Type {
     /// obj (unspecified object type)
     Obj,
     /// T[] (possibly multidimensional)
-    Array(Box<Type>, Vec<(i64, i64)>),
+    Array(Box<Type>, Vec<(i32, i32)>),
     /// named object type
     Object(Ident),
     /// named structure type
@@ -304,6 +304,8 @@ pub enum Literal {
     NullPtr,
     /// null variant literal (= VB6 Null)
     NullVar,
+    /// empty variant literal (= VB6 Empty)
+    EmptyVar,
     /// bool
     Bool(bool),
     /// u8
