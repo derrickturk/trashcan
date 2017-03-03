@@ -47,4 +47,8 @@ mod more_examples {
     fn is_db_null(v: var) -> bool {
         return v == nullvar;
     }
+
+    fn retobj() -> obj {
+        return nullptr;
+    }
 }

@@ -219,6 +219,16 @@ pub enum Type {
     Deferred(Ident),
 }
 
+impl Type {
+    pub fn is_object(&self) -> Option<bool> {
+        match *self {
+            Type::Obj | Type::Object(_) => Some(true),
+            Type::Variant | Type::Deferred(_) => None,
+            _ => Some(false),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 /// Assignment operators
 pub enum AssignOp {
