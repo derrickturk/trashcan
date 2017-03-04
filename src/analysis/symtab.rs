@@ -4,9 +4,12 @@ use ast::*;
 use std::collections::HashMap;
 
 /// A symbol table entry
+#[derive(Clone, Debug)]
 pub enum Symbol {
+    Const(Type),
+
     /// e.g. x: i32
-    Value(Type),
+    Value(Type, Option<ParamMode>),
 
     /// e.g. "SomeObj" => Type::Object("SomeObj")
     Type(Type),
@@ -74,5 +77,59 @@ fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
         def: def.clone(),
         locals: HashMap::new(),
     });
+
+    let locals = match tbl.get_mut(&def.name.0) {
+        Some(&mut Symbol::Fun { ref mut locals, .. }) => locals,
+        _ => panic!("internal compiler error"),
+    };
+
+    for p in &def.params {
+        if locals.contains_key(&p.name.0) {
+            return Err(AnalysisError {
+                kind: AnalysisErrorKind::DuplicateSymbol,
+                regarding: Some(format!("parameter {}", p.name.0)),
+                loc: p.loc.clone(),
+            });
+        }
+        locals.insert(p.name.0.clone(),
+          Symbol::Value(p.typ.clone(), Some(p.mode)));
+    }
+
+    for stmt in &def.body {
+        match stmt.data {
+            StmtKind::VarDecl(ref decls) => {
+                for var in decls {
+                    if locals.contains_key(&(var.0).0) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::DuplicateSymbol,
+                            regarding: Some(format!("variable {}", (var.0).0)),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+                    locals.insert((var.0).0.clone(),
+                      Symbol::Value(var.1.clone(), None));
+                }
+            },
+
+            // TODO: maybe should this gensym?
+            /*
+            StmtKind::ForLoop { ref var, .. } => {
+                if locals.contains_key(&(var.0).0) {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::DuplicateSymbol,
+                        regarding: Some(format!("for-variable {}", (var.0).0)),
+                        loc: stmt.loc.clone(),
+                    });
+                }
+                // TODO: might be byref if we do the for-each trick
+                locals.insert((var.0).0.clone(),
+                  Symbol::Value(var.1.clone(), None));
+            },
+            */
+
+            _ => {},
+        }
+    }
+
     Ok(())
 }

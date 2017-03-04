@@ -5,6 +5,8 @@ use std::io;
 use std::io::Read;
 use std::io::Write;
 
+use std::collections::HashMap;
+
 extern crate nom;
 
 extern crate trashcan;
@@ -49,10 +51,36 @@ fn main() {
     let mut stdout = io::LineWriter::new(io::stdout());
     let dumpster = analysis::merge_dumpsters(dumpsters);
     let symtab = analysis::symbol_table(&dumpster).expect("symtab error");
+
     for (i, m) in dumpster.modules.iter().enumerate() {
         if i != 0 {
             stdout.write_all(b"\n").unwrap();
         }
         m.emit(&mut stdout, (), 0).unwrap();
+    }
+
+    stdout.write_all(b"\nSYMBOL TABLE DUMP\n").unwrap();
+    for (m, tbl) in symtab {
+        write!(stdout, "module {}:\n", m).unwrap();
+        dump_tbl(&mut stdout, tbl, 1);
+    }
+}
+
+fn dump_tbl<W: Write>(out: &mut W, tbl: HashMap<String, analysis::Symbol>,
+  ind: usize) {
+    for (k, sym) in tbl {
+        write!(out, "{:in$}item {}: ", "", k, in=ind*4).unwrap();
+        match sym {
+            analysis::Symbol::Const(ty) =>
+                write!(out, "constant {:?}\n", ty).unwrap(),
+            analysis::Symbol::Value(ty, mode) =>
+                write!(out, "value {:?} {:?}\n", mode, ty).unwrap(),
+            analysis::Symbol::Type(ty) =>
+                write!(out, "type {:?}\n", ty).unwrap(),
+            analysis::Symbol::Fun { def, locals } => {
+                write!(out, "fn {}\n", def.name.0).unwrap();
+                dump_tbl(out, locals, ind + 1);
+            },
+        }
     }
 }
