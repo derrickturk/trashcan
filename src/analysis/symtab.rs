@@ -1,3 +1,5 @@
+//! trashcan's symbol table 
+
 use super::*;
 use ast::*;
 
@@ -112,7 +114,6 @@ fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
             },
 
             // TODO: maybe should this gensym?
-            /*
             StmtKind::ForLoop { ref var, .. } => {
                 if locals.contains_key(&(var.0).0) {
                     return Err(AnalysisError {
@@ -125,7 +126,6 @@ fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
                 locals.insert((var.0).0.clone(),
                   Symbol::Value(var.1.clone(), None));
             },
-            */
 
             _ => {},
         }

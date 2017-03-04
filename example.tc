@@ -21,13 +21,13 @@ fn do_something(x: /* ByRef Long */ &i32) {
         x /= 2; // inferred integer divide
     }
 
-    for x: i32 = 1 ? 23 : 5 : 7 : 1 {
+    for i: i32 = 1 ? 23 : 5 : 7 : 1 {
         // brutal
     }
 
-    for x: obj in o.arr {
-        x.f(3);
-        print x;
+    for e: obj in o.arr {
+        e.f(3);
+        print e;
     }
 
     if x && `Application.WorksheetFunction("SIN", 7)` > 3 {
