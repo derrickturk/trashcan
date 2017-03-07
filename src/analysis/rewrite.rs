@@ -16,6 +16,8 @@ pub fn gensym() -> Ident {
 ///   rules:
 ///     * we can only substitute for 'bare' idents (not::paths)
 ///     * we never substitute for funparams
+///     * we never substitute for fn names
+///     * we never substitute a member-name ident
 pub trait Substitute {
     fn substitute(self, orig: &Ident, replace: &Ident) -> Self;
 }
@@ -142,7 +144,72 @@ impl Substitute for Stmt {
 
 impl Substitute for Expr {
     fn substitute(self, orig: &Ident, replace: &Ident) -> Self {
-        self
+        let data = match self.data {
+            ExprKind::Name(path) =>
+                ExprKind::Name(path.substitute(orig, replace)),
+
+            ExprKind::Index(e1, e2) =>
+                ExprKind::Index(
+                    Box::new(e1.substitute(orig, replace)),
+                    Box::new(e2.substitute(orig, replace))
+                ),
+
+            ExprKind::Call(path, args) =>
+                ExprKind::Call(
+                    path,
+                    args.into_iter().map(|e| e.substitute(orig, replace))
+                      .collect(),
+                ),
+
+            ExprKind::Member(expr, mem) =>
+                ExprKind::Member(
+                    Box::new(expr.substitute(orig, replace)),
+                    mem
+                ),
+
+            ExprKind::MemberInvoke(expr, mem, args) =>
+                ExprKind::MemberInvoke(
+                    Box::new(expr.substitute(orig, replace)),
+                    mem,
+                    args.into_iter().map(|e| e.substitute(orig, replace))
+                      .collect(),
+                ),
+
+            ExprKind::UnOpApp(e, op) =>
+                ExprKind::UnOpApp(Box::new(e.substitute(orig, replace)), op),
+
+            ExprKind::BinOpApp(e1, e2, op) =>
+                ExprKind::BinOpApp(
+                    Box::new(e1.substitute(orig, replace)),
+                    Box::new(e2.substitute(orig, replace)),
+                    op
+                ),
+
+            ExprKind::CondExpr { cond, if_expr, else_expr } =>
+                ExprKind::CondExpr {
+                    cond: Box::new(cond.substitute(orig, replace)),
+                    if_expr: Box::new(if_expr.substitute(orig, replace)),
+                    else_expr: Box::new(else_expr.substitute(orig, replace)),
+                },
+
+            e => e,
+        };
+
+        Expr {
+            data: data,
+            loc: self.loc,
+        }
+    }
+}
+
+impl Substitute for Path {
+    fn substitute(mut self, orig: &Ident, replace: &Ident) -> Self {
+        if self.0.len() != 1 {
+            self
+        } else {
+            let ident = self.0.pop().unwrap();
+            Path(vec![ident.substitute(orig, replace)])
+        }
     }
 }
 

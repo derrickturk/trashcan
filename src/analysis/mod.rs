@@ -26,6 +26,8 @@ pub mod symtab;
 pub use self::symtab::*;
 pub mod rewrite;
 pub use self::rewrite::*;
+pub mod transforms;
+pub use self::transforms::*;
 
 pub fn merge_dumpsters(dumpsters: Vec<ast::Dumpster>) -> ast::Dumpster {
     ast::Dumpster {

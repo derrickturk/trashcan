@@ -50,6 +50,8 @@ fn main() {
 
     let mut stdout = io::LineWriter::new(io::stdout());
     let dumpster = analysis::merge_dumpsters(dumpsters);
+    let dumpster = analysis::for_loop_var_gensym(dumpster);
+    let dumpster = analysis::short_circuit_logicals(dumpster);
     let symtab = analysis::symbol_table(&dumpster).expect("symtab error");
 
     for (i, m) in dumpster.modules.iter().enumerate() {
