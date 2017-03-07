@@ -58,7 +58,7 @@ fn main() {
         if i != 0 {
             stdout.write_all(b"\n").unwrap();
         }
-        m.emit(&mut stdout, (), 0).unwrap();
+        m.emit(&mut stdout, &symtab, (), 0).unwrap();
     }
 
     stdout.write_all(b"\nSYMBOL TABLE DUMP\n").unwrap();

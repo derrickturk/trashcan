@@ -5,10 +5,11 @@ use std::io::Write;
 
 use ast::*;
 use super::*;
+use analysis::SymbolTable;
 
 impl Emit<()> for Literal {
-    fn emit<W: Write>(&self, out: &mut W, ctxt: (), indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
         let as_str = match *self {
             Literal::NullPtr => String::from("Nothing"),
             Literal::NullVar => String::from("Null"),

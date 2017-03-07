@@ -5,17 +5,18 @@ use std::io::Write;
 
 use ast::*;
 use super::*;
+use analysis::SymbolTable;
 
 impl Emit<()> for Ident {
-    fn emit<W: Write>(&self, out: &mut W, _ctxt: (), indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
         write!(out, "{:in$}{}", "", self.0, in = (indent * INDENT) as usize)
     }
 }
 
 impl Emit<()> for Access {
-    fn emit<W: Write>(&self, out: &mut W, _ctxt: (), indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
         write!(out, "{:in$}{}", "", match *self {
             Access::Private => "Private",
             Access::Public => "Public",
@@ -24,8 +25,8 @@ impl Emit<()> for Access {
 }
 
 impl Emit<()> for ParamMode {
-    fn emit<W: Write>(&self, out: &mut W, _ctxt: (), indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
         write!(out, "{:in$}{}", "", match *self {
             ParamMode::ByVal => "ByVal",
             ParamMode::ByRef => "ByRef",
@@ -35,8 +36,8 @@ impl Emit<()> for ParamMode {
 
 // just the "combination" operator
 impl Emit<()> for AssignOp {
-    fn emit<W: Write>(&self, out: &mut W, _ctxt: (), _indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), _indent: u32) -> io::Result<()> {
         let op: &[u8] = match *self {
             AssignOp::AddAssign => b" + ",
             AssignOp::SubAssign => b" - ",

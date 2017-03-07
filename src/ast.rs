@@ -151,8 +151,13 @@ pub enum ExprKind {
     VbExpr(Vec<u8>),
 }
 
-// TODO: maybe fix order of operations with multiple
-//   productions here?
+/*
+impl Expr {
+    pub fn might_need_parens(&self) -> {
+
+    }
+}
+*/
 
 /// Module, item, variable, or type identifiers
 #[derive(Clone, Debug)]

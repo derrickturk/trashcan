@@ -25,9 +25,9 @@ fn do_something(x: /* ByRef Long */ &i32) {
         // brutal
     }
 
-    for e: obj in o.arr {
-        e.f(3);
-        print e;
+    for x: obj in o.arr {
+        x.f(3);
+        print x;
     }
 
     if x && `Application.WorksheetFunction("SIN", 7)` > 3 {

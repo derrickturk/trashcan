@@ -18,16 +18,16 @@ pub enum ExprPos {
 }
 
 impl<'a> Emit<ExprPos> for Expr {
-    fn emit<W: Write>(&self, out: &mut W, ctxt: ExprPos, indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      ctxt: ExprPos, indent: u32) -> io::Result<()> {
         match self.data {
-            ExprKind::Lit(ref literal) => literal.emit(out, (), indent),
+            ExprKind::Lit(ref literal) => literal.emit(out, symtab, (), indent),
 
             ExprKind::Name(ref path) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 for (i, nm) in path.0.iter().enumerate() {
                     if i != 0 { out.write_all(b".")?; }
-                    nm.emit(out, (), 0)?;
+                    nm.emit(out, symtab, (), 0)?;
                 }
                 Ok(())
             },
@@ -37,7 +37,7 @@ impl<'a> Emit<ExprPos> for Expr {
                     data: ExprKind::Name(path.clone()),
                     loc: empty_loc!(),
                 };
-                pathexpr.emit(out, ctxt, indent)?;
+                pathexpr.emit(out, symtab, ctxt, indent)?;
 
                 match ctxt {
                     ExprPos::Expr => out.write_all(b"(")?,
@@ -46,7 +46,7 @@ impl<'a> Emit<ExprPos> for Expr {
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
-                    arg.emit(out, ExprPos::Expr, 0)?;
+                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
 
                 match ctxt {

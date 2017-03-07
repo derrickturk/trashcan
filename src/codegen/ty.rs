@@ -14,8 +14,8 @@ pub enum TypePos {
 
 // TODO: need context here (are we in fn-ret, param, or decl position?)
 impl Emit<TypePos> for Type {
-    fn emit<W: Write>(&self, out: &mut W, ctxt: TypePos, indent: u32)
-      -> io::Result<()> {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      ctxt: TypePos, indent: u32) -> io::Result<()> {
         let base = basename(self);
         match self {
             &Type::Deferred(_) =>

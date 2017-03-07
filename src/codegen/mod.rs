@@ -5,15 +5,14 @@ use std::io::Write;
 
 use ast::*;
 use parser::SrcLoc;
+use analysis::SymbolTable;
 
 const INDENT: u32 = 4;
 
-// TODO: probably more like emit(&self, symtab: &..., indent: u32)
-
 /// trait for all emittable types
 pub trait Emit<Ctxt> {
-    fn emit<W: Write>(&self, out: &mut W, ctxt: Ctxt, indent: u32)
-      -> io::Result<()>;
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      ctxt: Ctxt, indent: u32) -> io::Result<()>;
 }
 
 mod module;
