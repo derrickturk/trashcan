@@ -204,11 +204,10 @@ impl Substitute for Expr {
 
 impl Substitute for Path {
     fn substitute(mut self, orig: &Ident, replace: &Ident) -> Self {
-        if self.0.len() != 1 {
-            self
+        if self.0.is_some() {
+            self // don't rewrite absolute paths
         } else {
-            let ident = self.0.pop().unwrap();
-            Path(vec![ident.substitute(orig, replace)])
+            Path(None, self.1.substitute(orig, replace))
         }
     }
 }

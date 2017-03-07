@@ -42,8 +42,16 @@ pub const KEYWORDS: [&'static str; 28] = [
     "obj",
 ];
 
-named!(pub path<Path>, complete!(map!(
-    separated_nonempty_list!(ws!(tag!("::")), ident), Path)));
+named!(pub path<Path>, complete!(do_parse!(
+   module:  opt!(complete!(do_parse!(
+                module: ident >>
+                        opt!(call!(nom::multispace)) >>
+                        tag!("::") >>
+                        (module)
+            ))) >>
+      item: ident >>
+            (Path(module, item))
+)));
 
 named!(maybe_ident<Ident>, complete!(map!(do_parse!(
         opt!(call!(nom::multispace)) >>

@@ -199,7 +199,7 @@ fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
             let assign_stmt = Stmt {
                 data: StmtKind::Assign(
                           Expr {
-                              data: ExprKind::Name(Path(vec![decl.0.clone()])),
+                              data: ExprKind::Name(Path(None, decl.0.clone())),
                               loc: empty_loc!(),
                           },
                           AssignOp::Assign,

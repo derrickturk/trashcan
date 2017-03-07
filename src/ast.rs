@@ -163,9 +163,9 @@ impl Expr {
 #[derive(Clone, Debug)]
 pub struct Ident(pub String);
 
-/// A "name path" e.g. a.b.c.d
+/// A "name path" e.g. module::item or item
 #[derive(Clone, Debug)]
-pub struct Path(pub Vec<Ident>);
+pub struct Path(pub Option<Ident>, pub Ident);
 
 /// Item access specifiers (private by default)
 #[derive(Copy, Clone, Debug)]
