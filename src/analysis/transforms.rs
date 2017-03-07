@@ -36,7 +36,26 @@ pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
 pub fn short_circuit_logicals(dumpster: Dumpster) -> Dumpster {
     Dumpster {
         modules: dumpster.modules.into_iter().map(|m| {
-            m
+            Module {
+                name: m.name,
+                data: match m.data {
+                    ModuleKind::Normal(items) =>
+                        ModuleKind::Normal(items.into_iter().map(|i| {
+                            match i {
+                                NormalItem::Function(def) =>
+                                    NormalItem::Function(FunDef {
+                                        name: def.name,
+                                        access: def.access,
+                                        params: def.params,
+                                        ret: def.ret,
+                                        body: short_circuit_logicals_stmts(def.body),
+                                        loc: def.loc,
+                                    }),
+                            }
+                        }).collect()),
+                },
+                loc: m.loc,
+            }
         }).collect()
     }
 }
@@ -55,4 +74,8 @@ fn for_loop_var_gensym_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
             s
         }
     }).collect()
+}
+
+fn short_circuit_logicals_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
+    stmts
 }
