@@ -215,13 +215,15 @@ pub enum Type {
     /// T[] (possibly multidimensional)
     Array(Box<Type>, Vec<(i32, i32)>),
     /// named object type
-    Object(Ident),
+    Object(Path),
     /// named structure type
-    Struct(Ident),
+    Struct(Path),
     /// named enum type
-    Enum(Ident),
+    Enum(Path),
     /// identifier-as-typename; unknown until symbol table construction
-    Deferred(Ident),
+    Deferred(Path),
+    /// function type; only used in typechecking; can't reify this type
+    Fn(Vec<Type>, Option<Box<Type>>),
 }
 
 impl Type {

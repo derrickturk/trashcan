@@ -97,7 +97,7 @@ named!(pub typename<Type>, complete!(do_parse!(
           | tag!("date") => { |_| Type::Date }
           | tag!("var") => { |_| Type::Variant }
           | tag!("obj") => { |_| Type::Obj }
-          | ident => { |i| Type::Deferred(i) }
+          | path => { |p| Type::Deferred(p) }
         ) >>
   spec: opt!(array_spec) >>
         (match spec {

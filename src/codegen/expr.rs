@@ -24,12 +24,7 @@ impl<'a> Emit<ExprPos> for Expr {
             ExprKind::Lit(ref literal) => literal.emit(out, symtab, (), indent),
 
             ExprKind::Name(ref path) => {
-                write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
-                for (i, nm) in path.0.iter().enumerate() {
-                    if i != 0 { out.write_all(b".")?; }
-                    nm.emit(out, symtab, (), 0)?;
-                }
-                Ok(())
+                path.emit(out, symtab, (), indent)
             },
 
             ExprKind::Call(ref path, ref args) => {

@@ -18,6 +18,7 @@ pub struct AnalysisError {
 #[derive(Copy, Clone, Debug)]
 pub enum AnalysisErrorKind {
     DuplicateSymbol,
+    NotDefined,
     TypeError,
 }
 

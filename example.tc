@@ -9,6 +9,7 @@ pub fn f(x: i32, y: f64[]) -> str {
         x = x + 1;
         x += 3;
         print other_mod::y[x]; // Debug.Print
+        other_mod::z @= "whatever";
     }
     return "lo siento";
 }

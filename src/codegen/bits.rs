@@ -14,6 +14,19 @@ impl Emit<()> for Ident {
     }
 }
 
+impl Emit<()> for Path {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
+        if let Some(ref module) = self.0 {
+            write!(out, "{:in$}{}.{}", "", module.0, (self.1).0,
+              in = (indent * INDENT) as usize)
+        } else {
+            write!(out, "{:in$}{}", "", (self.1).0,
+              in = (indent * INDENT) as usize)
+        }
+    }
+}
+
 impl Emit<()> for Access {
     fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
       _ctxt: (), indent: u32) -> io::Result<()> {
