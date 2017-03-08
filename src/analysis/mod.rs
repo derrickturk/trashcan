@@ -30,6 +30,8 @@ pub mod rewrite;
 pub use self::rewrite::*;
 pub mod transforms;
 pub use self::transforms::*;
+pub mod typecheck;
+pub use self::typecheck::*;
 
 pub fn merge_dumpsters(dumpsters: Vec<ast::Dumpster>) -> ast::Dumpster {
     ast::Dumpster {

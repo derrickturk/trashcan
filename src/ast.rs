@@ -160,11 +160,11 @@ impl Expr {
 */
 
 /// Module, item, variable, or type identifiers
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ident(pub String);
 
 /// A "name path" e.g. module::item or item
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Path(pub Option<Ident>, pub Ident);
 
 /// Item access specifiers (private by default)
@@ -186,7 +186,7 @@ pub enum ParamMode {
 }
 
 /// Primitive types of trashcan
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
     /// bool
     Bool,
