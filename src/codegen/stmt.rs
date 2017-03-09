@@ -45,15 +45,15 @@ impl<'a> Emit<&'a FunDef> for Stmt {
 
             StmtKind::Return(ref expr) => {
                 let fnsub = match ctxt.ret {
-                    None => "Sub",
-                    Some(_) => "Function",
+                    Type::Void => "Sub",
+                    _ => "Function",
                 };
 
                 match expr {
                     &Some(ref e) => {
                         write!(out, "{:in$}", "",
                           in = (indent * INDENT) as usize)?;
-                        match ctxt.ret.as_ref().unwrap().is_object() {
+                        match ctxt.ret.is_object() {
                             Some(true) => out.write_all(b"Set ")?,
                             Some(false) => {},
                             None => {

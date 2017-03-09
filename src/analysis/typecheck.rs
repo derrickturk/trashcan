@@ -28,31 +28,30 @@ pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
 ///   function name
 pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 
-// Option<Type>: None denotes 'void'; e.g. type of a no-return fn invocation
 pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<Option<Type>> {
+  -> AnalysisResult<Type> {
     match expr.data {
         ExprKind::Lit(ref lit) => match *lit {
-            Literal::NullPtr => Ok(Some(Type::Obj)),
-            Literal::NullVar => Ok(Some(Type::Variant)),
-            Literal::EmptyVar => Ok(Some(Type::Variant)),
-            Literal::Bool(_) => Ok(Some(Type::Bool)),
-            Literal::UInt8(_) => Ok(Some(Type::UInt8)),
-            Literal::Int16(_) => Ok(Some(Type::Int16)),
-            Literal::Int32(_) => Ok(Some(Type::Int32)),
-            Literal::IntPtr(_) => Ok(Some(Type::IntPtr)),
-            Literal::Float32(_) => Ok(Some(Type::Float32)),
-            Literal::Float64(_) => Ok(Some(Type::Float64)),
-            Literal::String(_) => Ok(Some(Type::String)),
-            Literal::Currency(_) => Ok(Some(Type::Currency)),
-            Literal::Date(_) => Ok(Some(Type::Date)),
+            Literal::NullPtr => Ok(Type::Obj),
+            Literal::NullVar => Ok(Type::Variant),
+            Literal::EmptyVar => Ok(Type::Variant),
+            Literal::Bool(_) => Ok(Type::Bool),
+            Literal::UInt8(_) => Ok(Type::UInt8),
+            Literal::Int16(_) => Ok(Type::Int16),
+            Literal::Int32(_) => Ok(Type::Int32),
+            Literal::IntPtr(_) => Ok(Type::IntPtr),
+            Literal::Float32(_) => Ok(Type::Float32),
+            Literal::Float64(_) => Ok(Type::Float64),
+            Literal::String(_) => Ok(Type::String),
+            Literal::Currency(_) => Ok(Type::Currency),
+            Literal::Date(_) => Ok(Type::Date),
         },
 
         // qualified::name (must denote a module item)
         ExprKind::Name(ref path) => {
             match *path_in_context(path, symtab, ctxt, &expr.loc)? {
-                Symbol::Const(ref ty) => Ok(Some(ty.clone())),
-                Symbol::Value(ref ty, _) => Ok(Some(ty.clone())),
+                Symbol::Const(ref ty) => Ok(ty.clone()),
+                Symbol::Value(ref ty, _) => Ok(ty.clone()),
                 Symbol::Type(ref ty) => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(String::from("path denotes a type, \
@@ -70,20 +69,8 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
         // TODO: I really don't like this handling of void types
         ExprKind::Index(ref expr, ref index) => {
-            let expr_t = type_of(expr, symtab, ctxt)?.
-                ok_or(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from(
-                            "expression does not produce a value")),
-                    loc: expr.loc.clone(),
-                })?;
-            let index_t = type_of(index, symtab, ctxt)?.
-                ok_or(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from(
-                            "index expression does not produce a value")),
-                    loc: index.loc.clone(),
-                })?;
+            let expr_t = type_of(expr, symtab, ctxt)?;
+            let index_t = type_of(index, symtab, ctxt)?;
 
             if !may_coerce(&index_t, &Type::Int32) {
                 return Err(AnalysisError {
@@ -94,7 +81,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
 
             match expr_t {
-                Type::Array(ref base_t, _) => Ok(Some((**base_t).clone())),
+                Type::Array(ref base_t, _) => Ok((**base_t).clone()),
                 _ => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(String::from("indexed expression not of \
@@ -125,13 +112,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
 
             for (i, param) in fun.params.iter().enumerate() {
-                let arg_type = type_of(&args[i], symtab, ctxt)?.
-                    ok_or(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from(
-                                "expression does not produce a value")),
-                        loc: expr.loc.clone(),
-                    })?;
+                let arg_type = type_of(&args[i], symtab, ctxt)?;
 
                 match param.mode {
                     ParamMode::ByRef =>
@@ -368,8 +349,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             for &(ref ident, ref ty, ref init) in decls {
                 if let Some(ref init) = *init {
                     let init_ty = type_of(init, symtab, ctxt)?;
-                    if init_ty.is_none()
-                      || !may_coerce(&init_ty.unwrap(), &ty) {
+                    if !may_coerce(&init_ty, &ty) {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(String::from("initializer not \

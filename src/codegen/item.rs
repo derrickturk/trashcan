@@ -24,8 +24,8 @@ impl<'a> Emit<&'a Module> for FunDef {
         self.access.emit(out, symtab, (), indent)?;
 
         let fnsub = match self.ret {
-            None => "Sub",
-            Some(_) => "Function",
+            Type::Void => "Sub",
+            _ => "Function",
         };
 
         write!(out, " {} ", fnsub)?;
@@ -41,9 +41,11 @@ impl<'a> Emit<&'a Module> for FunDef {
         }
         out.write_all(b")")?;
 
-        if let Some(ref ty) = self.ret {
-            ty.emit(out, symtab, TypePos::FunRet, 0)?;
-        }
+        match self.ret {
+            Type::Void => {},
+            ref ty => ty.emit(out, symtab, TypePos::FunRet, 0)?,
+        };
+
         out.write_all(b"\n")?;
 
         for stmt in self.body.iter() {

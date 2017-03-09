@@ -63,6 +63,8 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
         &Type::Struct(ref path) => path.emit(out, symtab, (), 0),
         &Type::Enum(ref path) => path.emit(out, symtab, (), 0),
         &Type::Deferred(ref path) => path.emit(out, symtab, (), 0),
+        &Type::Void =>
+            panic!("internal compiler error: tried to emit void type"),
     }
 }
 

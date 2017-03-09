@@ -33,7 +33,7 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
                 name: name,
                 access: access,
                 params: params,
-                ret: ret,
+                ret: ret.unwrap_or(Type::Void),
                 body: body,
                 loc: empty_loc!(),
             })

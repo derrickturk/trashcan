@@ -40,7 +40,7 @@ pub struct FunDef {
     pub name: Ident,
     pub access: Access,
     pub params: Vec<FunParam>,
-    pub ret: Option<Type>,
+    pub ret: Type,
     pub body: Vec<Stmt>,
     pub loc: SrcLoc,
 }
@@ -239,6 +239,8 @@ pub enum Type {
     Enum(Path),
     /// identifier-as-typename; unknown until symbol table construction
     Deferred(Path),
+    /// unit type (only used in function returns)
+    Void,
 }
 
 impl Type {
@@ -280,6 +282,7 @@ impl fmt::Display for Type {
                 }
                 Ok(())
             },
+            Type::Void => write!(f, "void"),
         }
     }
 }
