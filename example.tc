@@ -8,8 +8,11 @@ pub fn f(x: i32, y: f64[]) -> str {
     while x < 17 {
         x = x + 1;
         x += 3;
+
+        /*
         print other_mod::y[x]; // Debug.Print
         other_mod::z @= "whatever";
+        */
     }
     return "lo siento";
 }
@@ -71,5 +74,14 @@ mod more_examples {
         other_mod::fun(x);
 
         let res: bool = other_mod::fun2(x, y, z);
+    }
+}
+
+mod other_mod {
+    fn fun(xs: &i32[]) {
+    }
+
+    fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {
+        return true;
     }
 }

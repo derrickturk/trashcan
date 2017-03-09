@@ -112,7 +112,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
 
             for (i, param) in fun.params.iter().enumerate() {
-                let arg_type = type_of(&args[i], symtab, ctxt)?;
+                let arg_type = type_of(&args[i], symtab, ctxt)?.decay();
 
                 match param.mode {
                     ParamMode::ByRef =>
@@ -141,7 +141,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(fun.ret.clone())
         },
 
-        _ => unimplemented!(),
+        _ => { Ok(Type::Variant) } // unimplemented!(),
     }
 }
 
@@ -317,6 +317,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
     Ok(FunDef {
         name: def.name,
         access: def.access,
+        // TODO: typecheck params
         params: def.params,
         ret: def.ret,
         body: def.body.into_iter().map(|s| {
@@ -361,7 +362,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        _ => unimplemented!()
+        _ => { } //unimplemented!()
     }
 
     Ok(stmt)

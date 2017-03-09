@@ -244,11 +244,23 @@ pub enum Type {
 }
 
 impl Type {
+    /// does this Type describe an object type?
+    /// i.e. do we need to Set assignments with lvalues of this
+    /// type; if "maybe" at runtime we return None here
     pub fn is_object(&self) -> Option<bool> {
         match *self {
             Type::Obj | Type::Object(_) => Some(true),
             Type::Variant | Type::Deferred(_) => None,
             _ => Some(false),
+        }
+    }
+
+    /// what does this type decay to when passed as a function
+    /// argument; we only use this for array types so far
+    pub fn decay(&self) -> Type {
+        match *self {
+            Type::Array(ref base, _) => Type::Array(base.clone(), vec![]),
+            ref ty => ty.clone(),
         }
     }
 }
@@ -280,6 +292,7 @@ impl fmt::Display for Type {
                     }
                     write!(f, "{}:{}", lb, ub)?;
                 }
+                write!(f, "]")?;
                 Ok(())
             },
             Type::Void => write!(f, "void"),
