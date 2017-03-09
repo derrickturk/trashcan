@@ -3,8 +3,24 @@
 use ast::*;
 use super::*;
 
-pub fn typecheck(dumpster: &Dumpster) -> AnalysisResult<Dumpster> {
-    Ok(dumpster.clone())
+pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
+  -> AnalysisResult<Dumpster> {
+    Ok(Dumpster {
+        modules: try!(dumpster.modules.into_iter().map(|m| {
+            let ctxt = ExprCtxt(m.name.clone(), None);
+            match m.data {
+                ModuleKind::Normal(items) => {
+                    Ok(Module {
+                        name: m.name,
+                        data: ModuleKind::Normal(try!(items.into_iter().map(|i| {
+                            typecheck_item(i, symtab, &ctxt)
+                        }).collect())),
+                        loc: m.loc,
+                    })
+                }
+            }
+        }).collect())
+    })
 }
 
 /// Context in which expression typecheck takes place: module name, optional
@@ -286,4 +302,9 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
 
         Some(sym) => Ok(sym)
     }
+}
+
+fn typecheck_item(item: NormalItem, symtab: &SymbolTable, ctxt: &ExprCtxt)
+  -> AnalysisResult<NormalItem> {
+    Ok(item)
 }

@@ -53,7 +53,8 @@ fn main() {
     let dumpster = analysis::for_loop_var_gensym(dumpster);
     let dumpster = analysis::short_circuit_logicals(dumpster);
     let symtab = analysis::symbol_table(&dumpster).expect("symtab error");
-    // let dumpster = analysis::typecheck(&dumpster).expect("typeck error");
+    let dumpster = analysis::typecheck(dumpster, &symtab)
+        .expect("typeck error");
 
     for (i, m) in dumpster.modules.iter().enumerate() {
         if i != 0 {
