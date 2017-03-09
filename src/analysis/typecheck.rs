@@ -253,6 +253,8 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
         Type::Deferred(ref path) => panic!("internal compiler error:\
             attempt to coerce-check unresolved type {:?}", path),
 
+        Type::Void => false,
+
         _ => panic!("we haven't figured out the rules for this type yet."),
     }
 }
