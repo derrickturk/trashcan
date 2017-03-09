@@ -296,6 +296,20 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
         Some(symtab) => Ok(symtab)
     }?;
 
+    // path had no module component, and we're inside a function:
+    //   look in function locals first
+    if path.0.is_none() && ctxt.1.is_some() {
+        if let Some(&Symbol::Fun { ref locals, .. }) =
+          symtab.get(&ctxt.1.as_ref().unwrap().0) {
+            if let Some(sym) = locals.get(&(path.1).0) {
+                return Ok(sym);
+            }
+        } else {
+            panic!("internal compiler error: no function record for {}",
+                   ctxt.1.as_ref().unwrap());
+        }
+    }
+
     match symtab.get(&(path.1).0) {
         None => Err(AnalysisError {
             kind: AnalysisErrorKind::NotDefined,
