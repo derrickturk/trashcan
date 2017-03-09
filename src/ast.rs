@@ -1,5 +1,7 @@
 //! trashcan's internal representation of abstract syntax trees
 
+use std::fmt;
+
 use parser::SrcLoc;
 
 /// A trashcan "project" is of course referred to as a dumpster
@@ -163,9 +165,24 @@ impl Expr {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Ident(pub String);
 
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A "name path" e.g. module::item or item
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Path(pub Option<Ident>, pub Ident);
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.0 {
+            Some(ref module) => write!(f, "{}::{}", module, self.1),
+            None => write!(f, "{}", self.1),
+        }
+    }
+}
 
 /// Item access specifiers (private by default)
 #[derive(Copy, Clone, Debug)]
@@ -230,6 +247,39 @@ impl Type {
             Type::Obj | Type::Object(_) => Some(true),
             Type::Variant | Type::Deferred(_) => None,
             _ => Some(false),
+        }
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Type::Bool => write!(f, "bool"),
+            Type::UInt8 => write!(f, "u8"),
+            Type::Int16 => write!(f, "i16"),
+            Type::Int32 => write!(f, "i32"),
+            Type::IntPtr => write!(f, "isize"),
+            Type::Float32 => write!(f, "f32"),
+            Type::Float64 => write!(f, "f64"),
+            Type::String => write!(f, "str"),
+            Type::Currency => write!(f, "currency"),
+            Type::Date => write!(f, "date"),
+            Type::Variant => write!(f, "var"),
+            Type::Obj => write!(f, "obj"),
+            Type::Object(ref path) => write!(f, "{}", path),
+            Type::Enum(ref path) => write!(f, "{}", path),
+            Type::Struct(ref path) => write!(f, "{}", path),
+            Type::Deferred(ref path) => write!(f, "{}", path),
+            Type::Array(ref base, ref bounds) => {
+                write!(f, "{}[", base)?;
+                for (i, &(lb, ub)) in bounds.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{}:{}", lb, ub)?;
+                }
+                Ok(())
+            },
         }
     }
 }

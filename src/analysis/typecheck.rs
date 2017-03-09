@@ -11,100 +11,63 @@ pub fn typecheck(dumpster: &Dumpster) -> AnalysisResult<Dumpster> {
 ///   function name
 pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 
-// TODO: need context here
+// Option<Type>: None denotes 'void'; e.g. type of a no-return fn invocation
 pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<Type> {
+  -> AnalysisResult<Option<Type>> {
     match expr.data {
         ExprKind::Lit(ref lit) => match *lit {
-            Literal::NullPtr => Ok(Type::Obj),
-            Literal::NullVar => Ok(Type::Variant),
-            Literal::EmptyVar => Ok(Type::Variant),
-            Literal::Bool(_) => Ok(Type::Bool),
-            Literal::UInt8(_) => Ok(Type::UInt8),
-            Literal::Int16(_) => Ok(Type::Int16),
-            Literal::Int32(_) => Ok(Type::Int32),
-            Literal::IntPtr(_) => Ok(Type::IntPtr),
-            Literal::Float32(_) => Ok(Type::Float32),
-            Literal::Float64(_) => Ok(Type::Float64),
-            Literal::String(_) => Ok(Type::String),
-            Literal::Currency(_) => Ok(Type::Currency),
-            Literal::Date(_) => Ok(Type::Date),
+            Literal::NullPtr => Ok(Some(Type::Obj)),
+            Literal::NullVar => Ok(Some(Type::Variant)),
+            Literal::EmptyVar => Ok(Some(Type::Variant)),
+            Literal::Bool(_) => Ok(Some(Type::Bool)),
+            Literal::UInt8(_) => Ok(Some(Type::UInt8)),
+            Literal::Int16(_) => Ok(Some(Type::Int16)),
+            Literal::Int32(_) => Ok(Some(Type::Int32)),
+            Literal::IntPtr(_) => Ok(Some(Type::IntPtr)),
+            Literal::Float32(_) => Ok(Some(Type::Float32)),
+            Literal::Float64(_) => Ok(Some(Type::Float64)),
+            Literal::String(_) => Ok(Some(Type::String)),
+            Literal::Currency(_) => Ok(Some(Type::Currency)),
+            Literal::Date(_) => Ok(Some(Type::Date)),
         },
 
         // qualified::name (must denote a module item)
-        ExprKind::Name(Path(Some(ref module), ref ident)) => {
-            match symtab.get(&module.0) {
-                None => Err(AnalysisError {
-                    kind: AnalysisErrorKind::NotDefined,
-                    regarding: Some(module.0.clone()),
+        ExprKind::Name(ref path) => {
+            match *path_in_context(path, symtab, ctxt, &expr.loc)? {
+                Symbol::Const(ref ty) => Ok(Some(ty.clone())),
+                Symbol::Value(ref ty, _) => Ok(Some(ty.clone())),
+                Symbol::Type(ref ty) => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from("path denotes a type, \
+                                            not a value")),
                     loc: expr.loc.clone(),
                 }),
-
-                Some(ref symtab) => match symtab.get(&ident.0) {
-                    None => Err(AnalysisError {
-                        kind: AnalysisErrorKind::NotDefined,
-                        regarding: Some(ident.0.clone()),
-                        loc: expr.loc.clone(),
-                    }),
-
-                    Some(ref sym) => match **sym {
-                        Symbol::Const(ref ty) => Ok(ty.clone()),
-                        Symbol::Value(ref ty, _) => Ok(ty.clone()),
-                        Symbol::Type(ref ty) => Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("path denotes a type, \
-                                                    not a value")),
-                            loc: expr.loc.clone(),
-                        }),
-                        Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("path denotes a type, \
-                                                    not a value")),
-                            loc: expr.loc.clone(),
-                        }),
-                    },
-                }
+                Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from("path denotes a type, \
+                                            not a value")),
+                    loc: expr.loc.clone(),
+                }),
             }
         },
 
-        // TODO: clean up this duplication
-        // local_name (may denote module item in current module, or local name
-        //   in current item)
-        ExprKind::Name(Path(None, ref ident)) => {
-            match symtab.get(&(ctxt.0).0) {
-                None => panic!("internal compiler error: no symbol table entry\
-                                for module {}", (ctxt.0).0),
-
-                Some(ref symtab) => match symtab.get(&ident.0) {
-                    None => Err(AnalysisError {
-                        kind: AnalysisErrorKind::NotDefined,
-                        regarding: Some(ident.0.clone()),
-                        loc: expr.loc.clone(),
-                    }),
-
-                    Some(ref sym) => match **sym {
-                        Symbol::Const(ref ty) => Ok(ty.clone()),
-                        Symbol::Value(ref ty, _) => Ok(ty.clone()),
-                        Symbol::Type(ref ty) => Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("path denotes a type, \
-                                                    not a value")),
-                            loc: expr.loc.clone(),
-                        }),
-                        Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("path denotes a type, \
-                                                    not a value")),
-                            loc: expr.loc.clone(),
-                        }),
-                    },
-                }
-            }
-        },
-
+        // TODO: I really don't like this handling of void types
         ExprKind::Index(ref expr, ref index) => {
-            let expr_t = type_of(expr, symtab, ctxt)?;
-            let index_t = type_of(index, symtab, ctxt)?;
+            let expr_t = type_of(expr, symtab, ctxt)?.
+                ok_or(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from(
+                            "expression does not produce a value")),
+                    loc: expr.loc.clone(),
+                })?;
+            let index_t = type_of(index, symtab, ctxt)?.
+                ok_or(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from(
+                            "index expression does not produce a value")),
+                    loc: index.loc.clone(),
+                })?;
+
             if !may_coerce(&index_t, &Type::Int32) {
                 return Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
@@ -114,7 +77,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
 
             match expr_t {
-                Type::Array(ref base_t, _) => Ok((**base_t).clone()),
+                Type::Array(ref base_t, _) => Ok(Some((**base_t).clone())),
                 _ => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(String::from("indexed expression not of \
@@ -122,6 +85,62 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     loc: expr.loc.clone(),
                 })
             }
+        },
+
+        ExprKind::Call(ref path, ref args) => {
+            let fun = match *path_in_context(path, symtab, ctxt, &expr.loc)? {
+                Symbol::Fun { ref def, .. } => Ok(def),
+                _ => Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} does not denote a function",
+                                            path)),
+                    loc: expr.loc.clone(),
+                })
+            }?;
+
+            if args.len() != fun.params.len() {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} requires {} arguments; \
+                      {} were provided", path, fun.params.len(), args.len())),
+                    loc: expr.loc.clone(),
+                })
+            }
+
+            for (i, param) in fun.params.iter().enumerate() {
+                let arg_type = type_of(&args[i], symtab, ctxt)?.
+                    ok_or(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from(
+                                "expression does not produce a value")),
+                        loc: expr.loc.clone(),
+                    })?;
+
+                match param.mode {
+                    ParamMode::ByRef =>
+                        if param.typ != arg_type {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!(
+                                  "parameter {} has type &{}; type {} provided",
+                                  param.name, param.typ, arg_type)),
+                                loc: expr.loc.clone(),
+                            })
+                        },
+                    ParamMode::ByVal =>
+                        if !may_coerce(&arg_type, &param.typ) {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!(
+                                  "parameter {} has type {}; type {} provided",
+                                  param.name, param.typ, arg_type)),
+                                loc: expr.loc.clone(),
+                            })
+                        },
+                }
+            }
+
+            Ok(fun.ret.clone())
         },
 
         _ => unimplemented!(),
@@ -238,5 +257,33 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
             attempt to coerce-check unresolved type {:?}", path),
 
         _ => panic!("we haven't figured out the rules for this type yet."),
+    }
+}
+
+fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
+  err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
+    let module = match *path {
+        Path(None, _) => &(ctxt.0).0,
+        Path(Some(ref module), _) => &module.0
+    };
+
+    let symtab = match symtab.get(module) {
+        None => Err(AnalysisError {
+            kind: AnalysisErrorKind::NotDefined,
+            regarding: Some(module.clone()),
+            loc: err_loc.clone(),
+        }),
+
+        Some(symtab) => Ok(symtab)
+    }?;
+
+    match symtab.get(&(path.1).0) {
+        None => Err(AnalysisError {
+            kind: AnalysisErrorKind::NotDefined,
+            regarding: Some((path.1).0.clone()),
+            loc: err_loc.clone(),
+        }),
+
+        Some(sym) => Ok(sym)
     }
 }

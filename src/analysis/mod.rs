@@ -20,6 +20,7 @@ pub enum AnalysisErrorKind {
     DuplicateSymbol,
     NotDefined,
     TypeError,
+    FnCallError,
 }
 
 pub type AnalysisResult<T> = Result<T, AnalysisError>;
