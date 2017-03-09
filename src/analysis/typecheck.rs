@@ -67,11 +67,39 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
+        // TODO: clean up this duplication
         // local_name (may denote module item in current module, or local name
         //   in current item)
         ExprKind::Name(Path(None, ref ident)) => {
-            // TODO
-            unimplemented!()
+            match symtab.get(&(ctxt.0).0) {
+                None => panic!("internal compiler error: no symbol table entry\
+                                for module {}", (ctxt.0).0),
+
+                Some(ref symtab) => match symtab.get(&ident.0) {
+                    None => Err(AnalysisError {
+                        kind: AnalysisErrorKind::NotDefined,
+                        regarding: Some(ident.0.clone()),
+                        loc: expr.loc.clone(),
+                    }),
+
+                    Some(ref sym) => match **sym {
+                        Symbol::Const(ref ty) => Ok(ty.clone()),
+                        Symbol::Value(ref ty, _) => Ok(ty.clone()),
+                        Symbol::Type(ref ty) => Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("path denotes a type, \
+                                                    not a value")),
+                            loc: expr.loc.clone(),
+                        }),
+                        Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("path denotes a type, \
+                                                    not a value")),
+                            loc: expr.loc.clone(),
+                        }),
+                    },
+                }
+            }
         },
 
         ExprKind::Index(ref expr, ref index) => {
