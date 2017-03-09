@@ -67,7 +67,6 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        // TODO: I really don't like this handling of void types
         ExprKind::Index(ref expr, ref index) => {
             let expr_t = type_of(expr, symtab, ctxt)?;
             let index_t = type_of(index, symtab, ctxt)?;
@@ -317,8 +316,29 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
     Ok(FunDef {
         name: def.name,
         access: def.access,
-        // TODO: typecheck params
-        params: def.params,
+        params: def.params.into_iter().map(|p| {
+            match p.mode {
+                ParamMode::ByRef => Ok(()),
+                ParamMode::ByVal => match p.typ {
+                    Type::Array(_, _) => Err(AnalysisError {
+                        kind: AnalysisErrorKind::FnCallError,
+                        regarding: Some(String::from("array types cannot \
+                          be passed by value")),
+                        loc: p.loc.clone(),
+                    }),
+
+                    Type::Struct(_) => Err(AnalysisError {
+                        kind: AnalysisErrorKind::FnCallError,
+                        regarding: Some(String::from("struct types cannot \
+                          be passed by value")),
+                        loc: p.loc.clone(),
+                    }),
+
+                    _ => Ok(()),
+                },
+            }?;
+            Ok(p)
+        }).collect::<Result<_, _>>()?,
         ret: def.ret,
         body: def.body.into_iter().map(|s| {
             typecheck_stmt(s, symtab, &inner_ctxt)

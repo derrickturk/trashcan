@@ -3,7 +3,7 @@
 // define ordinary module
 mod example {
 
-pub fn f(x: i32, y: f64[]) -> str {
+pub fn f(x: i32, y: &f64[]) -> str {
     // while loop
     while x < 17 {
         x = x + 1;
