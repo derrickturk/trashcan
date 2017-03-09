@@ -222,8 +222,6 @@ pub enum Type {
     Enum(Path),
     /// identifier-as-typename; unknown until symbol table construction
     Deferred(Path),
-    /// function type; only used in typechecking; can't reify this type
-    Fn(Vec<Type>, Option<Box<Type>>),
 }
 
 impl Type {

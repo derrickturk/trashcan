@@ -56,11 +56,12 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                                                     not a value")),
                             loc: expr.loc.clone(),
                         }),
-                        Symbol::Fun { ref def, .. } => Ok(Type::Fn(
-                            def.params.iter().map(|p| p.typ.clone())
-                              .collect(),
-                            def.ret.as_ref().map(|t| Box::new(t.clone())),
-                        )),
+                        Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("path denotes a type, \
+                                                    not a value")),
+                            loc: expr.loc.clone(),
+                        }),
                     },
                 }
             }
