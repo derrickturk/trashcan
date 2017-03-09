@@ -71,6 +71,8 @@ mod more_examples {
 
         let weird_str: str = "You're not\tmy \"supervisor\"";
 
+        is_null(retobj());
+
         other_mod::fun(x);
 
         let res: bool = other_mod::fun2(x, y, z);

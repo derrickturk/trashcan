@@ -272,7 +272,7 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
     let symtab = match symtab.get(module) {
         None => Err(AnalysisError {
             kind: AnalysisErrorKind::NotDefined,
-            regarding: Some(module.clone()),
+            regarding: Some(format!("{}", module)),
             loc: err_loc.clone(),
         }),
 
@@ -296,7 +296,7 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
     match symtab.get(&(path.1).0) {
         None => Err(AnalysisError {
             kind: AnalysisErrorKind::NotDefined,
-            regarding: Some((path.1).0.clone()),
+            regarding: Some(format!("{}", path)),
             loc: err_loc.clone(),
         }),
 
