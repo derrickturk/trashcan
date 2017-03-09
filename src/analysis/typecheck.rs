@@ -364,7 +364,25 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             let ty = type_of(&expr, symtab, ctxt)?;
         },
 
-        _ => panic!()
+        StmtKind::VarDecl(ref decls) => {
+            for &(ref ident, ref ty, ref init) in decls {
+                if let Some(ref init) = *init {
+                    let init_ty = type_of(init, symtab, ctxt)?;
+                    if init_ty.is_none()
+                      || !may_coerce(&init_ty.unwrap(), &ty) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("initializer not \
+                              coercible to declared type")),
+                            loc: stmt.loc.clone(),
+                        })
+                    }
+                }
+            }
+        },
+
+        _ => unimplemented!()
     }
+
     Ok(stmt)
 }
