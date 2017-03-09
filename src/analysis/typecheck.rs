@@ -3,23 +3,24 @@
 use ast::*;
 use super::*;
 
+/// Typecheck a dumpster, resolving Deferred types along the way
 pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
   -> AnalysisResult<Dumpster> {
     Ok(Dumpster {
-        modules: try!(dumpster.modules.into_iter().map(|m| {
+        modules: dumpster.modules.into_iter().map(|m| {
             let ctxt = ExprCtxt(m.name.clone(), None);
             match m.data {
                 ModuleKind::Normal(items) => {
                     Ok(Module {
                         name: m.name,
-                        data: ModuleKind::Normal(try!(items.into_iter().map(|i| {
+                        data: ModuleKind::Normal(items.into_iter().map(|i| {
                             typecheck_item(i, symtab, &ctxt)
-                        }).collect())),
+                        }).collect::<Result<_, _>>()?),
                         loc: m.loc,
                     })
                 }
             }
-        }).collect())
+        }).collect::<Result<_, _>>()?
     })
 }
 
