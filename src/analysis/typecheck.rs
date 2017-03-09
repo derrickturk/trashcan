@@ -279,6 +279,8 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
 fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
   err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
+    // TODO: check access here
+
     let module = match *path {
         Path(None, _) => &(ctxt.0).0,
         Path(Some(ref module), _) => &module.0
@@ -307,5 +309,48 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
 
 fn typecheck_item(item: NormalItem, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<NormalItem> {
-    Ok(item)
+    match item {
+        NormalItem::Function(def) =>
+            Ok(NormalItem::Function(typecheck_fundef(def, symtab, ctxt)?)),
+    }
+}
+
+fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
+  -> AnalysisResult<FunDef> {
+    let inner_ctxt = ExprCtxt(ctxt.0.clone(), Some(def.name.clone()));
+
+    Ok(FunDef {
+        name: def.name,
+        access: def.access,
+        params: def.params,
+        ret: def.ret,
+        body: def.body.into_iter().map(|s| {
+            typecheck_stmt(s, symtab, &inner_ctxt)
+        }).collect::<Result<_, _>>()?,
+        loc: def.loc,
+    })
+}
+
+fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
+  -> AnalysisResult<Stmt> {
+    match stmt.data {
+        StmtKind::ExprStmt(ref expr) => {
+            match expr.data {
+                ExprKind::Call(_, _)
+              | ExprKind::MemberInvoke(_, _, _)
+              | ExprKind::VbExpr(_) => {},
+
+                _ => return Err(AnalysisError {
+                    kind: AnalysisErrorKind::StmtExprErr,
+                    regarding: None,
+                    loc: expr.loc.clone(),
+                })
+            };
+
+            let ty = type_of(&expr, symtab, ctxt)?;
+        },
+
+        _ => panic!()
+    }
+    Ok(stmt)
 }
