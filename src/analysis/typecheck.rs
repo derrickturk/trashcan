@@ -214,6 +214,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
         Type::Variant => match *to {
             Type::Array(_, ref dims) if !dims.is_empty() => false,
+            Type::Void => false,
             _ => true,
         },
 
