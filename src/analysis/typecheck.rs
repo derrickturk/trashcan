@@ -705,7 +705,18 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             });
         },
 
-        _ => { } //unimplemented!()
+        StmtKind::Print(ref expr) => {
+            match type_of(expr, symtab, ctxt)? {
+                Type::Void => return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from("void function invocation \
+                      in print statement")),
+                    loc: stmt.loc.clone(),
+                }),
+
+                _ => { },
+            }
+        },
     }
 
     Ok(stmt)
