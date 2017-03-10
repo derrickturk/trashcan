@@ -321,7 +321,17 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
         access: def.access,
         params: def.params.into_iter().map(|p| {
             match p.mode {
-                ParamMode::ByRef => Ok(()),
+                ParamMode::ByRef => match p.typ {
+                    Type::Array(_, ref bounds) if !bounds.is_empty() =>
+                        Err(AnalysisError {
+                            kind: AnalysisErrorKind::FnCallError,
+                            regarding: Some(String::from("array types cannot \
+                              specify bounds when used as parameters.")),
+                            loc: p.loc.clone(),
+                        }),
+                    _ => Ok(())
+                },
+
                 ParamMode::ByVal => match p.typ {
                     Type::Array(_, _) => Err(AnalysisError {
                         kind: AnalysisErrorKind::FnCallError,

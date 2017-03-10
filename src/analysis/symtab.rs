@@ -38,7 +38,7 @@ pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
         if symtab.contains_key(&m.name.0) {
             return Err(AnalysisError {
                 kind: AnalysisErrorKind::DuplicateSymbol,
-                regarding: Some(format!("module {}", m.name.0)),
+                regarding: Some(format!("mod {}", m.name.0)),
                 loc: m.loc.clone(),
             });
         }
