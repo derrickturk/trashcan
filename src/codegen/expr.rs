@@ -52,6 +52,35 @@ impl<'a> Emit<ExprPos> for Expr {
                 Ok(())
             },
 
+            ExprKind::Member(ref expr, ref member) => {
+                expr.emit(out, symtab, ctxt, indent)?;
+                out.write_all(b".")?;
+                member.emit(out, symtab, (), 0)
+            },
+
+            ExprKind::MemberInvoke(ref expr, ref member, ref args) => {
+                expr.emit(out, symtab, ctxt, indent)?;
+                out.write_all(b".")?;
+                member.emit(out, symtab, (), 0)?;
+
+                match ctxt {
+                    ExprPos::Expr => out.write_all(b"(")?,
+                    ExprPos::Stmt => out.write_all(b" ")?,
+                };
+
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 { out.write_all(b", ")?; }
+                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
+                }
+
+                match ctxt {
+                    ExprPos::Expr => out.write_all(b")")?,
+                    ExprPos::Stmt => {},
+                };
+
+                Ok(())
+            },
+
             ExprKind::UnOpApp(ref expr, ref op) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 match *op {
