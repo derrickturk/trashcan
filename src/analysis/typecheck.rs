@@ -52,16 +52,19 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             match *path_in_context(path, symtab, ctxt, &expr.loc)? {
                 Symbol::Const(ref ty) => Ok(ty.clone()),
                 Symbol::Value(ref ty, _) => Ok(ty.clone()),
+
+                // TODO: these guys get their own namespace
                 Symbol::Type(ref ty) => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("path denotes a type, \
-                                            not a value")),
+                    regarding: Some(format!("{} denotes a type, not a value",
+                                            path)),
                     loc: expr.loc.clone(),
                 }),
+
                 Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("path denotes a type, \
-                                            not a value")),
+                    regarding: Some(format!("{} denotes a function, not a value",
+                                            path)),
                     loc: expr.loc.clone(),
                 }),
             }
@@ -262,12 +265,13 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
 fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
   err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
-    // TODO: check access here
-
     let module = match *path {
         Path(None, _) => &(ctxt.0).0,
         Path(Some(ref module), _) => &module.0
     };
+
+    // TODO: check access here
+    let allow_private = module == &(ctxt.0).0;
 
     let symtab = match symtab.get(module) {
         None => Err(AnalysisError {
@@ -350,6 +354,16 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     _ => Ok(()),
                 },
             }?;
+
+            if &p.name == inner_ctxt.1.as_ref().unwrap() {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("parameter {} has same name \
+                      as function", p.name)),
+                    loc: p.loc.clone(),
+                })
+            }
+
             Ok(p)
         }).collect::<Result<_, _>>()?,
         ret: def.ret,
@@ -361,7 +375,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
     })
 }
 
-fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
+fn typecheck_stmt(mut stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<Stmt> {
     match stmt.data {
         StmtKind::ExprStmt(ref expr) => {
@@ -515,6 +529,56 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     loc: stmt.loc.clone(),
                 });
             }
+        },
+
+        StmtKind::IfStmt { cond, body, elsifs, mut els } => {
+            let cond_ty = type_of(&cond, symtab, ctxt)?;
+            if !may_coerce(&cond_ty, &Type::Bool) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from(
+                      "condition not coercible to bool")),
+                    loc: cond.loc.clone(),
+                });
+            }
+
+            let body = body.into_iter()
+                .map(|s| typecheck_stmt(s, symtab, ctxt))
+                .collect::<Result<_, _>>()?;
+
+            let elsifs = elsifs.into_iter().map(|(cond, body)| {
+                let cond_ty = type_of(&cond, symtab, ctxt)?;
+                if !may_coerce(&cond_ty, &Type::Bool) {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from(
+                          "condition not coercible to bool")),
+                        loc: cond.loc.clone(),
+                    });
+                }
+
+                let body = body.into_iter()
+                    .map(|s| typecheck_stmt(s, symtab, ctxt))
+                    .collect::<Result<_, _>>()?;
+
+                Ok((cond, body))
+            }).collect::<Result<_, _>>()?;
+
+            if let Some(body) = els {
+                els = Some(body.into_iter()
+                           .map(|s| typecheck_stmt(s, symtab, ctxt))
+                           .collect::<Result<_, _>>()?);
+            }
+
+            return Ok(Stmt {
+                data: StmtKind::IfStmt {
+                    cond: cond,
+                    body: body,
+                    elsifs: elsifs,
+                    els: els,
+                },
+                loc: stmt.loc,
+            });
         },
 
         _ => { } //unimplemented!()

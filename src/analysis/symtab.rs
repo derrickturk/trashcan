@@ -5,6 +5,8 @@ use ast::*;
 
 use std::collections::HashMap;
 
+// TODO: types get their own namespace
+// TODO: need to deal with case-insensitivity
 /// A symbol table entry
 #[derive(Clone, Debug)]
 pub enum Symbol {
