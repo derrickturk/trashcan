@@ -606,7 +606,18 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
 
         StmtKind::VarDecl(ref decls) => {
-            for &(_, ref ty, ref init) in decls {
+            for &(ref ident, ref ty, ref init) in decls {
+                if let Some(ref fun) = ctxt.1 {
+                    if ident == fun {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(format!("{} has same name as \
+                              enclosing function (for now)", ident)),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+                }
+
                 if let Some(ref init) = *init {
                     let init_ty = type_of(init, symtab, ctxt)?;
                     if !may_coerce(&init_ty, &ty) {

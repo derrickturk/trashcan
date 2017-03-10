@@ -48,7 +48,6 @@ fn main() {
         }
     }
 
-    let mut stdout = io::LineWriter::new(io::stdout());
     let dumpster = analysis::merge_dumpsters(dumpsters);
     let dumpster = analysis::for_loop_var_gensym(dumpster);
     let dumpster = analysis::short_circuit_logicals(dumpster);
@@ -63,6 +62,7 @@ fn main() {
         m.emit(&mut file, &symtab, (), 0).unwrap();
     }
 
+    let mut stdout = io::LineWriter::new(io::stdout());
     stdout.write_all(b"SYMBOL TABLE DUMP\n").unwrap();
     for (m, tbl) in symtab {
         write!(stdout, "module {}:\n", m).unwrap();
