@@ -21,6 +21,7 @@ pub enum AnalysisErrorKind {
     NotDefined,
     TypeError,
     InvalidStmt,
+    InvalidExpr,
     FnCallError,
 }
 

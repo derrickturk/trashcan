@@ -61,7 +61,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     loc: expr.loc.clone(),
                 }),
 
-                Symbol::Fun { ref def, .. } =>  Err(AnalysisError {
+                Symbol::Fun { .. } =>  Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(format!("{} denotes a function, not a value",
                                             path)),
@@ -70,6 +70,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
+        // TODO: what about indexing a Variant
         ExprKind::Index(ref expr, ref index) => {
             let expr_t = type_of(expr, symtab, ctxt)?;
             let index_t = type_of(index, symtab, ctxt)?;
@@ -141,6 +142,63 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
 
             Ok(fun.ret.clone())
+        },
+
+        // TODO: member (we need type definitions first)
+
+        // TODO: member invoke (we need type definitions first)
+
+        ExprKind::UnOpApp(ref expr, ref op) => {
+            let expr_ty = type_of(&**expr, symtab, ctxt)?;
+            match *op {
+                UnOp::Negate => {
+                    if !expr_ty.might_be_numeric() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("unary negation of \
+                              non-numeric expression")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                    Ok(expr_ty.clone())
+                },
+
+                UnOp::BitNot => {
+                    if !expr_ty.might_be_bitwise() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("bitwise complement \
+                              of non-bitwise expression")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                    Ok(expr_ty.clone())
+                },
+
+                UnOp::LogNot => {
+                    if !may_coerce(&expr_ty, &Type::Bool) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("logical complement \
+                              of non-boolean expression")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                    Ok(Type::Bool)
+                },
+
+                UnOp::AddressOf => {
+                    if !expr.is_lvalue() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidExpr,
+                            regarding: Some(String::from("attempt to take \
+                              address of non-lvalue")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                    Ok(Type::IntPtr)
+                },
+            }
         },
 
         _ => { Ok(Type::Variant) } // unimplemented!(),
@@ -411,6 +469,15 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
 
         StmtKind::Assign(ref lhs, ref op, ref rhs) => { 
+            if !lhs.is_lvalue() {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::InvalidStmt,
+                    regarding: Some(String::from("assignment to non-lvalue \
+                      expression")),
+                    loc: lhs.loc.clone(),
+                });
+            }
+
             let lhs_ty = type_of(lhs, symtab, ctxt)?;
             let rhs_ty = type_of(rhs, symtab, ctxt)?;
             match *op {

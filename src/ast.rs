@@ -153,13 +153,23 @@ pub enum ExprKind {
     VbExpr(Vec<u8>),
 }
 
-/*
 impl Expr {
+    pub fn is_lvalue(&self) -> bool {
+        match self.data {
+            ExprKind::Name(_)
+          | ExprKind::Index(_, _)
+          | ExprKind::Member(_, _)
+          | ExprKind::VbExpr(_) => true,
+            _ => false,
+        }
+    }
+
+    /*
     pub fn might_need_parens(&self) -> {
 
     }
+    */
 }
-*/
 
 /// Module, item, variable, or type identifiers
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -29,7 +29,7 @@ named!(pub pow_op<BinOp>, complete!(preceded!(
 )));
 named!(pub un_op<UnOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),
-    map!(one_of!("-~!"), |c| match c {
+    map!(one_of!("-~!&"), |c| match c {
         '-' => UnOp::Negate,
         '~' => UnOp::BitNot,
         '!' => UnOp::LogNot,
