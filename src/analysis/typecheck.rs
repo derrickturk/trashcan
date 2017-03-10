@@ -366,10 +366,6 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
     match *from {
         Type::Bool => match *to {
             Type::Bool
-          | Type::UInt8
-          | Type::Int16
-          | Type::Int32
-          | Type::IntPtr
           | Type::Variant => true,
             _ => false,
         },
