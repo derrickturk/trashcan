@@ -4,6 +4,7 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
+use analysis::ExprCtxt;
 use super::*;
 use super::bits::*;
 use super::ty::*;
@@ -49,7 +50,9 @@ impl<'a> Emit<&'a Module> for FunDef {
         out.write_all(b"\n")?;
 
         for stmt in self.body.iter() {
-            stmt.emit(out, symtab, self, indent + 1)?;
+            stmt.emit(out, symtab,
+              &(self, ExprCtxt(ctxt.name.clone(), Some(self.name.clone()))),
+              indent + 1)?;
         }
 
         write!(out, "End {}\n", fnsub)?;

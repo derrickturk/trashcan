@@ -4,7 +4,9 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
+use analysis;
 use analysis::SymbolTable;
+use analysis::ExprCtxt;
 use super::*;
 use super::expr::*;
 use super::ty::*;
@@ -12,9 +14,9 @@ use super::bits::*;
 
 #[macro_use] use super::super::parser;
 
-impl<'a> Emit<&'a FunDef> for Stmt {
+impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: &'a FunDef, indent: u32) -> io::Result<()> {
+      ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32) -> io::Result<()> {
         match self.data {
             StmtKind::ExprStmt(ref e) => {
                 e.emit(out, symtab, ExprPos::Stmt, indent)?;
@@ -29,8 +31,27 @@ impl<'a> Emit<&'a FunDef> for Stmt {
             },
 
             StmtKind::Assign(ref place, ref op, ref expr) => {
-                // TODO: type inference on place (for Set)
-                place.emit(out, symtab, ExprPos::Expr, indent)?;
+                write!(out, "{:in$}", "",
+                  in = (indent * INDENT) as usize)?;
+
+                let place_ty = analysis::type_of(place, symtab, &ctxt.1)
+                    .expect("internal compiler error: untypeable expression \
+                      in codegen");
+                match place_ty.is_object() {
+                    Some(true) => out.write_all(b"Set ")?,
+                    Some(false) => {},
+                    None => {
+                        let expr_ty = analysis::type_of(expr, symtab, &ctxt.1)
+                            .expect("internal compiler error: untypeable expression \
+                              in codegen");
+                        match expr_ty.is_object() {
+                            Some(true) => out.write_all(b"Set ")?,
+                            _ => {},
+                        }
+                    }
+                };
+
+                place.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b" = ")?;
                 match op {
                     &AssignOp::Assign => {},
@@ -44,7 +65,7 @@ impl<'a> Emit<&'a FunDef> for Stmt {
             },
 
             StmtKind::Return(ref expr) => {
-                let fnsub = match ctxt.ret {
+                let fnsub = match ctxt.0.ret {
                     Type::Void => "Sub",
                     _ => "Function",
                 };
@@ -53,14 +74,21 @@ impl<'a> Emit<&'a FunDef> for Stmt {
                     &Some(ref e) => {
                         write!(out, "{:in$}", "",
                           in = (indent * INDENT) as usize)?;
-                        match ctxt.ret.is_object() {
+                        match ctxt.0.ret.is_object() {
                             Some(true) => out.write_all(b"Set ")?,
                             Some(false) => {},
                             None => {
-                                // TODO: invoke "type inference" on RHS here
-                            }
+                                let ret_ty = analysis::type_of(
+                                    e, symtab, &ctxt.1)
+                                    .expect("internal compiler error: \
+                                      untypeable expression in codegen");
+                                match ret_ty.is_object() {
+                                    Some(true) => out.write_all(b"Set ")?,
+                                    _ => {},
+                                };
+                            },
                         }
-                        ctxt.name.emit(out, symtab, (), 0)?;
+                        ctxt.0.name.emit(out, symtab, (), 0)?;
                         out.write_all(b" = ")?;
                         e.emit(out, symtab, ExprPos::Expr, 0)?;
                         out.write_all(b"\n")?;
@@ -71,8 +99,8 @@ impl<'a> Emit<&'a FunDef> for Stmt {
                 // if we're the last statement in the function body,
                 //   we don't need an "Exit Function"; we use a ptr cast here
                 //   because we really will be a reference to
-                //   ctxt.body.last().unwrap()
-                if self as *const _ != ctxt.body.last().unwrap() as *const _ {
+                //   ctxt.0.body.last().unwrap()
+                if self as *const _ != ctxt.0.body.last().unwrap() as *const _ {
                     write!(out, "{:in$}Exit {}\n", "", fnsub,
                       in = (indent * INDENT) as usize)?;
                 }
@@ -188,7 +216,8 @@ impl<'a> Emit<&'a FunDef> for Stmt {
 }
 
 fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
-  symtab: &SymbolTable, ctxt: &'a FunDef, indent: u32) -> io::Result<()> {
+  symtab: &SymbolTable, ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32)
+  -> io::Result<()> {
     write!(out, "{:in$}Dim ", "", in = (indent * INDENT) as usize)?;
     decl.0.emit(out, symtab, (), 0)?;
     decl.1.emit(out, symtab, TypePos::Decl, 0)?;
