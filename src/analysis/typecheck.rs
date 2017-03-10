@@ -910,6 +910,8 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     }
                 },
 
+                // TODO: maybe use for-each by-ref to signify local
+                //   lvalue rebinding?
                 ForSpec::Each(ref expr) => {
                     match var.1 {
                         Type::Variant | Type::Obj | Type::Object(_) => { },

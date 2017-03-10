@@ -66,19 +66,19 @@ named!(maybe_ident<Ident>, complete!(map!(do_parse!(
         if let Some(rest) = rest {
             s.push_str(str::from_utf8_unchecked(rest));
         }
-        Ident(s)
+        Ident(s, None)
     }
 })));
 
 pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
     let res = maybe_ident(input);
     match res {
-        IResult::Done(rest, Ident(name)) =>
+        IResult::Done(rest, Ident(name, _)) =>
             if KEYWORDS.contains(&name.as_str()) {
                 IResult::Error(
                     ErrorKind::Custom(CustomErrors::KeywordAsIdent as u32))
             } else {
-                IResult::Done(rest, Ident(name))
+                IResult::Done(rest, Ident(name, None))
             },
         err => err,
     }

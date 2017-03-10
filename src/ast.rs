@@ -111,6 +111,17 @@ pub enum StmtKind {
     Print(Expr),
 }
 
+/* TODO: maybe use for-each by-ref to signify local
+ *   lvalue rebinding? e.g.
+ *   for x: &i32 in xs {
+ *       x *= 3;
+ *   }
+ *   =>
+ *   Dim i As Long
+ *   For i = LBound(xs) To UBound(xs)
+ *       xs(i) = xs(i) * 3
+ *   Next i
+ */
 /// For loop specs: range (from, to, step) or each (expr)
 #[derive(Clone, Debug)]
 pub enum ForSpec {
@@ -181,13 +192,17 @@ impl Expr {
     */
 }
 
-/// Module, item, variable, or type identifiers
+/// Module, item, variable, or type identifiers: (name, renamed-from)
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Ident(pub String);
+pub struct Ident(pub String, pub Option<String>);
 
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.1.as_ref().unwrap_or(&self.0))?;
+        if self.1.is_some() {
+            write!(f, " (but it had a past life)")?;
+        }
+        Ok(())
     }
 }
 

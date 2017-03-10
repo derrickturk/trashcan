@@ -7,9 +7,9 @@ use ast::*;
 
 static mut GENSYM_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
-pub fn gensym() -> Ident {
+pub fn gensym(orig: Option<Ident>) -> Ident {
     let num = unsafe { GENSYM_ID.fetch_add(1, Ordering::Relaxed) };
-    Ident(format!("ø{}", num))
+    Ident(format!("ø{}", num), orig.map(|i| i.0))
 }
 
 /// a trait for AST items into which gensyms can be substituted
@@ -215,7 +215,7 @@ impl Substitute for Path {
 
 impl Substitute for Ident {
     fn substitute(self, orig: &Ident, replace: &Ident) -> Self {
-        if self.0 == orig.0 {
+        if self == *orig {
             replace.clone()
         } else {
             self
