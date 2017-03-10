@@ -7,23 +7,29 @@ use ast::*;
 use super::*;
 use analysis::SymbolTable;
 
+// used to handle some of our wacky gensyms; they're the only
+//   non-ASCII characters we emit, and they're all valid Latin-1
+fn to_latin1(s: &str) -> Vec<u8> {
+    s.chars().map(|c| c as u8).collect()
+}
+
 impl Emit<()> for Ident {
     fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
       _ctxt: (), indent: u32) -> io::Result<()> {
-        write!(out, "{:in$}{}", "", self.0, in = (indent * INDENT) as usize)
+        write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
+        out.write_all(&to_latin1(&self.0))
     }
 }
 
 impl Emit<()> for Path {
     fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
       _ctxt: (), indent: u32) -> io::Result<()> {
+        write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
         if let Some(ref module) = self.0 {
-            write!(out, "{:in$}{}.{}", "", module.0, (self.1).0,
-              in = (indent * INDENT) as usize)
-        } else {
-            write!(out, "{:in$}{}", "", (self.1).0,
-              in = (indent * INDENT) as usize)
+            out.write_all(&to_latin1(&module.0))?;
+            out.write_all(b".")?;
         }
+        out.write_all(&to_latin1(&(self.1).0))
     }
 }
 
