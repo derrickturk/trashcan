@@ -201,7 +201,142 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
+        ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
+            let lhs_ty = type_of(&**lhs, symtab, ctxt)?;
+            let rhs_ty = type_of(&**rhs, symtab, ctxt)?;
+            let ub_ty = upper_bound_type(&lhs_ty, &rhs_ty).ok_or(
+                AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("no common type for {} and {}",
+                      lhs_ty, rhs_ty)),
+                    loc: expr.loc.clone(),
+                })?;
+
+            match *op {
+                BinOp::Add
+              | BinOp::Sub
+              | BinOp::Mul
+              | BinOp::Div
+              | BinOp::Mod 
+              | BinOp::Pow => {
+                    if !lhs_ty.might_be_numeric()
+                      || !rhs_ty.might_be_numeric() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-numeric type in \
+                              numeric operation")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                },
+
+                BinOp::StrCat => {
+                    if !lhs_ty.might_be_string()
+                      || !rhs_ty.might_be_string() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-string type in \
+                              string operation")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                },
+
+                BinOp::Eq | BinOp::NotEq => {
+                    if !lhs_ty.is_scalar() || !rhs_ty.is_scalar() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-scalar type in \
+                              equality test")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+
+                    return Ok(Type::Bool);
+                },
+
+                // TODO: we might codegen this as an addressof comparison,
+                //   eventually
+                BinOp::IdentEq | BinOp::NotIdentEq => {
+                    if let Some(false) = lhs_ty.is_object() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-object type in \
+                              object identity test")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+
+                    if let Some(false) = rhs_ty.is_object() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-object type in \
+                              object identity test")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+
+                    return Ok(Type::Bool);
+                },
+
+                BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq => {
+                    if !(lhs_ty.might_be_numeric()
+                         || lhs_ty.might_be_string())
+                      || !(rhs_ty.might_be_numeric()
+                         || rhs_ty.might_be_string()) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-comparable type \
+                              in comparison operation")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+
+                    return Ok(Type::Bool);
+                },
+
+                BinOp::BitAnd | BinOp::BitOr => {
+                    if !lhs_ty.might_be_bitwise()
+                      || !rhs_ty.might_be_bitwise() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-bitwise type in \
+                              bitwise operation")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                },
+
+                BinOp::LogAnd | BinOp::LogOr => {
+                    if !may_coerce(&lhs_ty, &Type::Bool)
+                      || !may_coerce(&rhs_ty, &Type::Bool) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-boolean type in \
+                              logical operation")),
+                            loc: expr.loc.clone(),
+                        });
+                    }
+                },
+            };
+
+            Ok(ub_ty)
+        },
+
         _ => { Ok(Type::Variant) } // unimplemented!(),
+    }
+}
+
+pub fn upper_bound_type(lhs: &Type, rhs: &Type) -> Option<Type> {
+    // TODO: revisit this for object types
+    if lhs == rhs {
+        Some(lhs.clone())
+    } else if may_coerce(rhs, lhs) {
+        Some(lhs.clone())
+    } else if may_coerce(lhs, rhs) {
+        Some(rhs.clone())
+    } else {
+        None
     }
 }
 

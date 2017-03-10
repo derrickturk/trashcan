@@ -31,11 +31,11 @@ fn do_something(x: /* ByRef Long */ &i32) {
     }
 
     for x: obj in o.arr {
-        x.f(3);
+        // x.f(3);
         print x;
     }
 
-    if x && `Application.WorksheetFunction("SIN", 7)` > 3 {
+    if x != 2 && `Application.WorksheetFunction("SIN", 7)` > 3 {
         print "what";
     }
 
@@ -56,9 +56,9 @@ mod more_examples {
     }
 
     fn retobj() -> obj {
-        if x > 7 {
+        if 9 > 7 {
             return nullptr;
-        } else if y != 23 {
+        } else if 1 != 23 {
             return Sheet1.Range("B3");
         } else {
             return Sheet1.Range("A1");

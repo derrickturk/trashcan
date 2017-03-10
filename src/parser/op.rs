@@ -81,9 +81,13 @@ named!(pub eq_op<BinOp>, complete!(preceded!(
     )
 )));
 
-named!(pub bitand_op<BinOp>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    map!(char!('&'), |_| BinOp::BitAnd)
+named!(pub bitand_op<BinOp>, complete!(do_parse!(
+    opt!(call!(nom::multispace)) >>
+    char!('&') >>
+    // avoid conflict with parse of && (logical and)
+    //   as & & (bitwise-and address-of)
+    not!(peek!(char!('&'))) >>
+    (BinOp::BitAnd)
 )));
 
 named!(pub bitor_op<BinOp>, complete!(preceded!(

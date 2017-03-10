@@ -265,6 +265,15 @@ impl Type {
         }
     }
 
+    /// is this type a scalar type?
+    /// i.e. can we check equality "directly"?
+    pub fn is_scalar(&self) -> bool {
+        match *self {
+            Type::Array(_, _) | Type::Struct(_) | Type::Void => false,
+            _ => true,
+        }
+    }
+
     /// does this Type describe a numeric type?
     pub fn might_be_numeric(&self) -> bool {
         match *self {
