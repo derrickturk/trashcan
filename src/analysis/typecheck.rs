@@ -71,20 +71,35 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
 
         // TODO: what about indexing a Variant
-        ExprKind::Index(ref expr, ref index) => {
+        ExprKind::Index(ref expr, ref indices) => {
             let expr_t = type_of(expr, symtab, ctxt)?;
-            let index_t = type_of(index, symtab, ctxt)?;
 
-            if !may_coerce(&index_t, &Type::Int32) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("index not coercible to i32")),
-                    loc: index.loc.clone(),
-                });
+            for index in indices {
+                let index_t = type_of(index, symtab, ctxt)?;
+                if !may_coerce(&index_t, &Type::Int32) {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("index not coercible to i32")),
+                        loc: index.loc.clone(),
+                    });
+                }
             }
 
             match expr_t {
-                Type::Array(ref base_t, _) => Ok((**base_t).clone()),
+                Type::Array(ref base_t, ref bounds) => {
+                    if bounds.len() == 0 || bounds.len() == indices.len() {
+                        Ok((**base_t).clone())
+                    } else {
+                        Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("expression indexed with \
+                              {} dimensions; {} required", indices.len(),
+                              bounds.len())),
+                            loc: expr.loc.clone(),
+                        })
+                    }
+                },
+
                 _ => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(String::from("indexed expression not of \

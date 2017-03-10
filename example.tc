@@ -82,6 +82,7 @@ mod more_examples {
 
 mod other_mod {
     fn fun(xs: &i32[]) {
+        xs[1;2] = 3;
     }
 
     fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {

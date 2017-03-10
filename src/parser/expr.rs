@@ -20,7 +20,7 @@ enum RecExprRest {
 
 // the "rest" (recursive part) of a "unitary" recursive expr
 enum UnitaryRecExprRest {
-    Indexed(Expr),
+    Indexed(Vec<Expr>),
     Member(Ident),
     MemberInvoke(Ident, Vec<Expr>),
     // FunCall(Vec<Expr>),
@@ -155,8 +155,8 @@ named!(unitary_op_expr<Expr>, alt_complete!(
 fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
     rest.into_iter().fold(first, |sofar, rest| {
         match rest {
-            UnitaryRecExprRest::Indexed(e) => Expr {
-                data: ExprKind::Index(Box::new(sofar), Box::new(e)),
+            UnitaryRecExprRest::Indexed(indices) => Expr {
+                data: ExprKind::Index(Box::new(sofar), indices),
                 loc: empty_loc!(),
             },
 
@@ -244,12 +244,12 @@ named!(vbexpr<Vec<u8>>, complete!(do_parse!(
 // various possible recursive "rests" of unitary exprs
 
 named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('[') >>
- index: call!(expr) >>
-        opt!(call!(nom::multispace)) >>
-        char!(']') >>
-        (UnitaryRecExprRest::Indexed(index))
+            opt!(call!(nom::multispace)) >>
+            char!('[') >>
+   indices: separated_nonempty_list!(ws!(char!(';')), expr) >>
+            opt!(call!(nom::multispace)) >>
+            char!(']') >>
+            (UnitaryRecExprRest::Indexed(indices))
 )));
 
 named!(member<UnitaryRecExprRest>, complete!(do_parse!(

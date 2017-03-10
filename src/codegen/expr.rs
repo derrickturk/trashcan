@@ -27,10 +27,15 @@ impl<'a> Emit<ExprPos> for Expr {
                 path.emit(out, symtab, (), indent)
             },
 
-            ExprKind::Index(ref expr, ref index) => {
+            ExprKind::Index(ref expr, ref indices) => {
                 expr.emit(out, symtab, ExprPos::Expr, indent)?;
                 out.write_all(b"(")?;
-                index.emit(out, symtab, ExprPos::Expr, 0)?;
+                for (i, index) in indices.iter().enumerate() {
+                    if i != 0 {
+                        out.write_all(b", ")?;
+                    }
+                    index.emit(out, symtab, ExprPos::Expr, 0)?;
+                }
                 out.write_all(b")")
             },
 

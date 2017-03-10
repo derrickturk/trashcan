@@ -134,9 +134,8 @@ pub enum ExprKind {
     /// A "named thing"; e.g. `x` or `mod1.y`
     Name(Path),
 
-    // TODO: figure out multidimensional indexing
-    /// An indexing expression `e1[e2]`
-    Index(Box<Expr>, Box<Expr>),
+    /// An indexing expression `e1[e2]` or e1[e2;e3;...]
+    Index(Box<Expr>, Vec<Expr>),
 
     /// A function call `f(a1, a2, ...)`
     Call(Path, Vec<Expr>),

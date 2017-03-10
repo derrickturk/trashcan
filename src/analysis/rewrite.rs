@@ -148,10 +148,11 @@ impl Substitute for Expr {
             ExprKind::Name(path) =>
                 ExprKind::Name(path.substitute(orig, replace)),
 
-            ExprKind::Index(e1, e2) =>
+            ExprKind::Index(expr, indices) =>
                 ExprKind::Index(
-                    Box::new(e1.substitute(orig, replace)),
-                    Box::new(e2.substitute(orig, replace))
+                    Box::new(expr.substitute(orig, replace)),
+                    indices.into_iter().map(|e| e.substitute(orig, replace))
+                      .collect()
                 ),
 
             ExprKind::Call(path, args) =>
