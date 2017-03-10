@@ -3,6 +3,10 @@
 use ast::*;
 use super::*;
 
+/// Context in which expression typecheck takes place: module name, optional
+///   function name
+pub struct ExprCtxt(pub Ident, pub Option<Ident>);
+
 /// Typecheck a dumpster, resolving Deferred types along the way
 pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
   -> AnalysisResult<Dumpster> {
@@ -23,10 +27,6 @@ pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
         }).collect::<Result<_, _>>()?
     })
 }
-
-/// Context in which expression typecheck takes place: module name, optional
-///   function name
-pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 
 pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<Type> {
@@ -354,6 +354,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
         }).collect::<Result<_, _>>()?,
         ret: def.ret,
         body: def.body.into_iter().map(|s| {
+            // TODO: somewhere in here check that we actually return a value
             typecheck_stmt(s, symtab, &inner_ctxt)
         }).collect::<Result<_, _>>()?,
         loc: def.loc,
@@ -370,7 +371,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
               | ExprKind::VbExpr(_) => {},
 
                 _ => return Err(AnalysisError {
-                    kind: AnalysisErrorKind::StmtExprErr,
+                    kind: AnalysisErrorKind::InvalidStmt,
                     regarding: None,
                     loc: expr.loc.clone(),
                 })
@@ -463,6 +464,56 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                       coercible to {}", lhs_ty)),
                     loc: stmt.loc.clone(),
                 })
+            }
+        },
+
+        StmtKind::Return(ref expr) => {
+            if let Some(ref fun) = ctxt.1 {
+                let ctxt_path = Path(Some(ctxt.0.clone()), fun.clone());
+                if let Symbol::Fun { ref def, .. } = *path_in_context(
+                  &ctxt_path, symtab, ctxt, &stmt.loc)? {
+                    match def.ret {
+                        Type::Void => if expr.is_some() {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::InvalidStmt,
+                                regarding: Some(String::from("return with \
+                                  value from non-void function")),
+                                loc: stmt.loc.clone(),
+                            });
+                        },
+
+                        ref ret_ty => match *expr {
+                            None => return Err(AnalysisError {
+                                kind: AnalysisErrorKind::InvalidStmt,
+                                regarding: Some(String::from("return without \
+                                  expression from non-void function")),
+                                loc: stmt.loc.clone(),
+                            }),
+
+                            Some(ref expr) => {
+                                let expr_ty = type_of(expr, symtab, ctxt)?;
+                                if !may_coerce(&expr_ty, ret_ty) {
+                                    return Err(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(format!("return value not \
+                                          coercible to {}", ret_ty)),
+                                        loc: stmt.loc.clone(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    panic!("internal compiler error: fn definition not\
+                      found in symbol table.");
+                }
+            } else {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::InvalidStmt,
+                    regarding: Some(String::from("return statement outside of\
+                      function body")),
+                    loc: stmt.loc.clone(),
+                });
             }
         },
 

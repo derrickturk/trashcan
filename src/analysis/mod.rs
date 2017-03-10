@@ -20,7 +20,7 @@ pub enum AnalysisErrorKind {
     DuplicateSymbol,
     NotDefined,
     TypeError,
-    StmtExprErr,
+    InvalidStmt,
     FnCallError,
 }
 
