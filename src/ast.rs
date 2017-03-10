@@ -25,6 +25,16 @@ pub struct Module {
     pub loc: SrcLoc,
 }
 
+impl Module {
+    pub fn filename(&self) -> String {
+        let mut name = self.name.0.clone();
+        match self.data {
+            ModuleKind::Normal(_) => name.push_str(".bas"),
+        }
+        name
+    }
+}
+
 /// Items define functions or types, and make up modules
 #[derive(Clone, Debug)]
 pub enum NormalItem {

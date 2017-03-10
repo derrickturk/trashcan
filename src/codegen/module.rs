@@ -27,6 +27,6 @@ impl Emit<()> for Module {
 
 fn write_normal_header<W: Write>(name: &Ident, out: &mut W, indent: u32)
   -> io::Result<()> {
-    write!(out, "{:in$}Attribute VB_Name = \"{}\"\n", "", name.0,
-           in = (indent * INDENT) as usize)
+    write!(out, "{:in$}Attribute VB_Name = \"{}\"\nOption Explicit\n\n", "",
+           name.0, in = (indent * INDENT) as usize)
 }

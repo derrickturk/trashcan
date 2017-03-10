@@ -56,14 +56,14 @@ fn main() {
     let dumpster = analysis::typecheck(dumpster, &symtab)
         .expect("typeck error");
 
-    for (i, m) in dumpster.modules.iter().enumerate() {
-        if i != 0 {
-            stdout.write_all(b"\n").unwrap();
-        }
-        m.emit(&mut stdout, &symtab, (), 0).unwrap();
+    for m in dumpster.modules.iter() {
+        let file = m.filename();
+        let mut file = File::create(&file).expect(
+            &format!("Unable to open {}.", file));
+        m.emit(&mut file, &symtab, (), 0).unwrap();
     }
 
-    stdout.write_all(b"\nSYMBOL TABLE DUMP\n").unwrap();
+    stdout.write_all(b"SYMBOL TABLE DUMP\n").unwrap();
     for (m, tbl) in symtab {
         write!(stdout, "module {}:\n", m).unwrap();
         dump_tbl(&mut stdout, tbl, 1);
