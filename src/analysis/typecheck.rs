@@ -924,12 +924,16 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
                     let expr_ty = type_of(expr, symtab, ctxt)?;
                     match expr_ty {
-                        Type::Array(_, _) | Type::Variant => { },
+                        Type::Array(_, _)
+                      | Type::Obj
+                      | Type::Object(_)
+                      | Type::Variant => { },
+
                         _ => return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("for-each loop \
-                              iteration expression must have array type \
-                              (for now)")),
+                            regarding: Some(format!("for-each loop \
+                              iteration expression must have array or object \
+                              type; found type {}", expr_ty)),
                             loc: stmt.loc.clone(),
                         })
 
