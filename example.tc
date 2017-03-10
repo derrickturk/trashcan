@@ -26,7 +26,7 @@ fn do_something(x: /* ByRef Long */ &i32) {
         x /= 2; // inferred integer divide
     }
 
-    for i: i32 = 1 ? 23 : 5 : 7 : 1 {
+    for i: i32 = x > 7 ? 23 : 5 : 7 : 1 {
         // brutal
     }
 

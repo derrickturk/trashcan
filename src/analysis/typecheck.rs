@@ -323,6 +323,28 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(ub_ty)
         },
 
+        ExprKind::CondExpr { ref cond, ref if_expr, ref else_expr } => {
+            if !may_coerce(&type_of(cond, symtab, ctxt)?, &Type::Bool) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from("non-boolean expression as \
+                      conditional-expression condition")),
+                    loc: cond.loc.clone(),
+                });
+            }
+
+            let if_ty = type_of(if_expr, symtab, ctxt)?;
+            let else_ty = type_of(else_expr, symtab, ctxt)?;
+            let ub_ty = upper_bound_type(&if_ty, &else_ty).ok_or(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!("no common type for {} and {}",
+                  if_ty, else_ty)),
+                loc: expr.loc.clone(),
+            })?;
+
+            Ok(ub_ty)
+        },
+
         _ => { Ok(Type::Variant) } // unimplemented!(),
     }
 }
