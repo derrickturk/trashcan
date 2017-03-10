@@ -581,6 +581,30 @@ fn typecheck_stmt(mut stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             });
         },
 
+        StmtKind::WhileLoop { cond, body } => {
+            let cond_ty = type_of(&cond, symtab, ctxt)?;
+            if !may_coerce(&cond_ty, &Type::Bool) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from(
+                      "condition not coercible to bool")),
+                    loc: cond.loc.clone(),
+                });
+            }
+
+            let body = body.into_iter()
+                .map(|s| typecheck_stmt(s, symtab, ctxt))
+                .collect::<Result<_, _>>()?;
+
+            return Ok(Stmt {
+                data: StmtKind::WhileLoop {
+                    cond: cond,
+                    body: body,
+                },
+                loc: stmt.loc,
+            });
+        },
+
         _ => { } //unimplemented!()
     }
 
