@@ -236,7 +236,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
         // TODO: thread the symbol table through here
         //   and check actual subtyping info
-        Type::Object(ref path) => match *to {
+        Type::Object(_) => match *to {
             Type::Obj
           | Type::Variant
           | Type::Object(_) => true,
@@ -375,7 +375,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
     })
 }
 
-fn typecheck_stmt(mut stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
+fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<Stmt> {
     match stmt.data {
         StmtKind::ExprStmt(ref expr) => {
@@ -391,11 +391,11 @@ fn typecheck_stmt(mut stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 })
             };
 
-            let ty = type_of(&expr, symtab, ctxt)?;
+            let _ = type_of(&expr, symtab, ctxt)?;
         },
 
         StmtKind::VarDecl(ref decls) => {
-            for &(ref ident, ref ty, ref init) in decls {
+            for &(_, ref ty, ref init) in decls {
                 if let Some(ref init) = *init {
                     let init_ty = type_of(init, symtab, ctxt)?;
                     if !may_coerce(&init_ty, &ty) {
@@ -601,6 +601,106 @@ fn typecheck_stmt(mut stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     cond: cond,
                     body: body,
                 },
+                loc: stmt.loc,
+            });
+        },
+
+        StmtKind::ForLoop { var, spec, body } => {
+            // TODO: changes here as we improve for loop semantics
+            match spec {
+                ForSpec::Range(ref from, ref to, ref step) => {
+                    if !var.1.might_be_numeric() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-numeric control \
+                              variable in range-based for loop.")),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    let to_ty = type_of(to, symtab, ctxt)?;
+                    let from_ty = type_of(from, symtab, ctxt)?;
+
+                    if !from_ty.might_be_numeric()
+                      || !to_ty.might_be_numeric() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-numeric range \
+                              expression in range-based for loop.")),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    if !may_coerce(&from_ty, &to_ty) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("bounds have \
+                              incompatible types in range-based for loop.")),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    if let Some(ref step) = *step {
+                        let step_ty = type_of(step, symtab, ctxt)?;
+                        if !step_ty.might_be_numeric() {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-numeric step \
+                                  expression in range-based for loop.")),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+
+                        if !may_coerce(&step_ty, &to_ty) {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("step has \
+                                  incompatible type in range-based for loop.")),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+                    }
+                },
+
+                ForSpec::Each(ref expr) => {
+                    match var.1 {
+                        Type::Variant | Type::Obj | Type::Object(_) => { },
+                        _ => return Err(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("for-each loop \
+                              iteration variable must be var or object type \
+                              (for now)")),
+                            loc: stmt.loc.clone(),
+                        })
+                    }
+
+                    let expr_ty = type_of(expr, symtab, ctxt)?;
+                    match expr_ty {
+                        Type::Array(_, _) | Type::Variant => { },
+                        _ => return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("for-each loop \
+                              iteration expression must have array type \
+                              (for now)")),
+                            loc: stmt.loc.clone(),
+                        })
+
+                    }
+                },
+
+            };
+
+            let body = body.into_iter()
+                .map(|s| typecheck_stmt(s, symtab, ctxt))
+                .collect::<Result<_, _>>()?;
+
+            return Ok(Stmt {
+                data: StmtKind::ForLoop {
+                    var: var,
+                    spec: spec,
+                    body: body,
+                },
+
                 loc: stmt.loc,
             });
         },
