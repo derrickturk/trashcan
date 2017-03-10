@@ -395,6 +395,77 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
+        StmtKind::Assign(ref lhs, ref op, ref rhs) => { 
+            let lhs_ty = type_of(lhs, symtab, ctxt)?;
+            let rhs_ty = type_of(rhs, symtab, ctxt)?;
+            match *op {
+                AssignOp::Assign => { },
+
+                AssignOp::AddAssign
+              | AssignOp::SubAssign
+              | AssignOp::MulAssign
+              | AssignOp::DivAssign
+              | AssignOp::PowAssign
+              | AssignOp::SubAssign
+                if !lhs_ty.might_be_numeric()
+                  || !rhs_ty.might_be_numeric() => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("non-numeric \
+                          expression in numeric-operation assignment")),
+                        loc: stmt.loc.clone(),
+                    })
+                },
+
+                AssignOp::StrCatAssign
+                if !lhs_ty.might_be_string()
+                  || !rhs_ty.might_be_string() => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("non-string \
+                          expression in string-operation assignment")),
+                        loc: stmt.loc.clone(),
+                    })
+                },
+
+                AssignOp::BitAndAssign
+              | AssignOp::BitOrAssign
+                if !lhs_ty.might_be_string()
+                  || !rhs_ty.might_be_string() => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("non-bitwise \
+                          expression in bitwise-operation assignment")),
+                        loc: stmt.loc.clone(),
+                    })
+                },
+
+                AssignOp::LogAndAssign
+              | AssignOp::LogOrAssign
+                if !may_coerce(&lhs_ty, &Type::Bool)
+                  || !may_coerce(&rhs_ty, &Type::Bool) => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("non-boolean \
+                          expression in logical-operation assignment")),
+                        loc: stmt.loc.clone(),
+                    })
+                },
+
+                _ => {},
+            }
+
+            // TODO: do we like this rule in every case?
+            if !may_coerce(&rhs_ty, &lhs_ty) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("expression not \
+                      coercible to {}", lhs_ty)),
+                    loc: stmt.loc.clone(),
+                })
+            }
+        },
+
         _ => { } //unimplemented!()
     }
 

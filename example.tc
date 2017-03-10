@@ -19,7 +19,7 @@ pub fn f(x: i32, y: &f64[]) -> str {
 
 // = Private Sub
 fn do_something(x: /* ByRef Long */ &i32) {
-    let y: i32, z: var = "string literal";
+    let y: i32, z: str = "string literal";
 
     if x != 7 {
         x /= 2; // inferred integer divide

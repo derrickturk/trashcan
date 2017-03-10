@@ -255,6 +255,41 @@ impl Type {
         }
     }
 
+    /// does this Type describe a numeric type?
+    pub fn might_be_numeric(&self) -> bool {
+        match *self {
+            Type::UInt8
+          | Type::Int16
+          | Type::Int32
+          | Type::IntPtr
+          | Type::Float32
+          | Type::Float64
+          | Type::Variant => true,
+            _ => false,
+        }
+    }
+
+    /// does this Type describe a bitwise type?
+    pub fn might_be_bitwise(&self) -> bool {
+        match *self {
+            Type::UInt8
+          | Type::Int16
+          | Type::Int32
+          | Type::IntPtr
+          | Type::Variant => true,
+            _ => false,
+        }
+    }
+
+    /// does this Type describe a string type?
+    pub fn might_be_string(&self) -> bool {
+        match *self {
+            Type::String
+          | Type::Variant => true,
+            _ => false,
+        }
+    }
+
     /// what does this type decay to when passed as a function
     /// argument; we only use this for array types so far
     pub fn decay(&self) -> Type {
