@@ -50,7 +50,53 @@ impl<'a> Emit<ExprPos> for Expr {
                 };
 
                 Ok(())
-            }
+            },
+
+            ExprKind::UnOpApp(ref expr, ref op) => {
+                write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
+                match *op {
+                    UnOp::Negate => {
+                        out.write_all(b"-");
+                        expr.emit(out, symtab, ctxt, 0)?;
+                    },
+
+                    UnOp::BitNot | UnOp::LogNot => {
+                        out.write_all(b"Not ");
+                        expr.emit(out, symtab, ctxt, 0)?;
+                    },
+
+                    UnOp::AddressOf => {
+                        // TODO: this will change for fn or object types
+                        out.write_all(b"VarPtr(")?;
+                        expr.emit(out, symtab, ctxt, 0)?;
+                        out.write_all(b")")?;
+                    },
+                };
+                Ok(())
+            },
+
+            // TODO: be more clever with parens
+            ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
+                // no infix "IsNot" in VB6; convert to Not (... Is ...)
+                let op = match *op {
+                    BinOp::NotIdentEq => {
+                        write!(out, "{:in$}Not (", "",
+                          in = (indent * INDENT) as usize)?;
+                        BinOp::IdentEq
+                    },
+
+                    op => {
+                        write!(out, "{:in$}(", "",
+                          in = (indent * INDENT) as usize)?;
+                        op
+                    },
+                };
+
+                lhs.emit(out, symtab, ctxt, 0)?;
+                op.emit(out, symtab, (), 0)?;
+                rhs.emit(out, symtab, ctxt, 0)?;
+                out.write_all(b")")
+            },
 
             ExprKind::VbExpr(ref bytes) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
@@ -58,6 +104,7 @@ impl<'a> Emit<ExprPos> for Expr {
             },
 
             ref e => {
+                // TODO: unimplemented cases
                 write!(out, "{:in$}{:?}", "", e,
                   in = (indent * INDENT) as usize)
             }

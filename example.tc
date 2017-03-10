@@ -72,7 +72,7 @@ mod more_examples {
 
         let weird_str: str = "You're not\tmy \"supervisor\"";
 
-        is_null(retobj());
+        print retobj() !== retobj();
 
         other_mod::fun(x);
 

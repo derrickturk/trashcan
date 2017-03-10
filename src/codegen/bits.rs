@@ -69,3 +69,33 @@ impl Emit<()> for AssignOp {
         out.write_all(op)
     }
 }
+
+// just the operator
+impl Emit<()> for BinOp {
+    fn emit<W: Write>(&self, out: &mut W, _symtab: &SymbolTable,
+      _ctxt: (), _indent: u32) -> io::Result<()> {
+        let op: &[u8] = match *self {
+            BinOp::Add => b" + ",
+            BinOp::Sub => b" - ",
+            BinOp::Mul => b" * ",
+            BinOp::Div => b" / ",
+            BinOp::Mod => b" Mod ",
+            BinOp::Pow => b"^",
+            BinOp::StrCat => b" & ",
+            BinOp::Eq => b" = ",
+            BinOp::NotEq => b" <> ",
+            BinOp::IdentEq => b" Is ",
+            BinOp::Lt => b" < ",
+            BinOp::Gt => b" > ",
+            BinOp::LtEq => b" <= ",
+            BinOp::GtEq => b" >= ",
+            BinOp::BitAnd => b" And ",
+            BinOp::BitOr => b" Or ",
+            BinOp::LogAnd => b" And ",
+            BinOp::LogOr => b" Or ",
+            BinOp::NotIdentEq => panic!("BinOp::NotIdentEq should never be \
+              emitted directly"),
+        };
+        out.write_all(op)
+    }
+}
