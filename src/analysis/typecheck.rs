@@ -70,7 +70,6 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        // TODO: what about indexing a Variant
         ExprKind::Index(ref expr, ref indices) => {
             let expr_t = type_of(expr, symtab, ctxt)?;
 
@@ -99,6 +98,9 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                         })
                     }
                 },
+
+                // not a lot else we can do
+                Type::Variant => Ok(Type::Variant),
 
                 _ => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
