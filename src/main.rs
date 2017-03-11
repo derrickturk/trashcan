@@ -52,7 +52,8 @@ fn main() {
     let dumpster = analysis::for_loop_var_gensym(dumpster);
 
     let mut dumpster = analysis::short_circuit_logicals(dumpster);
-    let mut symtab = analysis::symbol_table(&dumpster).expect("symtab error");
+    let mut symtab = analysis::SymbolTable::build(&dumpster)
+        .expect("symtab error");
 
     analysis::resolve_deferred(&mut dumpster, &mut symtab)
         .expect("resolve error");
@@ -69,7 +70,7 @@ fn main() {
 
     let mut stdout = io::LineWriter::new(io::stdout());
     stdout.write_all(b"SYMBOL TABLE DUMP\n").unwrap();
-    for (m, tbl) in symtab {
+    for (m, tbl) in symtab.symtab {
         write!(stdout, "module {}:\n", m).unwrap();
         dump_tbl(&mut stdout, tbl, 1);
     }

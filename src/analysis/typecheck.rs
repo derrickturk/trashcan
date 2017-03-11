@@ -50,7 +50,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
         // qualified::name (must denote a module item)
         ExprKind::Name(ref path) => {
-            match *symbol_at_path(symtab, path,
+            match *symtab.symbol_at_path(path,
               NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
               &expr.loc)? {
                 Symbol::Const(ref ty) => Ok(ty.clone()),
@@ -102,7 +102,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
 
         ExprKind::Call(ref path, ref args) => {
-            let fun = match *symbol_at_path(symtab, path,
+            let fun = match *symtab.symbol_at_path(path,
               NameCtxt::Function(&ctxt.0, Access::Private), &expr.loc)? {
                 Symbol::Fun { ref def, .. } => def,
                 _ => panic!("internal compiler error: non-function \
@@ -682,8 +682,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             if let Some(ref fun) = ctxt.1 {
                 let ctxt_path = Path(Some(ctxt.0.clone()), fun.clone());
                 // TODO: symbol_at_ident needed here
-                if let Symbol::Fun { ref def, .. } = *symbol_at_path(
-                  symtab,
+                if let Symbol::Fun { ref def, .. } = *symtab.symbol_at_path(
                   &ctxt_path,
                   NameCtxt::Function(&ctxt.0, Access::Private),
                   &stmt.loc)? {

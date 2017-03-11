@@ -44,165 +44,172 @@ impl Symbol {
 }
 
 /// The symbol table: scope -> (scope -> symbol|(ident -> symbol))
-pub type SymbolTable = HashMap<
-    String, // module name
-    HashMap<
-        String, // item name
-        Symbol
-    >
->;
-
-pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
-    let mut symtab: SymbolTable = SymbolTable::new();
-    for m in &dumpster.modules {
-        if symtab.contains_key(&m.name.0) {
-            return Err(AnalysisError {
-                kind: AnalysisErrorKind::DuplicateSymbol,
-                regarding: Some(format!("mod {}", m.name.0)),
-                loc: m.loc.clone(),
-            });
-        }
-        symtab.insert(m.name.0.clone(), HashMap::new());
-
-        match m.data {
-            ModuleKind::Normal(ref items) => {
-                insert_module_items(symtab.get_mut(&m.name.0).unwrap(), items)?;
-            },
-        }
-    }
-
-    // TODO: implement this
-    // resolve_deferred(&mut symtab);
-
-    Ok(symtab)
+pub struct SymbolTable {
+    // temporarily public
+    pub symtab: HashMap<
+        String, // module name
+        HashMap<
+            String, // item name
+            Symbol
+        >
+    >,
 }
 
-// TODO: probably build symbol_at_ident etc (steal guts of
-//   symbol_at_path_unchecked) and reimplement symbol_at_path in terms
-//   of that
+impl SymbolTable {
+    pub fn build(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
+        let mut result = SymbolTable {
+            symtab: HashMap::new(),
+        };
 
-pub fn symbol_at_path<'a>(symtab: &'a SymbolTable, path: &Path,
-  ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
-    let sym = symbol_at_path_unchecked(symtab, path, ctxt, err_loc)?;
-    match ctxt {
-        NameCtxt::Function(_, _) => match *sym {
-            Symbol::Fun { .. } => Ok(sym),
+        for m in &dumpster.modules {
+            if result.symtab.contains_key(&m.name.0) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("mod {}", m.name.0)),
+                    loc: m.loc.clone(),
+                });
+            }
+            result.symtab.insert(m.name.0.clone(), HashMap::new());
 
-            Symbol::Struct { .. } => Err(AnalysisError {
-                kind: AnalysisErrorKind::FnCallError,
-                regarding: Some(format!("{} denotes a type, not a function",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-
-            _ => Err(AnalysisError {
-                kind: AnalysisErrorKind::FnCallError,
-                regarding: Some(format!("{} denotes a value, not a function",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-        },
-
-        NameCtxt::Type(_, _) => match *sym {
-            Symbol::Struct { .. } => Ok(sym),
-
-            Symbol::Fun { .. } => Err(AnalysisError {
-                kind: AnalysisErrorKind::TypeError,
-                regarding: Some(format!("{} denotes a function, not a type",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-
-            _ => Err(AnalysisError {
-                kind: AnalysisErrorKind::TypeError,
-                regarding: Some(format!("{} denotes a value, not a type",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-        },
-
-        NameCtxt::Value(_, _, _) => match *sym {
-            Symbol::Const(_) | Symbol::Value(_, _) => Ok(sym),
-
-            Symbol::Fun { .. } => Err(AnalysisError {
-                kind: AnalysisErrorKind::TypeError,
-                regarding: Some(format!("{} denotes a function, not a value",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-
-            Symbol::Struct { .. } => Err(AnalysisError {
-                kind: AnalysisErrorKind::TypeError,
-                regarding: Some(format!("{} denotes a type, not a value",
-                  path)),
-                loc: err_loc.clone(),
-            }),
-        },
-
-        _ => panic!("internal compiler error: invalid context for path lookup")
-    }
-}
-
-
-fn symbol_at_path_unchecked<'a>(symtab: &'a SymbolTable, path: &Path,
-  ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
-    struct DummyVisitor;
-    impl ASTVisitor for DummyVisitor { }
-
-    let mut v = DummyVisitor;
-    let (ident, ctxt) = v.ident_ctxt_from_path(path, ctxt);
-
-    let (m, scope, access) = match ctxt {
-        NameCtxt::Function(m, access) => (m, None, access),
-        NameCtxt::Type(m, access) => (m, None, access),
-        NameCtxt::Value(m, scope, access) => (m, scope, access),
-        _ => panic!("internal compiler error: invalid context for path lookup")
-    };
-
-    let allow_private = access == Access::Private;
-
-    let symtab = symtab.get(&m.0).ok_or(AnalysisError {
-        kind: AnalysisErrorKind::NotDefined,
-        regarding: Some(format!("mod {}", m)),
-        loc: err_loc.clone(),
-    })?;
-
-    // check local scope, if any, first
-    match scope {
-        Some(fun) => {
-            if let Some(&Symbol::Fun { ref locals, .. }) = symtab.get(&fun.0) {
-                if let Some(sym) = locals.get(&ident.0) {
-                    if allow_private || sym.access() == Access::Public {
-                        return Ok(sym);
-                    }
-                }
-            } else {
-                panic!("internal compiler error: no function record for {}",
-                  fun);
+            match m.data {
+                ModuleKind::Normal(ref items) => {
+                    insert_module_items(result.symtab.get_mut(&m.name.0).unwrap(), items)?;
+                },
             }
         }
-        None => {},
+
+        // TODO: implement this
+        // resolve_deferred(&mut symtab);
+
+        Ok(result)
     }
 
-    match symtab.get(&ident.0) {
-        Some(sym) => {
-            if allow_private || sym.access() == Access::Public {
-                Ok(sym)
-            } else {
-                Err(AnalysisError {
-                    kind: AnalysisErrorKind::SymbolAccess,
-                    regarding: Some(format!("{} is private to {}",
-                      path, m)),
+    // TODO: probably build symbol_at_ident etc (steal guts of
+    //   symbol_at_path_unchecked) and reimplement symbol_at_path in terms
+    //   of that
+
+    pub fn symbol_at_path(&self, path: &Path,
+      ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&Symbol> {
+        let sym = self.symbol_at_path_unchecked(path, ctxt, err_loc)?;
+        match ctxt {
+            NameCtxt::Function(_, _) => match *sym {
+                Symbol::Fun { .. } => Ok(sym),
+
+                Symbol::Struct { .. } => Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} denotes a type, not a function",
+                      path)),
                     loc: err_loc.clone(),
-                })
-            }
-        },
+                }),
 
-        None => Err(AnalysisError {
+                _ => Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} denotes a value, not a function",
+                      path)),
+                    loc: err_loc.clone(),
+                }),
+            },
+
+            NameCtxt::Type(_, _) => match *sym {
+                Symbol::Struct { .. } => Ok(sym),
+
+                Symbol::Fun { .. } => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("{} denotes a function, not a type",
+                      path)),
+                    loc: err_loc.clone(),
+                }),
+
+                _ => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("{} denotes a value, not a type",
+                      path)),
+                    loc: err_loc.clone(),
+                }),
+            },
+
+            NameCtxt::Value(_, _, _) => match *sym {
+                Symbol::Const(_) | Symbol::Value(_, _) => Ok(sym),
+
+                Symbol::Fun { .. } => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("{} denotes a function, not a value",
+                      path)),
+                    loc: err_loc.clone(),
+                }),
+
+                Symbol::Struct { .. } => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("{} denotes a type, not a value",
+                      path)),
+                    loc: err_loc.clone(),
+                }),
+            },
+
+            _ => panic!("internal compiler error: invalid context for path lookup")
+        }
+    }
+
+    fn symbol_at_path_unchecked(&self, path: &Path,
+      ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&Symbol> {
+        struct DummyVisitor;
+        impl ASTVisitor for DummyVisitor { }
+
+        let mut v = DummyVisitor;
+        let (ident, ctxt) = v.ident_ctxt_from_path(path, ctxt);
+
+        let (m, scope, access) = match ctxt {
+            NameCtxt::Function(m, access) => (m, None, access),
+            NameCtxt::Type(m, access) => (m, None, access),
+            NameCtxt::Value(m, scope, access) => (m, scope, access),
+            _ => panic!("internal compiler error: invalid context for path lookup")
+        };
+
+        let allow_private = access == Access::Private;
+
+        let symtab = self.symtab.get(&m.0).ok_or(AnalysisError {
             kind: AnalysisErrorKind::NotDefined,
-            regarding: Some(format!("{}", path)),
+            regarding: Some(format!("mod {}", m)),
             loc: err_loc.clone(),
-        })
+        })?;
+
+        // check local scope, if any, first
+        match scope {
+            Some(fun) => {
+                if let Some(&Symbol::Fun { ref locals, .. }) = symtab.get(&fun.0) {
+                    if let Some(sym) = locals.get(&ident.0) {
+                        if allow_private || sym.access() == Access::Public {
+                            return Ok(sym);
+                        }
+                    }
+                } else {
+                    panic!("internal compiler error: no function record for {}",
+                      fun);
+                }
+            }
+            None => {},
+        }
+
+        match symtab.get(&ident.0) {
+            Some(sym) => {
+                if allow_private || sym.access() == Access::Public {
+                    Ok(sym)
+                } else {
+                    Err(AnalysisError {
+                        kind: AnalysisErrorKind::SymbolAccess,
+                        regarding: Some(format!("{} is private to {}",
+                          path, m)),
+                        loc: err_loc.clone(),
+                    })
+                }
+            },
+
+            None => Err(AnalysisError {
+                kind: AnalysisErrorKind::NotDefined,
+                regarding: Some(format!("{}", path)),
+                loc: err_loc.clone(),
+            })
+        }
     }
 }
 
