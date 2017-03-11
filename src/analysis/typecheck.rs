@@ -7,7 +7,7 @@ use super::*;
 ///   function name
 pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 
-/// Typecheck a dumpster, resolving Deferred types along the way
+/// Typecheck a dumpster
 pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
   -> AnalysisResult<Dumpster> {
     Ok(Dumpster {

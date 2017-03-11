@@ -50,8 +50,13 @@ fn main() {
 
     let dumpster = analysis::merge_dumpsters(dumpsters);
     let dumpster = analysis::for_loop_var_gensym(dumpster);
-    let dumpster = analysis::short_circuit_logicals(dumpster);
-    let symtab = analysis::symbol_table(&dumpster).expect("symtab error");
+
+    let mut dumpster = analysis::short_circuit_logicals(dumpster);
+    let mut symtab = analysis::symbol_table(&dumpster).expect("symtab error");
+
+    analysis::resolve_deferred(&mut dumpster, &mut symtab)
+        .expect("resolve error");
+
     let dumpster = analysis::typecheck(dumpster, &symtab)
         .expect("typeck error");
 

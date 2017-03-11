@@ -36,6 +36,8 @@ pub mod transforms;
 pub use self::transforms::*;
 pub mod typecheck;
 pub use self::typecheck::*;
+pub mod resolve;
+pub use self::resolve::*;
 
 pub fn merge_dumpsters(dumpsters: Vec<ast::Dumpster>) -> ast::Dumpster {
     ast::Dumpster {
