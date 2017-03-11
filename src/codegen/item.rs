@@ -15,8 +15,9 @@ impl<'a> Emit<&'a Module> for NormalItem {
         match *self {
             NormalItem::Function(ref def) =>
                 def.emit(out, symtab, ctxt, indent),
+
             NormalItem::Struct(ref def) =>
-                write!(out, "{:?}", def),
+                def.emit(out, symtab, (), indent),
         }
     }
 }
@@ -57,9 +58,8 @@ impl<'a> Emit<&'a Module> for FunDef {
               indent + 1)?;
         }
 
-        write!(out, "End {}\n", fnsub)?;
-
-        Ok(())
+        write!(out, "{:in$}End {}\n", "", fnsub,
+          in = (indent * INDENT) as usize)
     }
 }
 
@@ -70,5 +70,30 @@ impl Emit<()> for FunParam {
         out.write_all(b" ")?;
         self.name.emit(out, symtab, (), 0)?;
         self.ty.emit(out, symtab, TypePos::FunParam, 0)
+    }
+}
+
+impl<'a> Emit<()> for StructDef {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      ctxt: (), indent: u32) -> io::Result<()> {
+        self.access.emit(out, symtab, (), indent)?;
+        out.write_all(b" Type ")?;
+        self.name.emit(out, symtab, (), 0)?;
+        out.write_all(b"\n")?;
+
+        for m in &self.members {
+            m.emit(out, symtab, (), indent + 1)?;
+        }
+
+        write!(out, "{:in$}End Type\n", "", in = (indent * INDENT) as usize)
+    }
+}
+
+impl Emit<()> for StructMem {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      ctxt: (), indent: u32) -> io::Result<()> {
+        self.name.emit(out, symtab, (), indent)?;
+        self.ty.emit(out, symtab, TypePos::Decl, 0)?;
+        out.write_all(b"\n")
     }
 }

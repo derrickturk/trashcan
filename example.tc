@@ -6,6 +6,7 @@ mod example {
 struct thing {
     x: i32,
     y: f64[],
+    z: i32[1:10; 9:17],
 }
 
 pub fn f(x: i32, y: &f64[]) -> str {

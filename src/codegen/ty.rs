@@ -70,8 +70,12 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
 
 fn emit_bounds<W: Write>(out: &mut W, bounds: &Vec<(i32, i32)>)
   -> io::Result<()> {
-    for &(l, u) in bounds {
-        write!(out, "({} To {})", l, u)?;
+    out.write_all(b"(")?;
+    for (i, &(l, u)) in bounds.iter().enumerate() {
+        if i != 0 {
+            out.write_all(b", ")?;
+        }
+        write!(out, "{} To {}", l, u)?;
     }
-    Ok(())
+    out.write_all(b")")
 }
