@@ -77,8 +77,75 @@ pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
     Ok(symtab)
 }
 
-pub fn symbol_at_path<'a>(symtab: &'a SymbolTable, path: &Path, ctxt: NameCtxt,
-  err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
+// TODO: probably build symbol_at_ident etc (steal guts of
+//   symbol_at_path_unchecked) and reimplement symbol_at_path in terms
+//   of that
+
+pub fn symbol_at_path<'a>(symtab: &'a SymbolTable, path: &Path,
+  ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
+    let sym = symbol_at_path_unchecked(symtab, path, ctxt, err_loc)?;
+    match ctxt {
+        NameCtxt::Function(_, _) => match *sym {
+            Symbol::Fun { .. } => Ok(sym),
+
+            Symbol::Struct { .. } => Err(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(format!("{} denotes a type, not a function",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+
+            _ => Err(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(format!("{} denotes a value, not a function",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+        },
+
+        NameCtxt::Type(_, _) => match *sym {
+            Symbol::Struct { .. } => Ok(sym),
+
+            Symbol::Fun { .. } => Err(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!("{} denotes a function, not a type",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+
+            _ => Err(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!("{} denotes a value, not a type",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+        },
+
+        NameCtxt::Value(_, _, _) => match *sym {
+            Symbol::Const(_) | Symbol::Value(_, _) => Ok(sym),
+
+            Symbol::Fun { .. } => Err(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!("{} denotes a function, not a value",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+
+            Symbol::Struct { .. } => Err(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!("{} denotes a type, not a value",
+                  path)),
+                loc: err_loc.clone(),
+            }),
+        },
+
+        _ => panic!("internal compiler error: invalid context for path lookup")
+    }
+}
+
+
+fn symbol_at_path_unchecked<'a>(symtab: &'a SymbolTable, path: &Path,
+  ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
     struct DummyVisitor;
     impl ASTVisitor for DummyVisitor { }
 
