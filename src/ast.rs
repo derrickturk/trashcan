@@ -122,6 +122,8 @@ pub enum StmtKind {
  *       xs(i) = xs(i) * 3
  *   Next i
  */
+// TODO: move variable into forspec; this might make many
+//   things easier
 /// For loop specs: range (from, to, step) or each (expr)
 #[derive(Clone, Debug)]
 pub enum ForSpec {

@@ -56,6 +56,13 @@ macro_rules! make_ast_vistor {
                 self.walk_expr(expr, module, function)
             }
 
+            // TODO: move variable into forspec; this might make many
+            //   things easier
+            fn visit_forspec(&mut self, spec: & $($_mut)* ForSpec,
+              module: &Ident, function: &Ident) {
+                self.walk_forspec(spec, module, function)
+            }
+
             fn visit_path(&mut self, p: & $($_mut)* Path, module: &Ident,
               function: Option<&Ident>) {
                 self.walk_path(p, module, function)
@@ -199,7 +206,78 @@ macro_rules! make_ast_vistor {
                         }
                     },
 
-                    _ => unimplemented!(),
+                    StmtKind::Assign(
+                        ref $($_mut)* lhs,
+                        _,
+                        ref $($_mut)* rhs
+                    ) => {
+                        self.visit_expr(lhs, module, function);
+                        self.visit_expr(rhs, module, function);
+                    },
+
+                    StmtKind::Return(Some(ref $($_mut)* expr)) =>
+                        self.visit_expr(expr, module, function),
+
+                    StmtKind::Return(None) => {},
+
+                    StmtKind::IfStmt {
+                        ref $($_mut)* cond,
+                        ref $($_mut)* body,
+                        ref $($_mut)* elsifs,
+                        ref $($_mut)* els,
+                    } => {
+                        self.visit_expr(cond, module, function);
+                        for stmt in body {
+                            self.visit_stmt(stmt, module, function);
+                        }
+
+                        for & $($_mut)* (
+                            ref $($_mut)* cond,
+                            ref $($_mut)* body
+                        ) in elsifs {
+                            self.visit_expr(cond, module, function);
+                            for stmt in body {
+                                self.visit_stmt(stmt, module, function);
+                            }
+                        }
+
+                        match *els {
+                            Some(ref $($_mut)* body) => {
+                                for stmt in body {
+                                    self.visit_stmt(stmt, module, function);
+                                }
+                            },
+                            None => {},
+                        }
+                    },
+
+                    StmtKind::WhileLoop {
+                        ref $($_mut)* cond,
+                        ref $($_mut)* body,
+                    } => {
+                        self.visit_expr(cond, module, function);
+                        for stmt in body {
+                            self.visit_stmt(stmt, module, function);
+                        }
+                    },
+
+                    StmtKind::ForLoop {
+                        ref $($_mut)* var,
+                        ref $($_mut)* spec,
+                        ref $($_mut)* body,
+                    } => {
+                        let (ref $($_mut)* ident, ref $($_mut)* ty) = *var;
+                        self.visit_ident(ident, Some(module),
+                          Some(function), None);
+                        self.visit_type(ty, module);
+                        self.visit_forspec(spec, module, function);
+                        for stmt in body {
+                            self.visit_stmt(stmt, module, function);
+                        }
+                    },
+
+                    StmtKind::Print(ref $($_mut)* expr) =>
+                        self.visit_expr(expr, module, function),
                 }
             }
 
@@ -216,6 +294,28 @@ macro_rules! make_ast_vistor {
                         self.visit_literal(lit, module, function),
 
                     _ => unimplemented!(),
+                }
+            }
+
+            fn walk_forspec(&mut self, spec: & $($_mut)* ForSpec,
+              module: &Ident, function: &Ident) {
+                match *spec {
+                    ForSpec::Range(
+                        ref $($_mut)* from,
+                        ref $($_mut)* to,
+                        ref $($_mut)* step,
+                    ) => {
+                        self.visit_expr(from, module, function);
+                        self.visit_expr(to, module, function);
+                        match *step {
+                            Some(ref $($_mut)* step) =>
+                                self.visit_expr(step, module, function),
+                            None => {},
+                        }
+                    },
+
+                    ForSpec::Each(ref $($_mut)* of) =>
+                        self.visit_expr(of, module, function)
                 }
             }
 
