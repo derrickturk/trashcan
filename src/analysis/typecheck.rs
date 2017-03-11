@@ -380,6 +380,10 @@ pub fn upper_bound_type(lhs: &Type, rhs: &Type) -> Option<Type> {
 }
 
 pub fn may_coerce(from: &Type, to: &Type) -> bool {
+    if let Type::Deferred(ref path) = *to {
+        panic!("attempt to coerce-check deferred type {}", path);
+    }
+
     match *from {
         Type::Bool => match *to {
             Type::Bool
@@ -483,7 +487,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
         },
 
         Type::Deferred(ref path) => panic!("internal compiler error:\
-            attempt to coerce-check unresolved type {:?}", path),
+            attempt to coerce-check deferred type {}", path),
 
         Type::Void => false,
 

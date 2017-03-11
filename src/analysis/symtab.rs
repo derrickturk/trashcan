@@ -72,6 +72,9 @@ pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
         }
     }
 
+    // TODO: implement this
+    // resolve_deferred(&mut symtab);
+
     Ok(symtab)
 }
 
