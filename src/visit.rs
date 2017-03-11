@@ -438,10 +438,21 @@ macro_rules! make_ast_vistor {
 
             fn walk_path(&mut self, p: & $($_mut)* Path, ctxt: NameCtxt,
               loc: &SrcLoc) {
+                if let Some(ref $($_mut)* module) = p.0 {
+                    self.visit_ident(module, NameCtxt::Module, loc);
+                }
+                let (i, inner_ctxt) = self.ident_ctxt_from_path(p, ctxt);
+                self.visit_ident(i, inner_ctxt, loc);
+            }
+
+            // this doesn't use self at all, but can't be a free function
+            //   because blah blah mut blah blah concat_idents whatever
+            // TODO: the lifetime seems super sketchy here but it satisfies
+            //   the borrow checker
+            fn ident_ctxt_from_path<'a>(&mut self, p: &'a $($_mut)* Path,
+              ctxt: NameCtxt<'a>) -> (&'a $($_mut)* Ident, NameCtxt<'a>) {
                 match *p {
                     Path(Some(ref $($_mut)* path_m), ref $($_mut)* i) => {
-                        self.visit_ident(path_m, NameCtxt::Module, loc);
-
                         let inner_ctxt = match ctxt {
                             NameCtxt::Module | NameCtxt::DefModule =>
                                 panic!("internal compiler error: path as \
@@ -492,11 +503,11 @@ macro_rules! make_ast_vistor {
                                 panic!("internal compiler error: path as \
                                        member name"),
                         };
-                        self.visit_ident(i, inner_ctxt, loc);
+                        (i, inner_ctxt)
                     },
 
                     Path(None, ref $($_mut)* i) => {
-                        self.visit_ident(i, ctxt, loc);
+                        (i, ctxt)
                     },
                 }
             }

@@ -3,6 +3,7 @@
 use super::*;
 use ast::*;
 use visit::NameCtxt;
+use visit::ASTVisitor;
 
 use std::collections::HashMap;
 
@@ -76,17 +77,67 @@ pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
     Ok(symtab)
 }
 
-/*
 pub fn symbol_at_path<'a>(symtab: &'a SymbolTable, path: &Path, ctxt: NameCtxt,
   err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
-    // module from which lookup is happening
-    let ctxt_module = match ctxt {
-        NameCtxt::Module => panic!("internal compiler error: \
-          attempt to lookup module by path"),
-        NameCtxt::Function(
+    struct DummyVisitor;
+    impl ASTVisitor for DummyVisitor { }
 
+    let mut v = DummyVisitor;
+    let (ident, ctxt) = v.ident_ctxt_from_path(path, ctxt);
+
+    let (m, scope, access) = match ctxt {
+        NameCtxt::Function(m, access) => (m, None, access),
+        NameCtxt::Type(m, access) => (m, None, access),
+        NameCtxt::Value(m, scope, access) => (m, scope, access),
+        _ => panic!("internal compiler error: invalid context for path lookup")
+    };
+
+    let allow_private = access == Access::Private;
+
+    let symtab = symtab.get(&m.0).ok_or(AnalysisError {
+        kind: AnalysisErrorKind::NotDefined,
+        regarding: Some(format!("mod {}", m)),
+        loc: err_loc.clone(),
+    })?;
+
+    // check local scope, if any, first
+    match scope {
+        Some(fun) => {
+            if let Some(&Symbol::Fun { ref locals, .. }) = symtab.get(&fun.0) {
+                if let Some(sym) = locals.get(&ident.0) {
+                    if allow_private || sym.access() == Access::Public {
+                        return Ok(sym);
+                    }
+                }
+            } else {
+                panic!("internal compiler error: no function record for {}",
+                  fun);
+            }
+        }
+        None => {},
+    }
+
+    match symtab.get(&ident.0) {
+        Some(sym) => {
+            if allow_private || sym.access() == Access::Public {
+                Ok(sym)
+            } else {
+                Err(AnalysisError {
+                    kind: AnalysisErrorKind::SymbolAccess,
+                    regarding: Some(format!("{} is private to {}",
+                      path, m)),
+                    loc: err_loc.clone(),
+                })
+            }
+        },
+
+        None => Err(AnalysisError {
+            kind: AnalysisErrorKind::NotDefined,
+            regarding: Some(format!("{}", path)),
+            loc: err_loc.clone(),
+        })
+    }
 }
-*/
 
 fn insert_module_items(tbl: &mut HashMap<String, Symbol>,
   items: &Vec<NormalItem>) -> AnalysisResult<()> {
