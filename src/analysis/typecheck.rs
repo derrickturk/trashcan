@@ -136,22 +136,22 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
                 match param.mode {
                     ParamMode::ByRef =>
-                        if param.typ != arg_type {
+                        if param.ty != arg_type {
                             return Err(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
                                 regarding: Some(format!(
                                   "parameter {} has type &{}; type {} provided",
-                                  param.name, param.typ, arg_type)),
+                                  param.name, param.ty, arg_type)),
                                 loc: expr.loc.clone(),
                             })
                         },
                     ParamMode::ByVal =>
-                        if !may_coerce(&arg_type, &param.typ) {
+                        if !may_coerce(&arg_type, &param.ty) {
                             return Err(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
                                 regarding: Some(format!(
                                   "parameter {} has type {}; type {} provided",
-                                  param.name, param.typ, arg_type)),
+                                  param.name, param.ty, arg_type)),
                                 loc: expr.loc.clone(),
                             })
                         },
@@ -566,7 +566,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
         access: def.access,
         params: def.params.into_iter().map(|p| {
             match p.mode {
-                ParamMode::ByRef => match p.typ {
+                ParamMode::ByRef => match p.ty {
                     Type::Array(_, ref bounds) if !bounds.is_empty() =>
                         Err(AnalysisError {
                             kind: AnalysisErrorKind::FnCallError,
@@ -577,7 +577,7 @@ fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     _ => Ok(())
                 },
 
-                ParamMode::ByVal => match p.typ {
+                ParamMode::ByVal => match p.ty {
                     Type::Array(_, _) => Err(AnalysisError {
                         kind: AnalysisErrorKind::FnCallError,
                         regarding: Some(String::from("array types cannot \

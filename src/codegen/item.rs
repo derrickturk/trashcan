@@ -67,6 +67,6 @@ impl Emit<()> for FunParam {
         self.mode.emit(out, symtab, (), indent)?;
         out.write_all(b" ")?;
         self.name.emit(out, symtab, (), 0)?;
-        self.typ.emit(out, symtab, TypePos::FunParam, 0)
+        self.ty.emit(out, symtab, TypePos::FunParam, 0)
     }
 }

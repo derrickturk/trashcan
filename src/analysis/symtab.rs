@@ -108,7 +108,7 @@ fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
             });
         }
         locals.insert(p.name.0.clone(),
-          Symbol::Value(p.typ.clone(), Some(p.mode)));
+          Symbol::Value(p.ty.clone(), Some(p.mode)));
     }
 
     for stmt in &def.body {

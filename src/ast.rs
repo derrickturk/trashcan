@@ -59,7 +59,7 @@ pub struct FunDef {
 #[derive(Clone, Debug)]
 pub struct FunParam {
     pub name: Ident,
-    pub typ: Type,
+    pub ty: Type,
     pub mode: ParamMode,
     pub loc: SrcLoc,
 }
@@ -190,6 +190,23 @@ impl Expr {
 
     }
     */
+}
+
+/// A struct type definition
+#[derive(Clone, Debug)]
+pub struct StructDef {
+    pub name: Ident,
+    pub access: Access,
+    pub members: Vec<StructMem>,
+    pub loc: SrcLoc,
+}
+
+/// A struct member definition
+#[derive(Clone, Debug)]
+pub struct StructMem {
+    pub name: Ident,
+    pub ty: Type,
+    pub loc: SrcLoc,
 }
 
 /// Module, item, variable, or type identifiers: (name, renamed-from)

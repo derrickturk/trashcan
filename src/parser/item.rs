@@ -49,7 +49,7 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
         ty: typename >>
             (FunParam {
                 name: name,
-                typ: ty,
+                ty: ty,
                 mode: match byref {
                     Some(_) => ParamMode::ByRef,
                     None => ParamMode::ByVal,
