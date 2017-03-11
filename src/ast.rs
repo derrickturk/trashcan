@@ -220,7 +220,7 @@ impl fmt::Display for Path {
 }
 
 /// Item access specifiers (private by default)
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Access {
     /// (Module- or class-) private (default)
     Private,

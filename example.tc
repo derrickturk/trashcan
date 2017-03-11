@@ -3,6 +3,11 @@
 // define ordinary module
 mod example {
 
+/*
+struct thing {
+}
+*/
+
 pub fn f(x: i32, y: &f64[]) -> str {
     // while loop
     while x < 17 {
@@ -95,11 +100,11 @@ mod more_examples {
 }
 
 mod other_mod {
-    fn fun(xs: &i32[]) {
+    pub fn fun(xs: &i32[]) {
         xs[1;2] = 3;
     }
 
-    fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {
+    pub fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {
         return true;
     }
 }

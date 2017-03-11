@@ -19,6 +19,7 @@ pub struct AnalysisError {
 pub enum AnalysisErrorKind {
     DuplicateSymbol,
     NotDefined,
+    SymbolAccess,
     TypeError,
     InvalidStmt,
     InvalidExpr,

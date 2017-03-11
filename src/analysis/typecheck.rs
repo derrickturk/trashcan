@@ -517,7 +517,9 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
         if let Some(&Symbol::Fun { ref locals, .. }) =
           symtab.get(&ctxt.1.as_ref().unwrap().0) {
             if let Some(sym) = locals.get(&(path.1).0) {
-                return Ok(sym);
+                if allow_private || sym.access() == Access::Public {
+                    return Ok(sym);
+                }
             }
         } else {
             panic!("internal compiler error: no function record for {}",
@@ -532,7 +534,18 @@ fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
             loc: err_loc.clone(),
         }),
 
-        Some(sym) => Ok(sym)
+        Some(sym) => {
+            if allow_private || sym.access() == Access::Public {
+                Ok(sym)
+            } else {
+                Err(AnalysisError {
+                    kind: AnalysisErrorKind::SymbolAccess,
+                    regarding: Some(format!("{} is private to {}",
+                      path, module)),
+                    loc: err_loc.clone(),
+                })
+            }
+        }
     }
 }
 

@@ -25,6 +25,18 @@ pub enum Symbol {
     }
 }
 
+impl Symbol {
+    pub fn access(&self) -> Access {
+        // TODO: update these
+        match *self {
+            Symbol::Const(_) => Access::Public,
+            Symbol::Value(_, _) => Access::Public,
+            Symbol::Type(_) => Access::Public,
+            Symbol::Fun { ref def, .. } => def.access.clone(),
+        }
+    }
+}
+
 /// The symbol table: scope -> (scope -> symbol|(ident -> symbol))
 pub type SymbolTable = HashMap<
     String, // module name
