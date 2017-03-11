@@ -9,6 +9,19 @@ use ast::*;
 // that's a lie; now I see why you can't use free functions with the mut-macro;
 // hint: concat_idents is useless
 
+#[derive(Copy, Clone, Debug)]
+pub enum NameCtxt<'a> {
+    Module,
+             // module
+    Function(Option<&'a Ident>),
+         // module
+    Type(Option<&'a Ident>),
+          // module  // function
+    Value(&'a Ident, Option<&'a Ident>),
+           // module          // type
+    Member(Option<&'a Ident>, Option<&'a Ident>),
+}
+
 macro_rules! make_ast_vistor {
     ($trait_name: ident, $($_mut:ident)*) => {
         // can force Sized here or use ASTVisitor + ?Sized everywhere
@@ -64,9 +77,8 @@ macro_rules! make_ast_vistor {
             }
 
             // TODO: can we ever not be in a function when we walk a path?
-            fn visit_path(&mut self, p: & $($_mut)* Path, module: &Ident,
-              function: Option<&Ident>) {
-                self.walk_path(p, module, function)
+            fn visit_path(&mut self, p: & $($_mut)* Path, ctxt: NameCtxt) {
+                self.walk_path(p, ctxt)
             }
 
             fn visit_type(&mut self, ty: & $($_mut)* Type, module: &Ident) {
@@ -74,9 +86,7 @@ macro_rules! make_ast_vistor {
             }
 
             // TODO: UsedAs or IdentCtxt or...?
-            fn visit_ident(&mut self, i: & $($_mut)* Ident,
-              module: Option<&Ident>, function: Option<&Ident>,
-              typename: Option<&Ident>) {
+            fn visit_ident(&mut self, i: & $($_mut)* Ident, ctxt: NameCtxt) {
                 // do nothing
             }
 
@@ -106,7 +116,7 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* loc,
                 } = *m;
 
-                self.visit_ident(name, None, None, None);
+                self.visit_ident(name, NameCtxt::Module);
 
                 match *data {
                     ModuleKind::Normal(ref $($_mut)* items) => {
@@ -137,7 +147,7 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* loc,
                 } = *def;
 
-                self.visit_ident(name, Some(module), None, None);
+                self.visit_ident(name, NameCtxt::Function(Some(module)));
                 for p in params {
                     self.visit_funparam(p, module, name);
                 }
@@ -156,7 +166,8 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* loc,
                 } = *param;
 
-                self.visit_ident(name, Some(module), Some(function), None);
+                self.visit_ident(name,
+                  NameCtxt::Value(module, Some(function)));
                 self.visit_type(ty, module);
             }
 
@@ -169,7 +180,7 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* loc,
                 } = *def;
 
-                self.visit_ident(name, Some(module), None, None);
+                self.visit_ident(name, NameCtxt::Type(Some(module)));
                 for m in members {
                     self.visit_structmem(m, module, name);
                 }
@@ -183,7 +194,8 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* loc,
                 } = *m;
 
-                self.visit_ident(name, Some(module), None, Some(st));
+                self.visit_ident(name,
+                  NameCtxt::Member(Some(module), Some(st)));
                 self.visit_type(ty, module);
             }
 
@@ -205,8 +217,8 @@ macro_rules! make_ast_vistor {
                             ref $($_mut)* ty,
                             ref $($_mut)* init
                         ) in decls {
-                            self.visit_ident(ident, Some(module),
-                              Some(function), None);
+                            self.visit_ident(ident,
+                              NameCtxt::Value(module, Some(function)));
                             self.visit_type(ty, module);
                             match *init {
                                 Some(ref $($_mut)* init) =>
@@ -277,8 +289,8 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* body,
                     } => {
                         let (ref $($_mut)* ident, ref $($_mut)* ty) = *var;
-                        self.visit_ident(ident, Some(module),
-                          Some(function), None);
+                        self.visit_ident(ident,
+                          NameCtxt::Value(module, Some(function)));
                         self.visit_type(ty, module);
                         self.visit_forspec(spec, module, function);
                         for stmt in body {
@@ -304,7 +316,8 @@ macro_rules! make_ast_vistor {
                         self.visit_literal(lit, module, function),
 
                     ExprKind::Name(ref $($_mut)* path) =>
-                        self.visit_path(path, module, Some(function)),
+                        self.visit_path(path,
+                          NameCtxt::Value(module, Some(function))),
 
                     ExprKind::Index(
                         ref $($_mut)* expr,
@@ -317,7 +330,7 @@ macro_rules! make_ast_vistor {
                     },
 
                     ExprKind::Call(ref $($_mut)* path, ref $($_mut)* args) => {
-                        self.visit_path(path, module, Some(function));
+                        self.visit_path(path, NameCtxt::Function(Some(module)));
                         for a in args {
                             self.visit_expr(a, module, function);
                         }
@@ -330,8 +343,8 @@ macro_rules! make_ast_vistor {
                         self.visit_expr(expr, module, function);
                         // TODO: do we want to do this? it doesn't really fit
                         //   the pattern
-                        self.visit_ident(ident, Some(module),
-                          Some(function), None);
+                        self.visit_ident(ident,
+                          NameCtxt::Member(Some(module), None));
                     },
 
                     ExprKind::MemberInvoke(
@@ -342,8 +355,8 @@ macro_rules! make_ast_vistor {
                         self.visit_expr(expr, module, function);
                         // TODO: do we want to do this? it doesn't really fit
                         //   the pattern
-                        self.visit_ident(ident, Some(module),
-                          Some(function), None);
+                        self.visit_ident(ident,
+                          NameCtxt::Member(Some(module), None));
                         for a in args {
                             self.visit_expr(a, module, function);
                         }
@@ -398,16 +411,29 @@ macro_rules! make_ast_vistor {
                 }
             }
 
-            fn walk_path(&mut self, p: & $($_mut)* Path, module: &Ident,
-              function: Option<&Ident>) {
+            fn walk_path(&mut self, p: & $($_mut)* Path, ctxt: NameCtxt) {
                 match *p {
                     Path(Some(ref $($_mut)* m), ref $($_mut)* i) => {
-                        self.visit_ident(m, None, None, None);
-                        self.visit_ident(i, Some(m), function, None);
+                        self.visit_ident(m, NameCtxt::Module);
+                        let inner_ctxt = match ctxt {
+                            NameCtxt::Module =>
+                                panic!("internal compiler error: path as \
+                                       module name"),
+                            NameCtxt::Function(_) =>
+                                NameCtxt::Function(Some(m)),
+                            NameCtxt::Type(_) =>
+                                NameCtxt::Type(Some(m)),
+                            NameCtxt::Value(_, _) =>
+                                NameCtxt::Value(m, None),
+                            NameCtxt::Member(_, _) =>
+                                panic!("internal compiler error: path as \
+                                       member name"),
+                        };
+                        self.visit_ident(i, inner_ctxt);
                     },
 
                     Path(None, ref $($_mut)* i) => {
-                        self.visit_ident(i, Some(module), function, None);
+                        self.visit_ident(i, ctxt);
                     },
                 }
             }

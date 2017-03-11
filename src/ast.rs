@@ -218,9 +218,6 @@ pub struct Ident(pub String, pub Option<String>);
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.1.as_ref().unwrap_or(&self.0))?;
-        if self.1.is_some() {
-            write!(f, " (but it had a past life)")?;
-        }
         Ok(())
     }
 }
