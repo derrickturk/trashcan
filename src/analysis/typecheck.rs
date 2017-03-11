@@ -54,7 +54,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 Symbol::Value(ref ty, _) => Ok(ty.clone()),
 
                 // TODO: these guys get their own namespace
-                Symbol::Type(ref ty) => Err(AnalysisError {
+                Symbol::Type(_) | Symbol::Struct { .. } => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(format!("{} denotes a type, not a value",
                                             path)),
@@ -554,6 +554,9 @@ fn typecheck_item(item: NormalItem, symtab: &SymbolTable, ctxt: &ExprCtxt)
     match item {
         NormalItem::Function(def) =>
             Ok(NormalItem::Function(typecheck_fundef(def, symtab, ctxt)?)),
+
+        // TODO: do we need to at least resolve deferred types inside here?
+        NormalItem::Struct(def) => Ok(NormalItem::Struct(def)),
     }
 }
 

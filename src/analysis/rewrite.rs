@@ -50,7 +50,9 @@ impl Substitute for NormalItem {
     fn substitute(self, orig: &Ident, replace: &Ident) -> Self {
         match self {
             NormalItem::Function(def) => NormalItem::Function(
-                def.substitute(orig, replace))
+                def.substitute(orig, replace)),
+            // don't substitute into type definitions etc.
+            other => other,
         }
     }
 }

@@ -15,6 +15,7 @@ pub enum Symbol {
     /// e.g. x: i32
     Value(Type, Option<ParamMode>),
 
+    // TODO: is this fake?
     /// e.g. "SomeObj" => Type::Object("SomeObj")
     Type(Type),
 
@@ -22,7 +23,12 @@ pub enum Symbol {
     Fun {
         def: FunDef,
         locals: HashMap<String, Symbol>,
-    }
+    },
+
+    Struct {
+        def: StructDef,
+        members: HashMap<String, Type>,
+    },
 }
 
 impl Symbol {
@@ -33,6 +39,7 @@ impl Symbol {
             Symbol::Value(_, _) => Access::Public,
             Symbol::Type(_) => Access::Public,
             Symbol::Fun { ref def, .. } => def.access.clone(),
+            Symbol::Struct { ref def, .. } => def.access.clone(),
         }
     }
 }
@@ -73,6 +80,7 @@ fn insert_module_items(tbl: &mut HashMap<String, Symbol>,
     for i in items {
         match *i {
             NormalItem::Function(ref def) => insert_fundef(tbl, def)?,
+            NormalItem::Struct(ref def) => insert_structdef(tbl, def)?,
         }
     }
 
@@ -143,6 +151,40 @@ fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
 
             _ => {},
         }
+    }
+
+    Ok(())
+}
+
+fn insert_structdef(tbl: &mut HashMap<String, Symbol>, def: &StructDef)
+  -> AnalysisResult<()> {
+    if tbl.contains_key(&def.name.0) {
+        return Err(AnalysisError {
+            kind: AnalysisErrorKind::DuplicateSymbol,
+            regarding: Some(format!("struct {}", def.name.0)),
+            loc: def.loc.clone(),
+        });
+    }
+
+    tbl.insert(def.name.0.clone(), Symbol::Struct {
+        def: def.clone(),
+        members: HashMap::new(),
+    });
+
+    let members = match tbl.get_mut(&def.name.0) {
+        Some(&mut Symbol::Struct { ref mut members, .. }) => members,
+        _ => panic!("internal compiler error"),
+    };
+
+    for m in &def.members {
+        if members.contains_key(&m.name.0) {
+            return Err(AnalysisError {
+                kind: AnalysisErrorKind::DuplicateSymbol,
+                regarding: Some(format!("parameter {}", m.name.0)),
+                loc: m.loc.clone(),
+            });
+        }
+        members.insert(m.name.0.clone(), m.ty.clone());
     }
 
     Ok(())

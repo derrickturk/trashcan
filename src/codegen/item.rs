@@ -14,7 +14,9 @@ impl<'a> Emit<&'a Module> for NormalItem {
       ctxt: &'a Module, indent: u32) -> io::Result<()> {
         match *self {
             NormalItem::Function(ref def) =>
-                def.emit(out, symtab, ctxt, indent)
+                def.emit(out, symtab, ctxt, indent),
+            NormalItem::Struct(ref def) =>
+                write!(out, "{:?}", def),
         }
     }
 }

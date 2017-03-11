@@ -85,6 +85,13 @@ fn dump_tbl<W: Write>(out: &mut W, tbl: HashMap<String, analysis::Symbol>,
                 write!(out, "fn {}\n", def.name.0).unwrap();
                 dump_tbl(out, locals, ind + 1);
             },
+            analysis::Symbol::Struct { def, members } => {
+                write!(out, "struct {}\n", def.name.0).unwrap();
+                for m in members {
+                    write!(out, "{:in$}member {}: {:?}\n", "", m.0, m.1,
+                      in=(ind + 1)*4).unwrap();
+                }
+            },
         }
     }
 }

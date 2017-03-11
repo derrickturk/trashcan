@@ -30,6 +30,8 @@ pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
                                         body: for_loop_var_gensym_stmts(def.body),
                                         loc: def.loc,
                                     }),
+
+                                item => item,
                             }
                         }).collect()),
                 },
@@ -59,6 +61,8 @@ pub fn short_circuit_logicals(dumpster: Dumpster) -> Dumpster {
                                         body: short_circuit_logicals_stmts(def.body),
                                         loc: def.loc,
                                     }),
+
+                                item => item,
                             }
                         }).collect()),
                 },

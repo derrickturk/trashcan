@@ -3,10 +3,10 @@
 // define ordinary module
 mod example {
 
-/*
 struct thing {
+    x: i32,
+    y: f64[],
 }
-*/
 
 pub fn f(x: i32, y: &f64[]) -> str {
     // while loop

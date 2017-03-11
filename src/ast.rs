@@ -39,9 +39,9 @@ impl Module {
 #[derive(Clone, Debug)]
 pub enum NormalItem {
     Function(FunDef),
-    // Struct(StructDef)
-    // Enm(EnmDef)
-    // Constant(...)
+    Struct(StructDef),
+    // Enm(EnmDef),
+    // Constant(...),
 }
 
 /// A function (or "sub") definition

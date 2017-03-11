@@ -10,6 +10,7 @@ use super::stmt::*;
 
 named!(pub normal_item<NormalItem>, alt_complete!(
     fundef => { |f| NormalItem::Function(f) }
+  | structdef => { |s| NormalItem::Struct(s) }
 ));
 
 named!(pub fundef<FunDef>, complete!(do_parse!(
@@ -54,6 +55,39 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                     Some(_) => ParamMode::ByRef,
                     None => ParamMode::ByVal,
                 },
+                loc: empty_loc!()
+            })
+)));
+
+named!(pub structdef<StructDef>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+    access: opt_access >>
+            tag!("struct") >>
+            call!(nom::multispace) >>
+      name: ident >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+   members: separated_nonempty_list!(ws!(char!(',')), structmem) >>
+            opt!(call!(nom::multispace)) >>
+            opt!(char!(',')) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (StructDef {
+                name: name,
+                access: access,
+                members: members,
+                loc: empty_loc!(),
+            })
+)));
+
+named!(pub structmem<StructMem>, complete!(do_parse!(
+      name: ident >>
+            opt!(call!(nom::multispace)) >>
+            char!(':') >>
+        ty: typename >>
+            (StructMem {
+                name: name,
+                ty: ty,
                 loc: empty_loc!()
             })
 )));
