@@ -18,6 +18,11 @@ impl<'a> ASTVisitorMut for Resolver<'a> {
     fn visit_type(&mut self, t: &mut Type, module: &Ident) {
         println!("type: {}", t);
     }
+
+    fn visit_literal(&mut self, l: &mut Literal, module: &Ident,
+      function: &Ident) {
+        println!("literal: {:?}", l);
+    }
 }
 
 pub fn resolve_deferred(dumpster: &mut Dumpster, symtab: &mut SymbolTable)

@@ -63,6 +63,7 @@ macro_rules! make_ast_vistor {
                 self.walk_forspec(spec, module, function)
             }
 
+            // TODO: can we ever not be in a function when we walk a path?
             fn visit_path(&mut self, p: & $($_mut)* Path, module: &Ident,
               function: Option<&Ident>) {
                 self.walk_path(p, module, function)
@@ -72,6 +73,7 @@ macro_rules! make_ast_vistor {
                 // do nothing
             }
 
+            // TODO: UsedAs or IdentCtxt or...?
             fn visit_ident(&mut self, i: & $($_mut)* Ident,
               module: Option<&Ident>, function: Option<&Ident>,
               typename: Option<&Ident>) {
@@ -79,6 +81,11 @@ macro_rules! make_ast_vistor {
             }
 
             fn visit_literal(&mut self, lit: & $($_mut)* Literal,
+              module: &Ident, function: &Ident) {
+                // do nothing
+            }
+
+            fn visit_vbexpr(&mut self, data: & $($_mut)* Vec<u8>,
               module: &Ident, function: &Ident) {
                 // do nothing
             }
@@ -135,6 +142,9 @@ macro_rules! make_ast_vistor {
                     self.visit_funparam(p, module, name);
                 }
                 self.visit_type(ret, module);
+                for stmt in body {
+                    self.visit_stmt(stmt, module, name);
+                }
             }
 
             fn walk_funparam(&mut self, param: & $($_mut)* FunParam,
@@ -293,7 +303,76 @@ macro_rules! make_ast_vistor {
                     ExprKind::Lit(ref $($_mut)* lit) =>
                         self.visit_literal(lit, module, function),
 
-                    _ => unimplemented!(),
+                    ExprKind::Name(ref $($_mut)* path) =>
+                        self.visit_path(path, module, Some(function)),
+
+                    ExprKind::Index(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* indices
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        for i in indices {
+                            self.visit_expr(i, module, function);
+                        }
+                    },
+
+                    ExprKind::Call(ref $($_mut)* path, ref $($_mut)* args) => {
+                        self.visit_path(path, module, Some(function));
+                        for a in args {
+                            self.visit_expr(a, module, function);
+                        }
+                    },
+
+                    ExprKind::Member(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* ident,
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        // TODO: do we want to do this? it doesn't really fit
+                        //   the pattern
+                        self.visit_ident(ident, Some(module),
+                          Some(function), None);
+                    },
+
+                    ExprKind::MemberInvoke(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* ident,
+                        ref $($_mut)* args,
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        // TODO: do we want to do this? it doesn't really fit
+                        //   the pattern
+                        self.visit_ident(ident, Some(module),
+                          Some(function), None);
+                        for a in args {
+                            self.visit_expr(a, module, function);
+                        }
+                    },
+
+                    ExprKind::UnOpApp(ref $($_mut)* expr, _) =>
+                        self.visit_expr(expr, module, function),
+
+                    ExprKind::BinOpApp(
+                        ref $($_mut)* lhs,
+                        ref $($_mut)* rhs,
+                        _
+                    ) => {
+                        self.visit_expr(lhs, module, function);
+                        self.visit_expr(rhs, module, function);
+                    },
+
+                    ExprKind::CondExpr {
+                        ref $($_mut)* cond,
+                        ref $($_mut)* if_expr,
+                        ref $($_mut)* else_expr,
+                    } => {
+                        self.visit_expr(cond, module, function);
+                        self.visit_expr(if_expr, module, function);
+                        self.visit_expr(else_expr, module, function);
+                    },
+
+                    ExprKind::VbExpr(ref $($_mut)* data) =>
+                        self.visit_vbexpr(data, module, function),
                 }
             }
 
