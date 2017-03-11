@@ -58,7 +58,7 @@ fn main() {
     analysis::resolve_deferred(&mut dumpster, &mut symtab)
         .expect("resolve error");
 
-    let dumpster = analysis::typecheck(dumpster, &symtab)
+    analysis::typecheck(&dumpster, &symtab)
         .expect("typeck error");
 
     for m in dumpster.modules.iter() {

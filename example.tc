@@ -40,6 +40,11 @@ fn do_something(x: /* ByRef Long */ &i32) {
 
     for i: i32 = x > 7 ? 23 : 5 : 7 : 1 {
         // brutal
+        // n.b. bug here in pre-visitor gensym pass
+        for j: i32 = x : 10 {
+            print j;
+            x = x / j;
+        }
     }
 
     for x: obj in o.arr {

@@ -2,6 +2,7 @@
 
 use ast::*;
 use super::*;
+use visit::ASTVisitor;
 use visit::NameCtxt;
 
 /// Context in which expression typecheck takes place: module name, optional
@@ -9,24 +10,20 @@ use visit::NameCtxt;
 pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 
 /// Typecheck a dumpster
-pub fn typecheck(dumpster: Dumpster, symtab: &SymbolTable)
-  -> AnalysisResult<Dumpster> {
-    Ok(Dumpster {
-        modules: dumpster.modules.into_iter().map(|m| {
-            let ctxt = ExprCtxt(m.name.clone(), None);
-            match m.data {
-                ModuleKind::Normal(items) => {
-                    Ok(Module {
-                        name: m.name,
-                        data: ModuleKind::Normal(items.into_iter().map(|i| {
-                            typecheck_item(i, symtab, &ctxt)
-                        }).collect::<Result<_, _>>()?),
-                        loc: m.loc,
-                    })
-                }
-            }
-        }).collect::<Result<_, _>>()?
-    })
+pub fn typecheck(dumpster: &Dumpster, symtab: &SymbolTable)
+  -> AnalysisResult<()> {
+    let mut v = TypecheckVisitor {
+        symtab: symtab,
+        errors: vec![],
+    };
+
+    v.visit_dumpster(dumpster);
+
+    for err in v.errors.drain(..) { // for now
+        return Err(err);
+    }
+
+    Ok(())
 }
 
 pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
@@ -482,78 +479,68 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
     }
 }
 
-fn typecheck_item(item: NormalItem, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<NormalItem> {
-    match item {
-        NormalItem::Function(def) =>
-            Ok(NormalItem::Function(typecheck_fundef(def, symtab, ctxt)?)),
+struct TypecheckVisitor<'a> {
+    symtab: &'a SymbolTable,
+    errors: Vec<AnalysisError>,
+}
 
-        // TODO: do we need to at least resolve deferred types inside here?
-        NormalItem::Struct(def) => Ok(NormalItem::Struct(def)),
+impl<'a> ASTVisitor for TypecheckVisitor<'a> {
+    fn visit_funparam(&mut self, p: &FunParam, m: &Ident, f: &Ident) {
+        match p.mode {
+            ParamMode::ByRef => match p.ty {
+                Type::Array(_, ref bounds) if !bounds.is_empty() =>
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::FnCallError,
+                        regarding: Some(String::from("array types cannot \
+                          specify bounds when used as parameters.")),
+                        loc: p.loc.clone(),
+                    }),
+                _ => { },
+            },
+
+            ParamMode::ByVal => match p.ty {
+                Type::Array(_, _) => self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(String::from("array types cannot \
+                      be passed by value")),
+                    loc: p.loc.clone(),
+                }),
+
+                Type::Struct(_) => self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(String::from("struct types cannot \
+                      be passed by value")),
+                    loc: p.loc.clone(),
+                }),
+
+                _ => { },
+            },
+        };
+
+        // for now
+        if &p.name == f {
+            self.errors.push(AnalysisError {
+                kind: AnalysisErrorKind::DuplicateSymbol,
+                regarding: Some(format!("parameter {} has same name \
+                  as function", p.name)),
+                loc: p.loc.clone(),
+            })
+        }
+
+        self.walk_funparam(p, m, f);
+    }
+
+    fn visit_stmt(&mut self, stmt: &Stmt, m: &Ident, f: &Ident) {
+        let ctxt = ExprCtxt(m.clone(), Some(f.clone()));
+        if let Err(e) = typecheck_stmt_shallow(stmt, self.symtab, &ctxt) {
+            self.errors.push(e);
+        }
+        self.walk_stmt(stmt, m, f);
     }
 }
 
-fn typecheck_fundef(def: FunDef, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<FunDef> {
-    let inner_ctxt = ExprCtxt(ctxt.0.clone(), Some(def.name.clone()));
-
-    Ok(FunDef {
-        name: def.name,
-        access: def.access,
-        params: def.params.into_iter().map(|p| {
-            match p.mode {
-                ParamMode::ByRef => match p.ty {
-                    Type::Array(_, ref bounds) if !bounds.is_empty() =>
-                        Err(AnalysisError {
-                            kind: AnalysisErrorKind::FnCallError,
-                            regarding: Some(String::from("array types cannot \
-                              specify bounds when used as parameters.")),
-                            loc: p.loc.clone(),
-                        }),
-                    _ => Ok(())
-                },
-
-                ParamMode::ByVal => match p.ty {
-                    Type::Array(_, _) => Err(AnalysisError {
-                        kind: AnalysisErrorKind::FnCallError,
-                        regarding: Some(String::from("array types cannot \
-                          be passed by value")),
-                        loc: p.loc.clone(),
-                    }),
-
-                    Type::Struct(_) => Err(AnalysisError {
-                        kind: AnalysisErrorKind::FnCallError,
-                        regarding: Some(String::from("struct types cannot \
-                          be passed by value")),
-                        loc: p.loc.clone(),
-                    }),
-
-                    _ => Ok(()),
-                },
-            }?;
-
-            if &p.name == inner_ctxt.1.as_ref().unwrap() {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::DuplicateSymbol,
-                    regarding: Some(format!("parameter {} has same name \
-                      as function", p.name)),
-                    loc: p.loc.clone(),
-                })
-            }
-
-            Ok(p)
-        }).collect::<Result<_, _>>()?,
-        ret: def.ret,
-        body: def.body.into_iter().map(|s| {
-            // TODO: somewhere in here check that we actually return a value
-            typecheck_stmt(s, symtab, &inner_ctxt)
-        }).collect::<Result<_, _>>()?,
-        loc: def.loc,
-    })
-}
-
-fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<Stmt> {
+fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
+  -> AnalysisResult<()> {
     match stmt.data {
         StmtKind::ExprStmt(ref expr) => {
             match expr.data {
@@ -731,8 +718,8 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        StmtKind::IfStmt { cond, body, elsifs, mut els } => {
-            let cond_ty = type_of(&cond, symtab, ctxt)?;
+        StmtKind::IfStmt { ref cond, ref elsifs, .. } => {
+            let cond_ty = type_of(cond, symtab, ctxt)?;
             if !may_coerce(&cond_ty, &Type::Bool) {
                 return Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
@@ -742,12 +729,8 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 });
             }
 
-            let body = body.into_iter()
-                .map(|s| typecheck_stmt(s, symtab, ctxt))
-                .collect::<Result<_, _>>()?;
-
-            let elsifs = elsifs.into_iter().map(|(cond, body)| {
-                let cond_ty = type_of(&cond, symtab, ctxt)?;
+            for &(ref cond, _) in elsifs {
+                let cond_ty = type_of(cond, symtab, ctxt)?;
                 if !may_coerce(&cond_ty, &Type::Bool) {
                     return Err(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
@@ -756,33 +739,13 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                         loc: cond.loc.clone(),
                     });
                 }
-
-                let body = body.into_iter()
-                    .map(|s| typecheck_stmt(s, symtab, ctxt))
-                    .collect::<Result<_, _>>()?;
-
-                Ok((cond, body))
-            }).collect::<Result<_, _>>()?;
-
-            if let Some(body) = els {
-                els = Some(body.into_iter()
-                           .map(|s| typecheck_stmt(s, symtab, ctxt))
-                           .collect::<Result<_, _>>()?);
             }
 
-            return Ok(Stmt {
-                data: StmtKind::IfStmt {
-                    cond: cond,
-                    body: body,
-                    elsifs: elsifs,
-                    els: els,
-                },
-                loc: stmt.loc,
-            });
+            return Ok(());
         },
 
-        StmtKind::WhileLoop { cond, body } => {
-            let cond_ty = type_of(&cond, symtab, ctxt)?;
+        StmtKind::WhileLoop { ref cond, .. } => {
+            let cond_ty = type_of(cond, symtab, ctxt)?;
             if !may_coerce(&cond_ty, &Type::Bool) {
                 return Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
@@ -792,22 +755,12 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 });
             }
 
-            let body = body.into_iter()
-                .map(|s| typecheck_stmt(s, symtab, ctxt))
-                .collect::<Result<_, _>>()?;
-
-            return Ok(Stmt {
-                data: StmtKind::WhileLoop {
-                    cond: cond,
-                    body: body,
-                },
-                loc: stmt.loc,
-            });
+            return Ok(());
         },
 
-        StmtKind::ForLoop { var, spec, body } => {
+        StmtKind::ForLoop { ref var, ref spec, .. } => {
             // TODO: changes here as we improve for loop semantics
-            match spec {
+            match *spec {
                 ForSpec::Range(ref from, ref to, ref step) => {
                     if !var.1.might_be_numeric() {
                         return Err(AnalysisError {
@@ -896,19 +849,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
             };
 
-            let body = body.into_iter()
-                .map(|s| typecheck_stmt(s, symtab, ctxt))
-                .collect::<Result<_, _>>()?;
-
-            return Ok(Stmt {
-                data: StmtKind::ForLoop {
-                    var: var,
-                    spec: spec,
-                    body: body,
-                },
-
-                loc: stmt.loc,
-            });
+            return Ok(());
         },
 
         StmtKind::Print(ref expr) => {
@@ -925,5 +866,5 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
     }
 
-    Ok(stmt)
+    Ok(())
 }
