@@ -2,6 +2,7 @@
 
 use ast::*;
 use super::*;
+use visit::NameCtxt;
 
 /// Context in which expression typecheck takes place: module name, optional
 ///   function name
@@ -49,25 +50,13 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
         // qualified::name (must denote a module item)
         ExprKind::Name(ref path) => {
-            match *path_in_context(path, symtab, ctxt, &expr.loc)? {
+            match *symbol_at_path(symtab, path,
+              NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
+              &expr.loc)? {
                 Symbol::Const(ref ty) => Ok(ty.clone()),
                 Symbol::Value(ref ty, _) => Ok(ty.clone()),
-
-                // TODO: these guys get their own namespace... in VB6, but
-                //   maybe that's dumb
-                Symbol::Struct { .. } => Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("{} denotes a type, not a value",
-                                            path)),
-                    loc: expr.loc.clone(),
-                }),
-
-                Symbol::Fun { .. } =>  Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("{} denotes a function, not a value",
-                                            path)),
-                    loc: expr.loc.clone(),
-                }),
+                _ => panic!("internal compiler error: non-value slipped past \
+                  lookup typecheck"),
             }
         },
 
@@ -113,15 +102,12 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
         },
 
         ExprKind::Call(ref path, ref args) => {
-            let fun = match *path_in_context(path, symtab, ctxt, &expr.loc)? {
-                Symbol::Fun { ref def, .. } => Ok(def),
-                _ => Err(AnalysisError {
-                    kind: AnalysisErrorKind::FnCallError,
-                    regarding: Some(format!("{} does not denote a function",
-                                            path)),
-                    loc: expr.loc.clone(),
-                })
-            }?;
+            let fun = match *symbol_at_path(symtab, path,
+              NameCtxt::Function(&ctxt.0, Access::Private), &expr.loc)? {
+                Symbol::Fun { ref def, .. } => def,
+                _ => panic!("internal compiler error: non-function \
+                  slipped past lookup typecheck"),
+            };
 
             if args.len() != fun.params.len() {
                 return Err(AnalysisError {
@@ -496,64 +482,6 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
     }
 }
 
-fn path_in_context<'a>(path: &Path, symtab: &'a SymbolTable, ctxt: &ExprCtxt,
-  err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
-    let module = match *path {
-        Path(None, _) => &(ctxt.0).0,
-        Path(Some(ref module), _) => &module.0
-    };
-
-    // TODO: check access here
-    let allow_private = module == &(ctxt.0).0;
-
-    let symtab = match symtab.get(module) {
-        None => Err(AnalysisError {
-            kind: AnalysisErrorKind::NotDefined,
-            regarding: Some(format!("{}", module)),
-            loc: err_loc.clone(),
-        }),
-
-        Some(symtab) => Ok(symtab)
-    }?;
-
-    // path had no module component, and we're inside a function:
-    //   look in function locals first
-    if path.0.is_none() && ctxt.1.is_some() {
-        if let Some(&Symbol::Fun { ref locals, .. }) =
-          symtab.get(&ctxt.1.as_ref().unwrap().0) {
-            if let Some(sym) = locals.get(&(path.1).0) {
-                if allow_private || sym.access() == Access::Public {
-                    return Ok(sym);
-                }
-            }
-        } else {
-            panic!("internal compiler error: no function record for {}",
-                   ctxt.1.as_ref().unwrap());
-        }
-    }
-
-    match symtab.get(&(path.1).0) {
-        None => Err(AnalysisError {
-            kind: AnalysisErrorKind::NotDefined,
-            regarding: Some(format!("{}", path)),
-            loc: err_loc.clone(),
-        }),
-
-        Some(sym) => {
-            if allow_private || sym.access() == Access::Public {
-                Ok(sym)
-            } else {
-                Err(AnalysisError {
-                    kind: AnalysisErrorKind::SymbolAccess,
-                    regarding: Some(format!("{} is private to {}",
-                      path, module)),
-                    loc: err_loc.clone(),
-                })
-            }
-        }
-    }
-}
-
 fn typecheck_item(item: NormalItem, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<NormalItem> {
     match item {
@@ -753,8 +681,12 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         StmtKind::Return(ref expr) => {
             if let Some(ref fun) = ctxt.1 {
                 let ctxt_path = Path(Some(ctxt.0.clone()), fun.clone());
-                if let Symbol::Fun { ref def, .. } = *path_in_context(
-                  &ctxt_path, symtab, ctxt, &stmt.loc)? {
+                // TODO: symbol_at_ident needed here
+                if let Symbol::Fun { ref def, .. } = *symbol_at_path(
+                  symtab,
+                  &ctxt_path,
+                  NameCtxt::Function(&ctxt.0, Access::Private),
+                  &stmt.loc)? {
                     match def.ret {
                         Type::Void => if expr.is_some() {
                             return Err(AnalysisError {
@@ -787,7 +719,7 @@ fn typecheck_stmt(stmt: Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                         }
                     }
                 } else {
-                    panic!("internal compiler error: fn definition not\
+                    panic!("internal compiler error: fn definition not \
                       found in symbol table.");
                 }
             } else {
