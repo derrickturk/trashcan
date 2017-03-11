@@ -79,8 +79,6 @@ fn dump_tbl<W: Write>(out: &mut W, tbl: HashMap<String, analysis::Symbol>,
                 write!(out, "constant {:?}\n", ty).unwrap(),
             analysis::Symbol::Value(ty, mode) =>
                 write!(out, "value {:?} {:?}\n", mode, ty).unwrap(),
-            analysis::Symbol::Type(ty) =>
-                write!(out, "type {:?}\n", ty).unwrap(),
             analysis::Symbol::Fun { def, locals } => {
                 write!(out, "fn {}\n", def.name.0).unwrap();
                 dump_tbl(out, locals, ind + 1);

@@ -10,14 +10,11 @@ use std::collections::HashMap;
 /// A symbol table entry
 #[derive(Clone, Debug)]
 pub enum Symbol {
+    /// a constant definition
     Const(Type),
 
     /// e.g. x: i32
     Value(Type, Option<ParamMode>),
-
-    // TODO: is this fake?
-    /// e.g. "SomeObj" => Type::Object("SomeObj")
-    Type(Type),
 
     /// e.g. f : (i32, i32) -> i32
     Fun {
@@ -25,6 +22,7 @@ pub enum Symbol {
         locals: HashMap<String, Symbol>,
     },
 
+    /// e.g. struct X { a: i32 }
     Struct {
         def: StructDef,
         members: HashMap<String, Type>,
@@ -37,7 +35,6 @@ impl Symbol {
         match *self {
             Symbol::Const(_) => Access::Public,
             Symbol::Value(_, _) => Access::Public,
-            Symbol::Type(_) => Access::Public,
             Symbol::Fun { ref def, .. } => def.access.clone(),
             Symbol::Struct { ref def, .. } => def.access.clone(),
         }

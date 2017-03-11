@@ -53,8 +53,9 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 Symbol::Const(ref ty) => Ok(ty.clone()),
                 Symbol::Value(ref ty, _) => Ok(ty.clone()),
 
-                // TODO: these guys get their own namespace
-                Symbol::Type(_) | Symbol::Struct { .. } => Err(AnalysisError {
+                // TODO: these guys get their own namespace... in VB6, but
+                //   maybe that's dumb
+                Symbol::Struct { .. } => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(format!("{} denotes a type, not a value",
                                             path)),
