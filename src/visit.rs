@@ -46,8 +46,20 @@ macro_rules! make_ast_vistor {
                 self.walk_structmem(m, module, st)
             }
 
-            // BELOW THIS LINE
-            //   do not override; these functions provide tree traversal
+            fn visit_stmt(&mut self, stmt: & $($_mut)* Stmt,
+              module: &Ident, function: &Ident) {
+                self.walk_stmt(stmt, module, function)
+            }
+
+            fn visit_expr(&mut self, expr: & $($_mut)* Expr,
+              module: &Ident, function: &Ident) {
+                self.walk_expr(expr, module, function)
+            }
+
+            fn visit_path(&mut self, p: & $($_mut)* Path, module: &Ident,
+              function: Option<&Ident>) {
+                self.walk_path(p, module, function)
+            }
 
             fn visit_type(&mut self, ty: & $($_mut)* Type, module: &Ident) {
                 // do nothing
@@ -58,6 +70,14 @@ macro_rules! make_ast_vistor {
               typename: Option<&Ident>) {
                 // do nothing
             }
+
+            fn visit_literal(&mut self, lit: & $($_mut)* Literal,
+              module: &Ident, function: &Ident) {
+                // do nothing
+            }
+
+            // BELOW THIS LINE
+            //   do not override; these functions provide tree traversal
 
             fn walk_dumpster(&mut self, d: & $($_mut)* Dumpster) {
                 for m in & $($_mut)* d.modules {
@@ -148,6 +168,69 @@ macro_rules! make_ast_vistor {
 
                 self.visit_ident(name, Some(module), None, Some(st));
                 self.visit_type(ty, module);
+            }
+
+            // TODO: maybe each pattern should have its own visit function
+            fn walk_stmt(&mut self, stmt: & $($_mut)* Stmt,
+              module: &Ident, function: &Ident) {
+                let Stmt {
+                    ref $($_mut)* data,
+                    ref $($_mut)* loc,
+                } = *stmt;
+
+                match *data {
+                    StmtKind::ExprStmt(ref $($_mut)* expr) =>
+                        self.visit_expr(expr, module, function),
+
+                    StmtKind::VarDecl(ref $($_mut)* decls) => {
+                        for & $($_mut)* (
+                            ref $($_mut)* ident,
+                            ref $($_mut)* ty,
+                            ref $($_mut)* init
+                        ) in decls {
+                            self.visit_ident(ident, Some(module),
+                              Some(function), None);
+                            self.visit_type(ty, module);
+                            match *init {
+                                Some(ref $($_mut)* init) =>
+                                    self.visit_expr(init, module, function),
+                                None => {},
+                            }
+                        }
+                    },
+
+                    _ => unimplemented!(),
+                }
+            }
+
+            // TODO: maybe each pattern should have its own visit function
+            fn walk_expr(&mut self, expr: & $($_mut)* Expr,
+              module: &Ident, function: &Ident) {
+                let Expr {
+                    ref $($_mut)* data,
+                    ref $($_mut)* loc,
+                } = *expr;
+
+                match *data {
+                    ExprKind::Lit(ref $($_mut)* lit) =>
+                        self.visit_literal(lit, module, function),
+
+                    _ => unimplemented!(),
+                }
+            }
+
+            fn walk_path(&mut self, p: & $($_mut)* Path, module: &Ident,
+              function: Option<&Ident>) {
+                match *p {
+                    Path(Some(ref $($_mut)* m), ref $($_mut)* i) => {
+                        self.visit_ident(m, None, None, None);
+                        self.visit_ident(i, Some(m), function, None);
+                    },
+
+                    Path(None, ref $($_mut)* i) => {
+                        self.visit_ident(i, Some(module), function, None);
+                    },
+                }
             }
         }
     }

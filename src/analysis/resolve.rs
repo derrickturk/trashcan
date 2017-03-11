@@ -14,6 +14,10 @@ impl<'a> ASTVisitorMut for Resolver<'a> {
       function: Option<&Ident>, typename: Option<&Ident>) {
         println!("ident: {}", i);
     }
+
+    fn visit_type(&mut self, t: &mut Type, module: &Ident) {
+        println!("type: {}", t);
+    }
 }
 
 pub fn resolve_deferred(dumpster: &mut Dumpster, symtab: &mut SymbolTable)
