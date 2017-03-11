@@ -15,14 +15,24 @@ pub enum NameCtxt<'a> {
     // definition contexts: we know where we are
 
     DefModule,
+
                 // module in which definition occurs
     DefFunction(&'a Ident),
+
             // module in which definition occurs
     DefType(&'a Ident),
+
              // module  // function (may be Option once globals happen)
-    DefValue(&'a Ident, Option<&'a Ident>),
-              // module   // type
-    DefMember(&'a Ident, &'a Ident),
+    DefValue(&'a Ident, Option<&'a Ident>, &'a Type),
+                                           // type of value
+
+             // module  // function          // parameter mode
+    DefParam(&'a Ident, &'a Ident, &'a Type, ParamMode),
+                                   // parameter type
+
+              // module  // enclosing type
+    DefMember(&'a Ident, &'a Ident, &'a Type),
+                                    // type of member
 
     // lookup contexts: we are looking for something, from somewhere
 
@@ -192,7 +202,7 @@ macro_rules! make_ast_vistor {
                 } = *param;
 
                 self.visit_ident(name,
-                  NameCtxt::DefValue(module, Some(function)), loc);
+                  NameCtxt::DefParam(module, function, ty, *mode), loc);
                 self.visit_type(ty, module, loc);
             }
 
@@ -220,7 +230,7 @@ macro_rules! make_ast_vistor {
                 } = *m;
 
                 self.visit_ident(name,
-                  NameCtxt::DefMember(module, st), loc);
+                  NameCtxt::DefMember(module, st, ty), loc);
                 self.visit_type(ty, module, loc);
             }
 
@@ -243,7 +253,8 @@ macro_rules! make_ast_vistor {
                             ref $($_mut)* init
                         ) in decls {
                             self.visit_ident(ident,
-                              NameCtxt::DefValue(module, Some(function)), loc);
+                              NameCtxt::DefValue(module, Some(function), ty),
+                              loc);
                             self.visit_type(ty, module, loc);
                             match *init {
                                 Some(ref $($_mut)* init) =>
@@ -315,7 +326,7 @@ macro_rules! make_ast_vistor {
                     } => {
                         let (ref $($_mut)* ident, ref $($_mut)* ty) = *var;
                         self.visit_ident(ident,
-                          NameCtxt::DefValue(module, Some(function)), loc);
+                          NameCtxt::DefValue(module, Some(function), ty), loc);
                         self.visit_type(ty, module, loc);
                         self.visit_forspec(spec, module, function, loc);
                         for stmt in body {
@@ -460,8 +471,9 @@ macro_rules! make_ast_vistor {
 
                             NameCtxt::DefFunction(_)
                           | NameCtxt::DefType(_)
-                          | NameCtxt::DefValue(_, _)
-                          | NameCtxt::DefMember(_, _) =>
+                          | NameCtxt::DefValue(_, _, _)
+                          | NameCtxt::DefParam(_, _, _, _)
+                          | NameCtxt::DefMember(_, _, _) =>
                                 panic!("internal compiler error: path as \
                                        name definition"),
 

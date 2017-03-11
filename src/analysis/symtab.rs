@@ -43,45 +43,36 @@ impl Symbol {
     }
 }
 
+// the internal symbol table type
+type Symtab = HashMap<
+    String, // module name
+    HashMap<
+        String, // item name
+        Symbol
+    >
+>;
+
 /// The symbol table: scope -> (scope -> symbol|(ident -> symbol))
 pub struct SymbolTable {
     // temporarily public
-    pub symtab: HashMap<
-        String, // module name
-        HashMap<
-            String, // item name
-            Symbol
-        >
-    >,
+    pub symtab: Symtab,
 }
 
 impl SymbolTable {
     pub fn build(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
-        let mut result = SymbolTable {
-            symtab: HashMap::new(),
-        };
+        let mut visitor = SymbolTableBuilder::new();
+        visitor.visit_dumpster(dumpster);
 
-        for m in &dumpster.modules {
-            if result.symtab.contains_key(&m.name.0) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::DuplicateSymbol,
-                    regarding: Some(format!("mod {}", m.name.0)),
-                    loc: m.loc.clone(),
-                });
-            }
-            result.symtab.insert(m.name.0.clone(), HashMap::new());
-
-            match m.data {
-                ModuleKind::Normal(ref items) => {
-                    insert_module_items(result.symtab.get_mut(&m.name.0).unwrap(), items)?;
-                },
-            }
+        for err in visitor.errors.drain(..) { // for now
+            return Err(err);
         }
 
         // TODO: implement this
         // resolve_deferred(&mut symtab);
 
-        Ok(result)
+        Ok(SymbolTable {
+            symtab: visitor.symtab
+        })
     }
 
     // TODO: probably build symbol_at_ident etc (steal guts of
@@ -213,117 +204,141 @@ impl SymbolTable {
     }
 }
 
-fn insert_module_items(tbl: &mut HashMap<String, Symbol>,
-  items: &Vec<NormalItem>) -> AnalysisResult<()> {
-    for i in items {
-        match *i {
-            NormalItem::Function(ref def) => insert_fundef(tbl, def)?,
-            NormalItem::Struct(ref def) => insert_structdef(tbl, def)?,
-        }
-    }
-
-    Ok(())
+struct SymbolTableBuilder {
+    symtab: Symtab,
+    errors: Vec<AnalysisError>,
 }
 
-fn insert_fundef(tbl: &mut HashMap<String, Symbol>, def: &FunDef)
-  -> AnalysisResult<()> {
-    if tbl.contains_key(&def.name.0) {
-        return Err(AnalysisError {
-            kind: AnalysisErrorKind::DuplicateSymbol,
-            regarding: Some(format!("fn {}", def.name.0)),
-            loc: def.loc.clone(),
-        });
-    }
-
-    tbl.insert(def.name.0.clone(), Symbol::Fun {
-        def: def.clone(),
-        locals: HashMap::new(),
-    });
-
-    let locals = match tbl.get_mut(&def.name.0) {
-        Some(&mut Symbol::Fun { ref mut locals, .. }) => locals,
-        _ => panic!("internal compiler error"),
-    };
-
-    for p in &def.params {
-        if locals.contains_key(&p.name.0) {
-            return Err(AnalysisError {
-                kind: AnalysisErrorKind::DuplicateSymbol,
-                regarding: Some(format!("parameter {}", p.name.0)),
-                loc: p.loc.clone(),
-            });
-        }
-        locals.insert(p.name.0.clone(),
-          Symbol::Value(p.ty.clone(), Some(p.mode)));
-    }
-
-    for stmt in &def.body {
-        match stmt.data {
-            StmtKind::VarDecl(ref decls) => {
-                for var in decls {
-                    if locals.contains_key(&(var.0).0) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::DuplicateSymbol,
-                            regarding: Some(format!("variable {}", (var.0).0)),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
-                    locals.insert((var.0).0.clone(),
-                      Symbol::Value(var.1.clone(), None));
-                }
-            },
-
-            // TODO: maybe should this gensym?
-            StmtKind::ForLoop { ref var, .. } => {
-                if locals.contains_key(&(var.0).0) {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::DuplicateSymbol,
-                        regarding: Some(format!("for-variable {}", (var.0).0)),
-                        loc: stmt.loc.clone(),
-                    });
-                }
-                // TODO: might be byref if we do the for-each trick
-                locals.insert((var.0).0.clone(),
-                  Symbol::Value(var.1.clone(), None));
-            },
-
-            _ => {},
+impl SymbolTableBuilder {
+    fn new() -> Self {
+        SymbolTableBuilder {
+            symtab: Symtab::new(),
+            errors: Vec::new(),
         }
     }
-
-    Ok(())
 }
 
-fn insert_structdef(tbl: &mut HashMap<String, Symbol>, def: &StructDef)
-  -> AnalysisResult<()> {
-    if tbl.contains_key(&def.name.0) {
-        return Err(AnalysisError {
-            kind: AnalysisErrorKind::DuplicateSymbol,
-            regarding: Some(format!("struct {}", def.name.0)),
-            loc: def.loc.clone(),
-        });
-    }
-
-    tbl.insert(def.name.0.clone(), Symbol::Struct {
-        def: def.clone(),
-        members: HashMap::new(),
-    });
-
-    let members = match tbl.get_mut(&def.name.0) {
-        Some(&mut Symbol::Struct { ref mut members, .. }) => members,
-        _ => panic!("internal compiler error"),
-    };
-
-    for m in &def.members {
-        if members.contains_key(&m.name.0) {
-            return Err(AnalysisError {
+impl ASTVisitor for SymbolTableBuilder {
+    fn visit_module(&mut self, m: &Module) {
+        if self.symtab.contains_key(&m.name.0) {
+            self.errors.push(AnalysisError {
                 kind: AnalysisErrorKind::DuplicateSymbol,
-                regarding: Some(format!("parameter {}", m.name.0)),
+                regarding: Some(format!("mod {}", m.name)),
                 loc: m.loc.clone(),
             });
+        } else {
+            self.symtab.insert(m.name.0.clone(), HashMap::new());
         }
-        members.insert(m.name.0.clone(), m.ty.clone());
+
+        self.walk_module(m);
     }
 
-    Ok(())
+    fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
+        {
+            let mod_tab = self.symtab.get_mut(&m.0).expect(
+                "internal compiler error: no module entry in symbol table");
+
+            if mod_tab.contains_key(&def.name.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("fn {}::{}", m, def.name)),
+                    loc: def.loc.clone(),
+                });
+            } else {
+                mod_tab.insert(def.name.0.clone(), Symbol::Fun {
+                    def: def.clone(),
+                    locals: HashMap::new(),
+                });
+            }
+        }
+
+        self.walk_fundef(def, m);
+    }
+
+    fn visit_structdef(&mut self, def: &StructDef, m: &Ident) {
+        {
+            let mod_tab = self.symtab.get_mut(&m.0).expect(
+                "internal compiler error: no module entry in symbol table");
+
+            if mod_tab.contains_key(&def.name.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("fn {}::{}", m, def.name)),
+                    loc: def.loc.clone(),
+                });
+            } else {
+                mod_tab.insert(def.name.0.clone(), Symbol::Struct {
+                    def: def.clone(),
+                    members: HashMap::new(),
+                });
+            }
+        }
+
+        self.walk_structdef(def, m);
+    }
+
+    fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
+        {
+            let mod_tab = self.symtab.get_mut(&m.0).expect(
+                "internal compiler error: no module entry in symbol table");
+
+            let members = match mod_tab.get_mut(&st.0) {
+                Some(&mut Symbol::Struct { ref mut members, .. }) => members,
+                _ => panic!("internal compiler error"),
+            };
+
+            if members.contains_key(&mem.name.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("struct member {}::{}",
+                      st, mem.name)),
+                    loc: mem.loc.clone(),
+                });
+            } else {
+                members.insert(mem.name.0.clone(), mem.ty.clone());
+            }
+        }
+
+        self.walk_structmem(mem, m, st);
+    }
+
+    fn visit_ident(&mut self, i: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+        let (module, scope, ty, mode, desc) = match ctxt {
+            NameCtxt::DefValue(m, f, ty) =>
+                (m, f, ty, None, "variable"),
+            NameCtxt::DefParam(m, f, ty, mode) =>
+                (m, Some(f), ty, Some(mode), "parameter"),
+            _ => { return; },
+        };
+
+        let mod_tab = self.symtab.get_mut(&module.0).expect(
+            "internal compiler error: no module entry in symbol table");
+
+        if let Some(f) = scope {
+            let locals = match mod_tab.get_mut(&f.0) {
+                Some(&mut Symbol::Fun { ref mut locals, .. }) => locals,
+                _ => panic!("internal compiler error"),
+            };
+
+            if locals.contains_key(&i.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("{} {}", desc, i)),
+                    loc: loc.clone(),
+                });
+            } else {
+                locals.insert(i.0.clone(), Symbol::Value(ty.clone(), mode));
+            }
+        } else {
+            if mod_tab.contains_key(&i.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("{} {}", desc, i)),
+                    loc: loc.clone(),
+                });
+            } else {
+                mod_tab.insert(i.0.clone(), Symbol::Value(ty.clone(), mode));
+            }
+        }
+    }
 }
