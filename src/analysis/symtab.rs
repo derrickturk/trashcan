@@ -2,6 +2,7 @@
 
 use super::*;
 use ast::*;
+use visit::NameCtxt;
 
 use std::collections::HashMap;
 
@@ -74,6 +75,18 @@ pub fn symbol_table(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
 
     Ok(symtab)
 }
+
+/*
+pub fn symbol_at_path<'a>(symtab: &'a SymbolTable, path: &Path, ctxt: NameCtxt,
+  err_loc: &SrcLoc) -> AnalysisResult<&'a Symbol> {
+    // module from which lookup is happening
+    let ctxt_module = match ctxt {
+        NameCtxt::Module => panic!("internal compiler error: \
+          attempt to lookup module by path"),
+        NameCtxt::Function(
+
+}
+*/
 
 fn insert_module_items(tbl: &mut HashMap<String, Symbol>,
   items: &Vec<NormalItem>) -> AnalysisResult<()> {
