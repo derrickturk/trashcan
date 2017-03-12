@@ -220,14 +220,12 @@ pub fn noop_fold_stmt_list<F: ASTFolder + ?Sized>(folder: &mut F,
 // TODO: move loc out
 pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
   Stmt { data, loc }: Stmt, module: &Ident, function: &Ident) -> Stmt {
-    match data {
-        StmtKind::ExprStmt(expr) => Stmt {
-            data: StmtKind::ExprStmt(folder.fold_expr(expr, module, function)),
-            loc: loc,
-        },
+    let data = match data {
+        StmtKind::ExprStmt(expr) =>
+            StmtKind::ExprStmt(folder.fold_expr(expr, module, function)),
 
-        StmtKind::VarDecl(decls) => Stmt {
-            data: StmtKind::VarDecl(decls.into_iter().map(|(ident, ty, init)| {
+        StmtKind::VarDecl(decls) =>
+            StmtKind::VarDecl(decls.into_iter().map(|(ident, ty, init)| {
                 (
                     folder.fold_ident(
                         ident, 
@@ -237,30 +235,22 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                     init.map(|init| folder.fold_expr(init, module, function))
                 )
             }).collect()),
-            loc: loc,
-        },
 
-        StmtKind::Assign(lhs, op, rhs) => Stmt {
-            data: StmtKind::Assign(
-                      folder.fold_expr(lhs, module, function),
-                      op,
-                      folder.fold_expr(rhs, module, function)),
-            loc: loc,
-        },
+        StmtKind::Assign(lhs, op, rhs) =>
+            StmtKind::Assign(
+                folder.fold_expr(lhs, module, function),
+                op,
+                folder.fold_expr(rhs, module, function)),
 
-        StmtKind::Return(Some(expr)) => Stmt {
-            data: StmtKind::Return(
-                      Some(folder.fold_expr(expr, module, function))),
-            loc: loc,
-        },
+        StmtKind::Return(Some(expr)) =>
+            StmtKind::Return(
+                Some(folder.fold_expr(expr, module, function))),
 
-        StmtKind::Return(None) => Stmt {
-            data: StmtKind::Return(None),
-            loc: loc,
-        },
+        StmtKind::Return(None) =>
+            StmtKind::Return(None),
 
-        StmtKind::IfStmt { cond, body, elsifs, els } => Stmt {
-            data: StmtKind::IfStmt {
+        StmtKind::IfStmt { cond, body, elsifs, els } =>
+            StmtKind::IfStmt {
                 cond: folder.fold_expr(cond, module, function),
                 body: folder.fold_stmt_list(body, module, function),
                 elsifs: elsifs.into_iter().map(|(cond, body)| {
@@ -272,19 +262,15 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 els: els.map(|body|
                   folder.fold_stmt_list(body, module, function)),
             },
-            loc: loc,
-        },
 
-        StmtKind::WhileLoop { cond, body } => Stmt {
-            data: StmtKind::WhileLoop {
+        StmtKind::WhileLoop { cond, body } =>
+            StmtKind::WhileLoop {
                 cond: folder.fold_expr(cond, module, function),
                 body: folder.fold_stmt_list(body, module, function),
             },
-            loc: loc,
-        },
 
-        StmtKind::ForLoop { var: (ident, ty), spec, body } => Stmt {
-            data: StmtKind::ForLoop {
+        StmtKind::ForLoop { var: (ident, ty), spec, body } =>
+            StmtKind::ForLoop {
                 var: (
                     folder.fold_ident(
                         ident,
@@ -295,13 +281,14 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 spec: folder.fold_forspec(spec, module, function, &loc),
                 body: folder.fold_stmt_list(body, module, function),
             },
-            loc: loc,
-        },
 
-        StmtKind::Print(expr) => Stmt {
-            data: StmtKind::Print(folder.fold_expr(expr, module, function)),
-            loc: loc,
-        },
+        StmtKind::Print(expr) =>
+            StmtKind::Print(folder.fold_expr(expr, module, function)),
+    };
+
+    Stmt {
+        data: data,
+        loc: loc,
     }
 }
 
@@ -466,69 +453,3 @@ fn ident_ctxt_from_path<'a>(p: &'a Path, ctxt: NameCtxt<'a>)
         },
     }
 }
-
-/*
-pub fn ident_ctxt_from_path<'a>(p: Path, ctxt: NameCtxt<'a>)
-  -> (Option<Ident>, Ident, NameCtxt<'a>) {
-    match p {
-        Path(Some(path_m), i) => {
-            let inner_ctxt = match ctxt {
-                NameCtxt::Module | NameCtxt::DefModule =>
-                    panic!("internal compiler error: path as \
-                           module name"),
-
-                NameCtxt::DefFunction(_)
-              | NameCtxt::DefType(_)
-              | NameCtxt::DefValue(_, _, _)
-              | NameCtxt::DefParam(_, _, _, _)
-              | NameCtxt::DefMember(_, _, _) =>
-                    panic!("internal compiler error: path as \
-                           name definition"),
-
-                // TODO: do we want any notion of "inheriting"
-                //   access from the original lookup?
-                // can this ever possibly matter?
-                NameCtxt::Function(lookup_m, _) =>
-                    NameCtxt::Function(
-                        &path_m,
-                        if path_m == *lookup_m {
-                            Access::Private
-                        } else {
-                            Access::Public
-                        }),
-
-                NameCtxt::Type(lookup_m, _) =>
-                    NameCtxt::Type(
-                        &path_m,
-                        if path_m == *lookup_m {
-                            Access::Private
-                        } else {
-                            Access::Public
-                        }),
-
-                // you can't designate a function local by a
-                //   two-part path, so we're ok to drop the lookup
-                //   function from the context
-                NameCtxt::Value(lookup_m, _, _) =>
-                    NameCtxt::Value(
-                        &path_m,
-                        None,
-                        if path_m == *lookup_m {
-                            Access::Private
-                        } else {
-                            Access::Public
-                    }),
-
-                NameCtxt::Member(_, _, _) =>
-                    panic!("internal compiler error: path as \
-                           member name"),
-            };
-            (Some(path_m), i, inner_ctxt)
-        },
-
-        Path(None, i) => {
-            (None, i, ctxt)
-        },
-    }
-}
-*/
