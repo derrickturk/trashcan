@@ -63,6 +63,7 @@ impl<'a> ASTVisitorMut for Resolver<'a> {
     }
     */
 
+    /*
     fn visit_path(&mut self, p: &mut Path, ctxt: NameCtxt, loc: &SrcLoc) {
         println!("path: {} @ {:?}", p, ctxt);
         self.walk_path(p, ctxt, loc);
@@ -71,6 +72,7 @@ impl<'a> ASTVisitorMut for Resolver<'a> {
     fn visit_ident(&mut self, i: &mut Ident, ctxt: NameCtxt, loc: &SrcLoc) {
         println!("ident: {} @ {:?}", i, ctxt);
     }
+    */
 }
 
 pub fn resolve_deferred(dumpster: &mut Dumpster, symtab: &mut SymbolTable)

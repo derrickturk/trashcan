@@ -10,10 +10,15 @@ struct thing {
 }
 
 pub fn f(x: i32, y: &f64[]) -> str {
+    // WOW
+    let f: str = "it's got the same name as the function!";
+
     // while loop
     while x < 17 {
         x = x + 1;
         x += 3;
+
+        f @= " haha";
 
         /*
         print other_mod::y[x]; // Debug.Print
@@ -113,5 +118,13 @@ mod other_mod {
 
     pub fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {
         return true;
+    }
+
+    pub fn weird(weird: bool) -> bool {
+        if weird(weird) {
+            return !!!weird;
+        } else {
+            return weird;
+        }
     }
 }

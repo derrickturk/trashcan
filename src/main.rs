@@ -50,6 +50,7 @@ fn main() {
 
     let dumpster = analysis::merge_dumpsters(dumpsters);
     let dumpster = analysis::for_loop_var_gensym(dumpster);
+    let dumpster = analysis::fn_name_local_gensym(dumpster);
 
     let mut dumpster = analysis::short_circuit_logicals(dumpster);
     let mut symtab = analysis::SymbolTable::build(&dumpster)

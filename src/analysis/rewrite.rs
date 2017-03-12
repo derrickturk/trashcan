@@ -15,30 +15,33 @@ pub fn gensym(orig: Option<Ident>) -> Ident {
 }
 
 /// use to subsitute value-naming idents within a given scope
-///   (not types, parameters, or functions)
-pub struct ScopedSubstitutionFolder<'a> {
-    pub orig: &'a Ident,
-    pub replace: &'a Ident,
-    pub module: &'a Ident,
-    pub function: Option<&'a Ident>,
+///   (not types, parameters, or functions);
+/// it's easier if this thing owns copies of the identifiers
+pub struct ScopedSubstitutionFolder {
+    pub orig: Ident,
+    pub replace: Ident,
+    pub module: Ident,
+    pub function: Option<Ident>,
+    pub defns: bool,
 }
 
-impl<'a> ASTFolder for ScopedSubstitutionFolder<'a> {
+impl ASTFolder for ScopedSubstitutionFolder {
     // TODO: should we hook fold_path instead?
 
     fn fold_ident(&mut self, ident: Ident, ctxt: NameCtxt, loc: &SrcLoc)
       -> Ident {
-        match ctxt {
-            NameCtxt::Value(module, function, _) => {
-                if module == self.module && function == self.function
-                  && ident == *self.orig {
-                    self.replace.clone()
-                } else {
-                    ident
-                }
-            },
+        let (module, function) = match ctxt {
+            NameCtxt::Value(m, f, _) => (m, f),
+            NameCtxt::DefValue(m, f, _) if self.defns => (m, f),
+            NameCtxt::DefParam(m, f, _, _) if self.defns => (m, Some(f)),
+            _ => return ident,
+        };
 
-            _ => ident,
+        if module == &self.module && function == self.function.as_ref()
+          && ident == self.orig {
+            self.replace.clone()
+        } else {
+            ident
         }
     }
 }

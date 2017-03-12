@@ -517,14 +517,10 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
             },
         };
 
-        // for now
+        // these should already be gensymmed away
         if &p.name == f {
-            self.errors.push(AnalysisError {
-                kind: AnalysisErrorKind::DuplicateSymbol,
-                regarding: Some(format!("parameter {} has same name \
-                  as function", p.name)),
-                loc: p.loc.clone(),
-            })
+            panic!("internal compiler error: \
+              parameter {} has same name as function", p.name);
         }
 
         self.walk_funparam(p, m, f);
@@ -561,13 +557,10 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         StmtKind::VarDecl(ref decls) => {
             for &(ref ident, ref ty, ref init) in decls {
                 if let Some(ref fun) = ctxt.1 {
+                    // these should already be gensymmed away
                     if ident == fun {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::InvalidStmt,
-                            regarding: Some(format!("{} has same name as \
-                              enclosing function (for now)", ident)),
-                            loc: stmt.loc.clone(),
-                        });
+                        panic!("internal compiler error: \
+                          variable {} has same name as function", ident);
                     }
                 }
 

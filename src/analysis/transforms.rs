@@ -2,7 +2,10 @@
 
 use super::*;
 use ast::*;
+
 use visit::NameCtxt;
+use visit::ASTVisitor;
+
 use fold;
 use fold::ASTFolder;
 
@@ -10,14 +13,46 @@ pub fn vba_keyword_gensym(dumpster: Dumpster) -> Dumpster {
     unimplemented!()
 }
 
-pub fn fn_name_local_gensym(dumpster: Dumpster) -> Dumpster {
-    unimplemented!()
+pub fn fn_name_local_gensym(mut dumpster: Dumpster) -> Dumpster {
+    let mut v = FnNameLocalGensymCollectVisitor {
+        renamers: vec![],
+    };
+    v.visit_dumpster(&dumpster);
+    for mut r in v.renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    dumpster
 }
 
 /// replace for loop iteration variables with gensyms for pseudo-block scoping
 pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
     let mut f = ForLoopVarGensymFolder;
     f.fold_dumpster(dumpster)
+}
+
+struct FnNameLocalGensymCollectVisitor {
+    renamers: Vec<ScopedSubstitutionFolder>,
+}
+
+impl ASTVisitor for FnNameLocalGensymCollectVisitor {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+        let (module, function) = match ctxt {
+            NameCtxt::DefValue(m, Some(f), _) => (m, f),
+            NameCtxt::DefParam(m, f, _, _) => (m, f),
+            _ => return
+        };
+
+        if ident == function {
+            let g = gensym(Some(ident.clone()));
+            self.renamers.push(ScopedSubstitutionFolder {
+                orig: ident.clone(),
+                replace: g,
+                module: module.clone(),
+                function: Some(function.clone()),
+                defns: true,
+            });
+        }
+    }
 }
 
 struct ForLoopVarGensymFolder;
@@ -30,10 +65,11 @@ impl ASTFolder for ForLoopVarGensymFolder {
                 let g = gensym(Some(ident.clone()));
                 let body = {
                     let mut sub = ScopedSubstitutionFolder {
-                        orig: &ident,
-                        replace: &g,
-                        module: module,
-                        function: Some(function),
+                        orig: ident.clone(),
+                        replace: g.clone(),
+                        module: module.clone(),
+                        function: Some(function.clone()),
+                        defns: false, // I think
                     };
 
                     sub.fold_stmt_list(body, module, function)
