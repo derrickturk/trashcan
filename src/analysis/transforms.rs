@@ -13,7 +13,14 @@ use fold::ASTFolder;
 pub fn vb_keyword_gensym(mut dumpster: Dumpster) -> Dumpster {
     let mut v = VbKeywordGensymCollectVisitor::new();
     v.visit_dumpster(&dumpster);
-    for mut r in v.renamers {
+    for mut r in v.value_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    // members here
+    for mut r in v.type_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    for mut r in v.fn_renamers {
         dumpster = r.fold_dumpster(dumpster);
     }
     dumpster
@@ -37,13 +44,17 @@ pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
 }
 
 struct VbKeywordGensymCollectVisitor {
-    renamers: Vec<ScopedSubstitutionFolder>,
+    value_renamers: Vec<ScopedSubstitutionFolder>,
+    type_renamers: Vec<ScopedSubstitutionFolder>,
+    fn_renamers: Vec<ScopedSubstitutionFolder>,
 }
 
 impl VbKeywordGensymCollectVisitor {
     fn new() -> Self {
         Self {
-            renamers: Vec::new(),
+            value_renamers: Vec::new(),
+            type_renamers: Vec::new(),
+            fn_renamers: Vec::new(),
         }
     }
 }
@@ -56,20 +67,32 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
 
         // figure out types and modules later
 
-        let (module, function) = match ctxt {
-            NameCtxt::DefValue(m, f, _) => (m, f),
-            NameCtxt::DefParam(m, f, _, _) => (m, Some(f)),
+        let (module, function, values, fns, types) = match ctxt {
+            NameCtxt::DefValue(m, f, _) => (m, f, true, false, false),
+            NameCtxt::DefParam(m, f, _, _) => (m, Some(f), true, false, false),
+            NameCtxt::DefFunction(m) => (m, None, false, true, false),
             _ => return
         };
 
         let g = gensym(Some(ident.clone()));
-        self.renamers.push(ScopedSubstitutionFolder {
+        let renamer = ScopedSubstitutionFolder {
             orig: ident.clone(),
             replace: g,
             module: module.clone(),
             function: function.cloned(),
             defns: true,
-        });
+            values: values,
+            fns: fns,
+            types: types,
+        };
+
+        if values {
+            self.value_renamers.push(renamer);
+        } else if fns {
+            self.fn_renamers.push(renamer);
+        } else if types {
+            self.type_renamers.push(renamer);
+        }
     }
 }
 
@@ -101,6 +124,9 @@ impl ASTVisitor for FnNameLocalGensymCollectVisitor {
                 module: module.clone(),
                 function: Some(function.clone()),
                 defns: true,
+                values: true,
+                fns: false,
+                types: false,
             });
         }
     }
@@ -121,6 +147,9 @@ impl ASTFolder for ForLoopVarGensymFolder {
                         module: module.clone(),
                         function: Some(function.clone()),
                         defns: false, // I think
+                        values: true,
+                        fns: false,
+                        types: false,
                     };
 
                     sub.fold_stmt_list(body, module, function)

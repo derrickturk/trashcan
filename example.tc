@@ -3,7 +3,7 @@
 // define ordinary module
 mod example {
 
-struct thing {
+struct nothing {
     x: i32,
     y: f64[],
     z: i32[1:10; 9:17],
@@ -111,14 +111,15 @@ mod more_examples {
 
         print retobj() !== retobj();
 
-        other_mod::fun(x);
+        // it's a VB keyword
+        other_mod::input(x);
 
         let res: bool = other_mod::fun2(x, y, z);
     }
 }
 
 mod other_mod {
-    pub fn fun(xs: &i32[]) {
+    pub fn input(xs: &i32[]) {
         xs[1;2] = 3;
     }
 

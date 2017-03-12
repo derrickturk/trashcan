@@ -14,8 +14,9 @@ pub fn gensym(orig: Option<Ident>) -> Ident {
     Ident(format!("ø{}", num), orig.map(|i| i.0))
 }
 
-/// use to subsitute value-naming idents within a given scope
-///   (not types, parameters, or functions);
+// TODO: some impl fns that make this easier to construct
+
+/// use to subsitute idents within a given scope
 /// it's easier if this thing owns copies of the identifiers
 pub struct ScopedSubstitutionFolder {
     pub orig: Ident,
@@ -23,6 +24,9 @@ pub struct ScopedSubstitutionFolder {
     pub module: Ident,
     pub function: Option<Ident>,
     pub defns: bool,
+    pub values: bool,
+    pub fns: bool,
+    pub types: bool,
 }
 
 impl ASTFolder for ScopedSubstitutionFolder {
@@ -31,9 +35,18 @@ impl ASTFolder for ScopedSubstitutionFolder {
     fn fold_ident(&mut self, ident: Ident, ctxt: NameCtxt, loc: &SrcLoc)
       -> Ident {
         let (module, function) = match ctxt {
-            NameCtxt::Value(m, f, _) => (m, f),
-            NameCtxt::DefValue(m, f, _) if self.defns => (m, f),
-            NameCtxt::DefParam(m, f, _, _) if self.defns => (m, Some(f)),
+            NameCtxt::Value(m, f, _) if self.values =>
+                (m, f),
+            NameCtxt::DefValue(m, f, _) if self.defns && self.values =>
+                (m, f),
+            NameCtxt::DefParam(m, f, _, _) if self.defns && self.values =>
+                (m, Some(f)),
+
+            NameCtxt::Function(m, _) if self.fns =>
+                (m, None),
+            NameCtxt::DefFunction(m) if self.defns && self.fns =>
+                (m, None),
+
             _ => return ident,
         };
 
