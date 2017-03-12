@@ -23,6 +23,12 @@ pub fn vb_keyword_gensym(mut dumpster: Dumpster) -> Dumpster {
     for mut r in v.fn_renamers {
         dumpster = r.fold_dumpster(dumpster);
     }
+    for mut r in v.member_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    for mut r in v.module_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
     dumpster
 }
 
@@ -47,6 +53,8 @@ struct VbKeywordGensymCollectVisitor {
     value_renamers: Vec<ScopedSubstitutionFolder>,
     type_renamers: Vec<ScopedSubstitutionFolder>,
     fn_renamers: Vec<ScopedSubstitutionFolder>,
+    member_renamers: Vec<ScopedSubstitutionFolder>,
+    module_renamers: Vec<ScopedSubstitutionFolder>,
 }
 
 impl VbKeywordGensymCollectVisitor {
@@ -55,6 +63,8 @@ impl VbKeywordGensymCollectVisitor {
             value_renamers: Vec::new(),
             type_renamers: Vec::new(),
             fn_renamers: Vec::new(),
+            member_renamers: Vec::new(),
+            module_renamers: Vec::new(),
         }
     }
 }
@@ -75,20 +85,26 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
         }
 
         let (module, function, what) = match ctxt {
-            NameCtxt::DefValue(m, f, _) => (m, f, Rename::Value),
-            NameCtxt::DefParam(m, f, _, _) => (m, Some(f), Rename::Value),
-            NameCtxt::DefFunction(m) => (m, None, Rename::Function),
-            NameCtxt::DefType(m) => (m, None, Rename::Type),
+            NameCtxt::DefValue(m, f, _) => (Some(m), f, Rename::Value),
+            NameCtxt::DefParam(m, f, _, _) => (Some(m), Some(f), Rename::Value),
+            NameCtxt::DefFunction(m) => (Some(m), None, Rename::Function),
+            NameCtxt::DefType(m) => (Some(m), None, Rename::Type),
+            NameCtxt::DefMember(_, _, _) => (None, None, Rename::Member),
+            NameCtxt::DefModule => (None, None, Rename::Module),
             _ => return
         };
 
-        let (values, fns, types, dest) = match what {
+        let (values, fns, types, members, modules, dest) = match what {
             Rename::Value =>
-                (true, false, false, &mut self.value_renamers),
+                (true, false, false, false, false, &mut self.value_renamers),
             Rename::Function =>
-                (false, true, false, &mut self.fn_renamers),
+                (false, true, false, false, false, &mut self.fn_renamers),
             Rename::Type =>
-                (false, false, true, &mut self.type_renamers),
+                (false, false, true, false, false, &mut self.type_renamers),
+            Rename::Member =>
+                (false, false, false, true, false, &mut self.member_renamers),
+            Rename::Module =>
+                (false, false, false, false, true, &mut self.module_renamers),
             _ => panic!(),
         };
 
@@ -96,12 +112,14 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
         dest.push(ScopedSubstitutionFolder {
             orig: ident.clone(),
             replace: g,
-            module: module.clone(),
+            module: module.cloned(),
             function: function.cloned(),
             defns: true,
             values: values,
             fns: fns,
             types: types,
+            members: members,
+            modules: modules,
         });
     }
 }
@@ -131,12 +149,14 @@ impl ASTVisitor for FnNameLocalGensymCollectVisitor {
             self.renamers.push(ScopedSubstitutionFolder {
                 orig: ident.clone(),
                 replace: g,
-                module: module.clone(),
+                module: Some(module.clone()),
                 function: Some(function.clone()),
                 defns: true,
                 values: true,
                 fns: false,
                 types: false,
+                members: false,
+                modules: false,
             });
         }
     }
@@ -154,12 +174,14 @@ impl ASTFolder for ForLoopVarGensymFolder {
                     let mut sub = ScopedSubstitutionFolder {
                         orig: ident.clone(),
                         replace: g.clone(),
-                        module: module.clone(),
+                        module: Some(module.clone()),
                         function: Some(function.clone()),
                         defns: false, // I think
                         values: true,
                         fns: false,
                         types: false,
+                        members: false,
+                        modules: false,
                     };
 
                     sub.fold_stmt_list(body, module, function)

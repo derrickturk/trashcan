@@ -7,6 +7,7 @@ struct nothing {
     x: i32,
     y: f64[],
     z: i32[1:10; 9:17],
+    end: i32,
 }
 
 pub fn f(x: i32, y: &f64[]) -> str {
@@ -59,7 +60,9 @@ fn do_something(x: /* ByRef Long */ &i32) {
     }
 
     for x: obj in o.arr {
-        // x.f(3);
+        // this doesn't get renamed because we don't have a memberdef anywhere
+        //   for lbound, which I guess I'm ok with
+        x.lbound(3);
         print x;
     }
 
@@ -136,5 +139,12 @@ mod other_mod {
         } else {
             return weird;
         }
+
+        defbool::dummy();
     }
+}
+
+// conflicting name
+mod defbool {
+    pub fn dummy() { }
 }

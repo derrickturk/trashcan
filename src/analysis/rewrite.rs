@@ -21,12 +21,14 @@ pub fn gensym(orig: Option<Ident>) -> Ident {
 pub struct ScopedSubstitutionFolder {
     pub orig: Ident,
     pub replace: Ident,
-    pub module: Ident,
+    pub module: Option<Ident>,
     pub function: Option<Ident>,
     pub defns: bool,
     pub values: bool,
     pub fns: bool,
     pub types: bool,
+    pub members: bool,
+    pub modules: bool,
 }
 
 impl ASTFolder for ScopedSubstitutionFolder {
@@ -36,26 +38,42 @@ impl ASTFolder for ScopedSubstitutionFolder {
       -> Ident {
         let (module, function) = match ctxt {
             NameCtxt::Value(m, f, _) if self.values =>
-                (m, f),
+                (Some(m), f),
             NameCtxt::DefValue(m, f, _) if self.defns && self.values =>
-                (m, f),
+                (Some(m), f),
             NameCtxt::DefParam(m, f, _, _) if self.defns && self.values =>
-                (m, Some(f)),
+                (Some(m), Some(f)),
 
             NameCtxt::Function(m, _) if self.fns =>
-                (m, None),
+                (Some(m), None),
             NameCtxt::DefFunction(m) if self.defns && self.fns =>
-                (m, None),
+                (Some(m), None),
 
             NameCtxt::Type(m, _) if self.types =>
-                (m, None),
+                (Some(m), None),
             NameCtxt::DefType(m) if self.defns && self.types =>
-                (m, None),
+                (Some(m), None),
+
+            // members can be referenced (from + arbitrary).exprs;
+            //   it also doesn't matter if other types have members with the
+            //   same names (we don't do any sort of inference), so to avoid
+            //   needing a full symbol table and typecheck to do member renames
+            //   we just replace all members of every type everywhere with a
+            //   matching name
+            NameCtxt::Member(_, _, _) if self.members =>
+                (None, None),
+            NameCtxt::DefMember(_, _, _) if self.defns && self.members =>
+                (None, None),
+
+            NameCtxt::Module if self.modules =>
+                (None, None),
+            NameCtxt::DefModule if self.defns && self.modules =>
+                (None, None),
 
             _ => return ident,
         };
 
-        if module == &self.module && function == self.function.as_ref()
+        if module == self.module.as_ref() && function == self.function.as_ref()
           && ident == self.orig {
             self.replace.clone()
         } else {
