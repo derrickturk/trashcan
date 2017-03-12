@@ -47,6 +47,11 @@ impl ASTFolder for ScopedSubstitutionFolder {
             NameCtxt::DefFunction(m) if self.defns && self.fns =>
                 (m, None),
 
+            NameCtxt::Type(m, _) if self.types =>
+                (m, None),
+            NameCtxt::DefType(m) if self.defns && self.types =>
+                (m, None),
+
             _ => return ident,
         };
 

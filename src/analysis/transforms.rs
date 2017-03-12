@@ -66,16 +66,34 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
         }
 
         // figure out types and modules later
+        enum Rename {
+            Module,
+            Value,
+            Function,
+            Type,
+            Member,
+        }
 
-        let (module, function, values, fns, types) = match ctxt {
-            NameCtxt::DefValue(m, f, _) => (m, f, true, false, false),
-            NameCtxt::DefParam(m, f, _, _) => (m, Some(f), true, false, false),
-            NameCtxt::DefFunction(m) => (m, None, false, true, false),
+        let (module, function, what) = match ctxt {
+            NameCtxt::DefValue(m, f, _) => (m, f, Rename::Value),
+            NameCtxt::DefParam(m, f, _, _) => (m, Some(f), Rename::Value),
+            NameCtxt::DefFunction(m) => (m, None, Rename::Function),
+            NameCtxt::DefType(m) => (m, None, Rename::Type),
             _ => return
         };
 
+        let (values, fns, types, dest) = match what {
+            Rename::Value =>
+                (true, false, false, &mut self.value_renamers),
+            Rename::Function =>
+                (false, true, false, &mut self.fn_renamers),
+            Rename::Type =>
+                (false, false, true, &mut self.type_renamers),
+            _ => panic!(),
+        };
+
         let g = gensym(Some(ident.clone()));
-        let renamer = ScopedSubstitutionFolder {
+        dest.push(ScopedSubstitutionFolder {
             orig: ident.clone(),
             replace: g,
             module: module.clone(),
@@ -84,15 +102,7 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
             values: values,
             fns: fns,
             types: types,
-        };
-
-        if values {
-            self.value_renamers.push(renamer);
-        } else if fns {
-            self.fn_renamers.push(renamer);
-        } else if types {
-            self.type_renamers.push(renamer);
-        }
+        });
     }
 }
 

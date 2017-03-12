@@ -17,8 +17,9 @@ impl Emit<TypePos> for Type {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
       ctxt: TypePos, indent: u32) -> io::Result<()> {
         match *self {
-            Type::Deferred(_) =>
-                panic!("internal compiler error: unresolved type in codegen"),
+            Type::Deferred(ref i) =>
+                panic!("internal compiler error: unresolved type \
+                  {:?} in codegen", i),
 
             Type::Array(_, ref bounds) => {
                 match ctxt {

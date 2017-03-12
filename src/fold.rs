@@ -81,11 +81,11 @@ pub trait ASTFolder {
         noop_fold_path(self, p, ctxt, loc)
     }
 
-    // below: "do-nothing" defaults (terminal nodes)
-
     fn fold_type(&mut self, ty: Type, module: &Ident, loc: &SrcLoc) -> Type {
-        ty
+        noop_fold_type(self, ty, module, loc)
     }
+
+    // below: "do-nothing" defaults (terminal nodes)
 
     fn fold_ident(&mut self, i: Ident, ctxt: NameCtxt, loc: &SrcLoc) -> Ident {
         i
@@ -388,6 +388,28 @@ pub fn noop_fold_path<F: ASTFolder + ?Sized>(folder: &mut F,
 
     let ident = folder.fold_ident(ident, inner_ctxt, &loc);
     Path(module, ident)
+}
+
+pub fn noop_fold_type<F: ASTFolder + ?Sized>(folder: &mut F, ty: Type,
+  module: &Ident, loc: &SrcLoc) -> Type {
+    match ty {
+        Type::Array(base, bounds) =>
+            Type::Array(Box::new(folder.fold_type(*base, module, loc)), bounds),
+
+        Type::Struct(path) =>
+            Type::Struct(folder.fold_path(path,
+              NameCtxt::Type(module, Access::Private), loc)),
+
+        Type::Object(path) =>
+            Type::Object(folder.fold_path(path,
+              NameCtxt::Type(module, Access::Private), loc)),
+
+        Type::Deferred(path) =>
+            Type::Deferred(folder.fold_path(path,
+              NameCtxt::Type(module, Access::Private), loc)),
+
+        _ => ty,
+    }
 }
 
 fn ident_ctxt_from_path<'a>(p: &'a Path, ctxt: NameCtxt<'a>)

@@ -115,7 +115,7 @@ macro_rules! make_ast_vistor {
 
             fn visit_type(&mut self, ty: & $($_mut)* Type, module: &Ident,
               loc: &SrcLoc) {
-                // do nothing
+                self.walk_type(ty, module, loc)
             }
 
             fn visit_ident(&mut self, i: & $($_mut)* Ident, ctxt: NameCtxt,
@@ -452,6 +452,32 @@ macro_rules! make_ast_vistor {
                 }
                 let (i, inner_ctxt) = self.ident_ctxt_from_path(p, ctxt);
                 self.visit_ident(i, inner_ctxt, loc);
+            }
+
+            fn walk_type(&mut self, ty: & $($_mut)* Type, module: &Ident,
+              loc: &SrcLoc) {
+                match *ty {
+                    Type::Array(ref $($_mut)* base, _) => {
+                        self.visit_type(base, module, loc)
+                    },
+
+                    Type::Struct(ref $($_mut)* path) => {
+                        self.visit_path(path,
+                          NameCtxt::Type(module, Access::Private), loc)
+                    },
+
+                    Type::Object(ref $($_mut)* path) => {
+                        self.visit_path(path,
+                          NameCtxt::Type(module, Access::Private), loc)
+                    },
+
+                    Type::Deferred(ref $($_mut)* path) => {
+                        self.visit_path(path,
+                          NameCtxt::Type(module, Access::Private), loc)
+                    },
+
+                    _ => {},
+                }
             }
 
             // this doesn't use self at all, but can't be a free function
