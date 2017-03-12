@@ -54,8 +54,6 @@ pub enum NameCtxt<'a> {
                                          // access
 }
 
-// TODO: have visitor pass down "nearest" SrcLoc for error generation
-
 macro_rules! make_ast_vistor {
     ($trait_name: ident, $($_mut:ident)*) => {
         pub trait $trait_name {

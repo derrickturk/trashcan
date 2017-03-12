@@ -92,7 +92,7 @@ fn short_circuit_logicals_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
     stmts
 }
 
-pub const VBA_KEYWORDS: [&'static str; 155] = [
+pub const VBA_KEYWORDS: [&'static str; 152] = [
     "CALL",
     "CASE",
     "CLOSE",
@@ -127,8 +127,7 @@ pub const VBA_KEYWORDS: [&'static str; 155] = [
     "GET",
     "GLOBAL",
     "GOSUB",
-    "GOT",
-    "O",
+    "GOTO",
     "IF",
     "IMPLEMENTS",
     "INPUT",
@@ -146,8 +145,7 @@ pub const VBA_KEYWORDS: [&'static str; 155] = [
     "PUT",
     "RAISEEVENT",
     "REDIM",
-    "RESU",
-    "ME",
+    "RESUME",
     "RETURN",
     "RSET",
     "SEEK",
@@ -155,8 +153,7 @@ pub const VBA_KEYWORDS: [&'static str; 155] = [
     "SET",
     "STATIC",
     "STOP",
-    "SU",
-    "B",
+    "SUB",
     "TYPE",
     "UNLOCK",
     "WEND",
