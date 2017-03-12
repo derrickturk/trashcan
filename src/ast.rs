@@ -245,7 +245,7 @@ pub enum Access {
 }
 
 /// Parameter passing modes
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ParamMode {
     /// Pass by value (default)
     ByVal,

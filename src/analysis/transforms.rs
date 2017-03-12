@@ -9,6 +9,8 @@ use visit::ASTVisitor;
 use fold;
 use fold::ASTFolder;
 
+use std::collections::HashSet;
+
 /// replace names which conflict with VB keywords with gensyms
 pub fn vb_keyword_gensym(mut dumpster: Dumpster) -> Dumpster {
     let mut v = VbKeywordGensymCollectVisitor::new();
@@ -49,6 +51,37 @@ pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
     f.fold_dumpster(dumpster)
 }
 
+/// replace names which would be duplicates under case-folding
+pub fn case_folding_duplicate_gensym(mut dumpster: Dumpster) -> Dumpster {
+    let mut v = CaseFoldingDuplicateGensymVisitor::new();
+    v.visit_dumpster(&dumpster);
+    for mut r in v.value_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    // members here
+    for mut r in v.type_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    for mut r in v.fn_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    for mut r in v.member_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    for mut r in v.module_renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    dumpster
+}
+
+enum Rename {
+    Module,
+    Value,
+    Function,
+    Type,
+    Member,
+}
+
 struct VbKeywordGensymCollectVisitor {
     value_renamers: Vec<ScopedSubstitutionFolder>,
     type_renamers: Vec<ScopedSubstitutionFolder>,
@@ -73,15 +106,6 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
     fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
         if !VB_KEYWORDS.contains(&ident.0.to_uppercase().as_str()) {
             return;
-        }
-
-        // figure out types and modules later
-        enum Rename {
-            Module,
-            Value,
-            Function,
-            Type,
-            Member,
         }
 
         let (module, function, what) = match ctxt {
@@ -199,6 +223,93 @@ impl ASTFolder for ForLoopVarGensymFolder {
 
             _ => fold::noop_fold_stmt(self, stmt, module, function),
         }
+    }
+}
+
+struct CaseFoldingDuplicateGensymVisitor {
+    value_renamers: Vec<ScopedSubstitutionFolder>,
+    type_renamers: Vec<ScopedSubstitutionFolder>,
+    fn_renamers: Vec<ScopedSubstitutionFolder>,
+    member_renamers: Vec<ScopedSubstitutionFolder>,
+    module_renamers: Vec<ScopedSubstitutionFolder>,
+    seen: HashSet<(String, Option<String>, Option<String>)>,
+                  // casefold   // module      // scope
+}
+
+impl CaseFoldingDuplicateGensymVisitor {
+    fn new() -> Self {
+        Self {
+            value_renamers: Vec::new(),
+            type_renamers: Vec::new(),
+            fn_renamers: Vec::new(),
+            member_renamers: Vec::new(),
+            module_renamers: Vec::new(),
+            seen: HashSet::new(),
+        }
+    }
+}
+
+impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+        let (mut module, mut function, what) = match ctxt {
+            NameCtxt::DefValue(m, f, _) => (Some(m), f, Rename::Value),
+            NameCtxt::DefParam(m, f, _, _) => (Some(m), Some(f), Rename::Value),
+            NameCtxt::DefFunction(m) => (Some(m), None, Rename::Function),
+            NameCtxt::DefType(m) => (Some(m), None, Rename::Type),
+            // members are tricky: we only care if we see clashing members in
+            //   the same type...                   // pun here
+            NameCtxt::DefMember(m, t, _) => (Some(m), Some(t), Rename::Member),
+            NameCtxt::DefModule => (None, None, Rename::Module),
+            _ => return
+        };
+
+        // just clone everything; jesus christ
+        let casefold = ident.0.to_uppercase();
+        let key = (
+            casefold,
+            module.cloned().map(|i| i.0),
+            function.cloned().map(|i| i.0)
+        );
+        if !self.seen.contains(&key) {
+            self.seen.insert(key);
+            return;
+        }
+
+        // we're a duplicate
+
+        let (values, fns, types, members, modules, dest) = match what {
+            Rename::Value =>
+                (true, false, false, false, false, &mut self.value_renamers),
+            Rename::Function =>
+                (false, true, false, false, false, &mut self.fn_renamers),
+            Rename::Type =>
+                (false, false, true, false, false, &mut self.type_renamers),
+            Rename::Member => {
+                // ... but we don't really want to do the hard work of
+                //   type checking all member accesses, so we'll change the
+                //   offender everywhere
+                module = None;
+                function = None;
+                (false, false, false, true, false, &mut self.member_renamers)
+            },
+            Rename::Module =>
+                (false, false, false, false, true, &mut self.module_renamers),
+            _ => panic!(),
+        };
+
+        let g = gensym(Some(ident.clone()));
+        dest.push(ScopedSubstitutionFolder {
+            orig: ident.clone(),
+            replace: g,
+            module: module.cloned(),
+            function: function.cloned(),
+            defns: true,
+            values: values,
+            fns: fns,
+            types: types,
+            members: members,
+            modules: modules,
+        });
     }
 }
 
