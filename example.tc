@@ -13,6 +13,8 @@ pub fn f(x: i32, y: &f64[]) -> str {
     // WOW
     let f: str = "it's got the same name as the function!";
 
+    let end: f64 = 17, lbound: f64 = end;
+
     // while loop
     while x < 17 {
         x = x + 1;
@@ -100,6 +102,10 @@ mod more_examples {
         let x: i32[10];
         let y: obj[];
         let z: SomeType[2:17];
+
+        for i: i32 = `LBound(x)` : `UBound(x)` {
+            print x[i];
+        }
 
         let weird_str: str = "You're not\tmy \"supervisor\"";
 

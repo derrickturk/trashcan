@@ -9,14 +9,20 @@ use visit::ASTVisitor;
 use fold;
 use fold::ASTFolder;
 
-pub fn vba_keyword_gensym(dumpster: Dumpster) -> Dumpster {
-    unimplemented!()
+/// replace names which conflict with VB keywords with gensyms
+pub fn vb_keyword_gensym(mut dumpster: Dumpster) -> Dumpster {
+    let mut v = VbKeywordGensymCollectVisitor::new();
+    v.visit_dumpster(&dumpster);
+    for mut r in v.renamers {
+        dumpster = r.fold_dumpster(dumpster);
+    }
+    dumpster
 }
 
+/// replace variables with same name as enclosing fn with gensyms
+///   (work around VB function return value semantics)
 pub fn fn_name_local_gensym(mut dumpster: Dumpster) -> Dumpster {
-    let mut v = FnNameLocalGensymCollectVisitor {
-        renamers: vec![],
-    };
+    let mut v = FnNameLocalGensymCollectVisitor::new();
     v.visit_dumpster(&dumpster);
     for mut r in v.renamers {
         dumpster = r.fold_dumpster(dumpster);
@@ -30,8 +36,53 @@ pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
     f.fold_dumpster(dumpster)
 }
 
+struct VbKeywordGensymCollectVisitor {
+    renamers: Vec<ScopedSubstitutionFolder>,
+}
+
+impl VbKeywordGensymCollectVisitor {
+    fn new() -> Self {
+        Self {
+            renamers: Vec::new(),
+        }
+    }
+}
+
+impl ASTVisitor for VbKeywordGensymCollectVisitor {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+        if !VB_KEYWORDS.contains(&ident.0.to_uppercase().as_str()) {
+            return;
+        }
+
+        // figure out types and modules later
+
+        let (module, function) = match ctxt {
+            NameCtxt::DefValue(m, f, _) => (m, f),
+            NameCtxt::DefParam(m, f, _, _) => (m, Some(f)),
+            _ => return
+        };
+
+        let g = gensym(Some(ident.clone()));
+        self.renamers.push(ScopedSubstitutionFolder {
+            orig: ident.clone(),
+            replace: g,
+            module: module.clone(),
+            function: function.cloned(),
+            defns: true,
+        });
+    }
+}
+
 struct FnNameLocalGensymCollectVisitor {
     renamers: Vec<ScopedSubstitutionFolder>,
+}
+
+impl FnNameLocalGensymCollectVisitor {
+    fn new() -> Self {
+        Self {
+            renamers: Vec::new(),
+        }
+    }
 }
 
 impl ASTVisitor for FnNameLocalGensymCollectVisitor {
@@ -125,7 +176,7 @@ fn short_circuit_logicals_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
     stmts
 }
 
-pub const VBA_KEYWORDS: [&'static str; 152] = [
+pub const VB_KEYWORDS: [&'static str; 152] = [
     "CALL",
     "CASE",
     "CLOSE",
