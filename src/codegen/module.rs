@@ -12,7 +12,7 @@ impl Emit<()> for Module {
       _ctxt: (), indent: u32) -> io::Result<()> {
         match self.data {
             ModuleKind::Normal(ref items) => {
-                write_normal_header(&self.name, out, indent)?;
+                write_normal_header(&self.name, out, symtab, indent)?;
                 for (i, item) in items.iter().enumerate() {
                     if i != 0 {
                         out.write_all(b"\n")?;
@@ -25,8 +25,10 @@ impl Emit<()> for Module {
     }
 }
 
-fn write_normal_header<W: Write>(name: &Ident, out: &mut W, indent: u32)
-  -> io::Result<()> {
-    write!(out, "{:in$}Attribute VB_Name = \"{}\"\nOption Explicit\n\n", "",
-           name.0, in = (indent * INDENT) as usize)
+fn write_normal_header<W: Write>(name: &Ident, out: &mut W,
+  symtab: &SymbolTable, indent: u32) -> io::Result<()> {
+    write!(out, "{:in$}Attribute VB_Name = \"", "",
+      in = (indent * INDENT) as usize)?;
+    name.emit(out, symtab, (), 0)?; 
+    out.write_all(b"\"\nOption Explicit\n\n")
 }
