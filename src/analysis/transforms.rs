@@ -2,6 +2,9 @@
 
 use super::*;
 use ast::*;
+use visit::NameCtxt;
+use fold;
+use fold::ASTFolder;
 
 pub fn vba_keyword_gensym(dumpster: Dumpster) -> Dumpster {
     unimplemented!()
@@ -13,31 +16,41 @@ pub fn fn_name_local_gensym(dumpster: Dumpster) -> Dumpster {
 
 /// replace for loop iteration variables with gensyms for pseudo-block scoping
 pub fn for_loop_var_gensym(dumpster: Dumpster) -> Dumpster {
-    Dumpster {
-        modules: dumpster.modules.into_iter().map(|m| {
-            Module {
-                name: m.name,
-                data: match m.data {
-                    ModuleKind::Normal(items) =>
-                        ModuleKind::Normal(items.into_iter().map(|i| {
-                            match i {
-                                NormalItem::Function(def) =>
-                                    NormalItem::Function(FunDef {
-                                        name: def.name,
-                                        access: def.access,
-                                        params: def.params,
-                                        ret: def.ret,
-                                        body: for_loop_var_gensym_stmts(def.body),
-                                        loc: def.loc,
-                                    }),
+    let mut f = ForLoopVarGensymFolder;
+    f.fold_dumpster(dumpster)
+}
 
-                                item => item,
-                            }
-                        }).collect()),
-                },
-                loc: m.loc,
-            }
-        }).collect()
+struct ForLoopVarGensymFolder;
+
+impl ASTFolder for ForLoopVarGensymFolder {
+    fn fold_stmt(&mut self, stmt: Stmt, module: &Ident, function: &Ident)
+  -> Stmt {
+        match stmt.data {
+            StmtKind::ForLoop { var: (ident, ty), spec, body } => {
+                let g = gensym(Some(ident.clone()));
+                let body = {
+                    let mut sub = ScopedSubstitutionFolder {
+                        orig: &ident,
+                        replace: &g,
+                        module: module,
+                        function: Some(function),
+                    };
+
+                    sub.fold_stmt_list(body, module, function)
+                };
+
+                Stmt {
+                    data: StmtKind::ForLoop {
+                        var: (g, ty),
+                        spec: spec,
+                        body: self.fold_stmt_list(body, module, function),
+                    },
+                    loc: stmt.loc,
+                }
+            },
+
+            _ => fold::noop_fold_stmt(self, stmt, module, function),
+        }
     }
 }
 
@@ -70,22 +83,6 @@ pub fn short_circuit_logicals(dumpster: Dumpster) -> Dumpster {
             }
         }).collect()
     }
-}
-
-fn for_loop_var_gensym_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
-    stmts.into_iter().map(|s| {
-        let sub_var = match s.data {
-            StmtKind::ForLoop { ref var, .. } => Some(var.0.clone()),
-            _ => None,
-        };
-
-        if let Some(var) = sub_var {
-            let newvar = gensym(Some(var.clone()));
-            s.substitute(&var, &newvar)
-        } else {
-            s
-        }
-    }).collect()
 }
 
 fn short_circuit_logicals_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {

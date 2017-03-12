@@ -42,6 +42,7 @@ fn do_something(x: /* ByRef Long */ &i32) {
         // brutal
         // n.b. bug here in pre-visitor gensym pass
         for j: i32 = x : 10 {
+            print i;
             print j;
             x = x / j;
         }
