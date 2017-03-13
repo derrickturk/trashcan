@@ -2,7 +2,7 @@
 ## "the name of this trashcan is Visual Basic"
 
 trashcan is a simple language with abbreviated syntax (similar to Rust,
-in which the compiler is not conincidentally written) which compiles to
+in which the compiler is not coincidentally written) which compiles to
 Visual Basic (the old, gross one).
 
 Key features of the trashcan language over VB include:  
@@ -30,4 +30,5 @@ Critical implementation note:
 
 <div style="margin: 0 auto; text-align:center"><img src ="http://i.imgur.com/rf50rO5.jpg" /></div>
 
+---
 ### (c) 2017 dwt | terminus data science, LLC
