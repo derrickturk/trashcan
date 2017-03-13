@@ -145,7 +145,48 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(fun.ret.clone())
         },
 
-        // TODO: member (we need type definitions first)
+        ExprKind::Member(ref expr, ref mem) => {
+            let expr_ty = type_of(&**expr, symtab, ctxt)?;
+            match expr_ty {
+                // for now
+                Type::Variant | Type::Obj | Type::Object(_) =>
+                    Ok(Type::Variant),
+
+                Type::Struct(ref path) => {
+                    if let Ok(&Symbol::Struct { ref members, .. }) = symtab
+                      .symbol_at_path(path,
+                                      NameCtxt::Type(&ctxt.0, Access::Private),
+                                      &expr.loc) {
+                        match members.get(&mem.0).cloned() {
+                            Some(ty) => Ok(ty),
+                            None => {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::NotDefined,
+                                    regarding: Some(format!(
+                                      "member {} of struct {}", mem, path)),
+                                    loc: expr.loc.clone(),
+                                })
+                            }
+                        }
+                    } else {
+                        panic!("internal compiler error: struct definition \
+                          not found");
+                    }
+                },
+
+                Type::Deferred(ref path) => panic!("internal compiler error:
+                  deferred type in type checking pass"),
+
+                ty => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!("attempt to access member \
+                          of type {} (not struct, class, or var)", ty)),
+                        loc: expr.loc.clone(),
+                    });
+                }
+            }
+        },
 
         // TODO: member invoke (we need type definitions first)
 

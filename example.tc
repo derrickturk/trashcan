@@ -18,6 +18,9 @@ pub fn f(x: i32, y: &f64[]) -> str {
 
     // need deferred type resolution...
     let s: nothing;
+    s.x = 17;
+    // s.end = 92.3;
+    // s.begin = 17;
 
     let end: f64 = 17, lbound: f64 = end;
 
@@ -112,6 +115,8 @@ mod more_examples {
         let x: i32[10];
         let y: obj[];
         let z: example::nothing[2:17];
+        z[3].x = 22;
+        // z[3].blah = 899;
 
         for i: i32 = `LBound(x)` : `UBound(x)` {
             print x[i];
