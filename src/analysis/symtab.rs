@@ -10,8 +10,7 @@ use std::io::Write;
 
 use std::collections::HashMap;
 
-// TODO: types get their own namespace
-// TODO: need to deal with case-insensitivity
+// TODO: types get their own namespace... or not
 /// A symbol table entry
 #[derive(Clone, Debug)]
 pub enum Symbol {
@@ -63,18 +62,30 @@ pub struct SymbolTable {
 
 impl SymbolTable {
     pub fn build(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
-        let mut visitor = SymbolTableBuilder::new();
-        visitor.visit_dumpster(dumpster);
-
-        for err in visitor.errors.drain(..) { // for now
+        // first make a pass to collect all type declarations into
+        //   the symbol table...
+        let mut type_collector = TypeCollectingSymbolTableBuilder::new();
+        type_collector.visit_dumpster(dumpster);
+        for err in type_collector.errors.drain(..) { // for now
             return Err(err);
         }
+
+        // then a mutation pass over the AST to resolve Deferred type nodes
 
         // TODO: implement this
         // resolve_deferred(&mut symtab);
 
+        // then a final pass to collect values and functions into the symbol
+        //   table, using the resolved types
+        let mut value_collector =
+            ValueCollectingSymbolTableBuilder::from(type_collector.symtab);
+        value_collector.visit_dumpster(dumpster);
+        for err in value_collector.errors.drain(..) { // for now
+            return Err(err);
+        }
+
         Ok(SymbolTable {
-            symtab: visitor.symtab
+            symtab: value_collector.symtab
         })
     }
 
@@ -241,21 +252,21 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
     Ok(())
 }
 
-struct SymbolTableBuilder {
+struct TypeCollectingSymbolTableBuilder {
     symtab: Symtab,
     errors: Vec<AnalysisError>,
 }
 
-impl SymbolTableBuilder {
+impl TypeCollectingSymbolTableBuilder {
     fn new() -> Self {
-        SymbolTableBuilder {
+        TypeCollectingSymbolTableBuilder {
             symtab: Symtab::new(),
             errors: Vec::new(),
         }
     }
 }
 
-impl ASTVisitor for SymbolTableBuilder {
+impl ASTVisitor for TypeCollectingSymbolTableBuilder {
     fn visit_module(&mut self, m: &Module) {
         if self.symtab.contains_key(&m.name.0) {
             self.errors.push(AnalysisError {
@@ -268,28 +279,6 @@ impl ASTVisitor for SymbolTableBuilder {
         }
 
         self.walk_module(m);
-    }
-
-    fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
-        {
-            let mod_tab = self.symtab.get_mut(&m.0).expect(
-                "internal compiler error: no module entry in symbol table");
-
-            if mod_tab.contains_key(&def.name.0) {
-                self.errors.push(AnalysisError {
-                    kind: AnalysisErrorKind::DuplicateSymbol,
-                    regarding: Some(format!("fn {}::{}", m, def.name)),
-                    loc: def.loc.clone(),
-                });
-            } else {
-                mod_tab.insert(def.name.0.clone(), Symbol::Fun {
-                    def: def.clone(),
-                    locals: HashMap::new(),
-                });
-            }
-        }
-
-        self.walk_fundef(def, m);
     }
 
     fn visit_structdef(&mut self, def: &StructDef, m: &Ident) {
@@ -337,6 +326,44 @@ impl ASTVisitor for SymbolTableBuilder {
         }
 
         self.walk_structmem(mem, m, st);
+    }
+}
+
+struct ValueCollectingSymbolTableBuilder {
+    symtab: Symtab,
+    errors: Vec<AnalysisError>,
+}
+
+impl ValueCollectingSymbolTableBuilder {
+    fn from(symtab: Symtab) -> Self {
+        ValueCollectingSymbolTableBuilder {
+            symtab: symtab,
+            errors: Vec::new(),
+        }
+    }
+}
+
+impl ASTVisitor for ValueCollectingSymbolTableBuilder {
+    fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
+        {
+            let mod_tab = self.symtab.get_mut(&m.0).expect(
+                "internal compiler error: no module entry in symbol table");
+
+            if mod_tab.contains_key(&def.name.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("fn {}::{}", m, def.name)),
+                    loc: def.loc.clone(),
+                });
+            } else {
+                mod_tab.insert(def.name.0.clone(), Symbol::Fun {
+                    def: def.clone(),
+                    locals: HashMap::new(),
+                });
+            }
+        }
+
+        self.walk_fundef(def, m);
     }
 
     fn visit_ident(&mut self, i: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
