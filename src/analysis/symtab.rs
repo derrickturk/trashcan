@@ -1,9 +1,12 @@
-//! trashcan's symbol table 
+//! trashcan's symbol table (and deferred type resolution)
 
 use super::*;
 use ast::*;
 use visit::NameCtxt;
 use visit::ASTVisitor;
+
+use std::io;
+use std::io::Write;
 
 use std::collections::HashMap;
 
@@ -141,6 +144,15 @@ impl SymbolTable {
         }
     }
 
+    pub fn dump<W: Write>(&self, out: &mut W, ind: usize) -> io::Result<()> {
+        out.write_all(b"SYMBOL TABLE DUMP\n")?;
+        for (ref m, ref tbl) in &self.symtab {
+            write!(out, "module {}:\n", m)?;
+            dump_sub_tbl(out, tbl, ind + 1)?;
+        }
+        Ok(())
+    }
+
     fn symbol_at_path_unchecked(&self, path: &Path,
       ctxt: NameCtxt, err_loc: &SrcLoc) -> AnalysisResult<&Symbol> {
         struct DummyVisitor;
@@ -202,6 +214,31 @@ impl SymbolTable {
             })
         }
     }
+}
+
+fn dump_sub_tbl<W: Write>(out: &mut W,
+  tbl: &HashMap<String, Symbol>, ind: usize) -> io::Result<()> {
+    for (k, sym) in tbl {
+        write!(out, "{:in$}item {}: ", "", k, in=ind*4).unwrap();
+        match *sym {
+            Symbol::Const(ref ty) =>
+                write!(out, "constant {:?}\n", ty)?,
+            Symbol::Value(ref ty, ref mode) =>
+                write!(out, "value {:?} {:?}\n", mode, ty)?,
+            Symbol::Fun { ref def, ref locals } => {
+                write!(out, "fn {}\n", def.name.0)?;
+                dump_sub_tbl(out, locals, ind + 1)?;
+            },
+            Symbol::Struct { ref def, ref members } => {
+                write!(out, "struct {}\n", def.name.0)?;
+                for m in members {
+                    write!(out, "{:in$}member {}: {:?}\n", "", m.0, m.1,
+                      in=(ind + 1)*4).unwrap();
+                }
+            },
+        }
+    }
+    Ok(())
 }
 
 struct SymbolTableBuilder {
