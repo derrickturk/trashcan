@@ -248,17 +248,17 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
         write!(out, "{:in$}item {}: ", "", k, in=ind*4).unwrap();
         match *sym {
             Symbol::Const(ref ty) =>
-                write!(out, "constant {:?}\n", ty)?,
+                write!(out, "constant {}\n", ty)?,
             Symbol::Value(ref ty, ref mode) =>
-                write!(out, "value {:?} {:?}\n", mode, ty)?,
+                write!(out, "value {:?} {}\n", mode, ty)?,
             Symbol::Fun { ref def, ref locals } => {
                 write!(out, "fn {}\n", def.name.0)?;
                 dump_sub_tbl(out, locals, ind + 1)?;
             },
             Symbol::Struct { ref def, ref members } => {
-                write!(out, "struct {}\n", def.name.0)?;
+                write!(out, "struct {}\n", def.name)?;
                 for m in members {
-                    write!(out, "{:in$}member {}: {:?}\n", "", m.0, m.1,
+                    write!(out, "{:in$}member {}: {}\n", "", m, m,
                       in=(ind + 1)*4).unwrap();
                 }
             },
