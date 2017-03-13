@@ -10,6 +10,7 @@ use std::io;
 use std::io::Write;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 // TODO: types get their own namespace... or not
 /// A symbol table entry
@@ -24,7 +25,7 @@ pub enum Symbol {
     /// e.g. f : (i32, i32) -> i32
     Fun {
         def: FunDef,
-        locals: HashMap<String, Symbol>,
+        locals: Scopetab,
     },
 
     /// e.g. struct X { a: i32 }
@@ -49,16 +50,18 @@ impl Symbol {
 // the internal symbol table type
 type Symtab = HashMap<
     String, // module name
-    HashMap<
-        String, // item name
-        Symbol
-    >
+    Scopetab
+>;
+
+// a module's, or scope's symbol table type
+type Scopetab = HashMap<
+    String, // an item's or value's name
+    Symbol
 >;
 
 /// The symbol table: scope -> (scope -> symbol|(ident -> symbol))
 pub struct SymbolTable {
-    // temporarily public
-    pub symtab: Symtab,
+    symtab: Symtab,
 }
 
 impl SymbolTable {
@@ -67,13 +70,7 @@ impl SymbolTable {
         //   the symbol table...
         let mut type_collector = TypeCollectingSymbolTableBuilder::new();
         type_collector.visit_dumpster(dumpster);
-        for err in type_collector.errors.drain(..) { // for now
-            return Err(err);
-        }
-
-        let symtab = SymbolTable {
-            symtab: type_collector.symtab,
-        };
+        let symtab = type_collector.result()?;
 
         {
             // then a mutation pass over the AST to resolve Deferred type nodes
@@ -87,15 +84,10 @@ impl SymbolTable {
         // then a final pass to collect values and functions into the symbol
         //   table, using the resolved types
         let mut value_collector =
-            ValueCollectingSymbolTableBuilder::from(symtab.symtab);
+            ValueCollectingSymbolTableBuilder::from(symtab);
         value_collector.visit_dumpster(dumpster);
-        for err in value_collector.errors.drain(..) { // for now
-            return Err(err);
-        }
 
-        Ok(SymbolTable {
-            symtab: value_collector.symtab
-        })
+        value_collector.result()
     }
 
     // TODO: probably build symbol_at_ident etc (steal guts of
@@ -171,6 +163,20 @@ impl SymbolTable {
             dump_sub_tbl(out, tbl, ind + 1)?;
         }
         Ok(())
+    }
+
+    fn module_table(&self, module: &Ident) -> Option<&Scopetab> {
+        self.symtab.get(&module.0)
+    }
+
+    fn module_table_mut(&mut self, module: &Ident) -> Option<&mut Scopetab> {
+        self.symtab.get_mut(&module.0)
+    }
+
+    fn new() -> SymbolTable {
+        SymbolTable {
+            symtab: Symtab::new(),
+        }
     }
 
     fn symbol_at_path_unchecked(&self, path: &Path,
@@ -262,29 +268,36 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
 }
 
 struct TypeCollectingSymbolTableBuilder {
-    symtab: Symtab,
+    symtab: SymbolTable,
     errors: Vec<AnalysisError>,
 }
 
 impl TypeCollectingSymbolTableBuilder {
     fn new() -> Self {
         TypeCollectingSymbolTableBuilder {
-            symtab: Symtab::new(),
+            symtab: SymbolTable::new(),
             errors: Vec::new(),
         }
+    }
+
+    fn result(self) -> AnalysisResult<SymbolTable> {
+        for e in self.errors {
+            return Err(e);
+        }
+        Ok(self.symtab)
     }
 }
 
 impl ASTVisitor for TypeCollectingSymbolTableBuilder {
     fn visit_module(&mut self, m: &Module) {
-        if self.symtab.contains_key(&m.name.0) {
+        if self.symtab.symtab.contains_key(&m.name.0) {
             self.errors.push(AnalysisError {
                 kind: AnalysisErrorKind::DuplicateSymbol,
                 regarding: Some(format!("mod {}", m.name)),
                 loc: m.loc.clone(),
             });
         } else {
-            self.symtab.insert(m.name.0.clone(), HashMap::new());
+            self.symtab.symtab.insert(m.name.0.clone(), HashMap::new());
         }
 
         self.walk_module(m);
@@ -292,7 +305,7 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
 
     fn visit_structdef(&mut self, def: &StructDef, m: &Ident) {
         {
-            let mod_tab = self.symtab.get_mut(&m.0).expect(
+            let mod_tab = self.symtab.module_table_mut(m).expect(
                 "internal compiler error: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
@@ -314,7 +327,7 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
 
     fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
         {
-            let mod_tab = self.symtab.get_mut(&m.0).expect(
+            let mod_tab = self.symtab.module_table_mut(m).expect(
                 "internal compiler error: no module entry in symbol table");
 
             let members = match mod_tab.get_mut(&st.0) {
@@ -339,23 +352,31 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
 }
 
 struct ValueCollectingSymbolTableBuilder {
-    symtab: Symtab,
+    symtab: SymbolTable,
     errors: Vec<AnalysisError>,
 }
 
 impl ValueCollectingSymbolTableBuilder {
-    fn from(symtab: Symtab) -> Self {
+    fn from(symtab: SymbolTable) -> Self {
         ValueCollectingSymbolTableBuilder {
             symtab: symtab,
             errors: Vec::new(),
         }
+    }
+
+    // TODO: allow vector of errors
+    fn result(self) -> AnalysisResult<SymbolTable> {
+        for e in self.errors {
+            return Err(e);
+        }
+        Ok(self.symtab)
     }
 }
 
 impl ASTVisitor for ValueCollectingSymbolTableBuilder {
     fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
         {
-            let mod_tab = self.symtab.get_mut(&m.0).expect(
+            let mod_tab = self.symtab.module_table_mut(m).expect(
                 "internal compiler error: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
@@ -375,6 +396,29 @@ impl ASTVisitor for ValueCollectingSymbolTableBuilder {
         self.walk_fundef(def, m);
     }
 
+    fn visit_path(&mut self, p: &Path, ctxt: NameCtxt, loc: &SrcLoc) {
+        // ensure declare-before-use of "local" names
+        match *p {
+            Path(None, ref ident) => {
+                match ctxt {
+                    NameCtxt::Value(_, _, _) => {
+                        if let Err(e) =
+                          self.symtab.symbol_at_path(p, ctxt, loc) {
+                            self.errors.push(e);
+                            return;
+                        }
+                    }
+
+                    _ => {},
+                }
+            },
+
+            _ => {},
+        }
+
+        self.walk_path(p, ctxt, loc);
+    }
+
     fn visit_ident(&mut self, i: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
         let (module, scope, ty, mode, desc) = match ctxt {
             NameCtxt::DefValue(m, f, ty) =>
@@ -384,7 +428,7 @@ impl ASTVisitor for ValueCollectingSymbolTableBuilder {
             _ => { return; },
         };
 
-        let mod_tab = self.symtab.get_mut(&module.0).expect(
+        let mod_tab = self.symtab.module_table_mut(module).expect(
             "internal compiler error: no module entry in symbol table");
 
         if let Some(f) = scope {
