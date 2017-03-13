@@ -346,6 +346,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(ub_ty)
         },
 
+        // TODO: panic here, let's finish the typechecker
         _ => { Ok(Type::Variant) } // unimplemented!(),
     }
 }

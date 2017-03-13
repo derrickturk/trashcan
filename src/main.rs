@@ -55,11 +55,8 @@ fn main() {
     let dumpster = analysis::for_loop_var_gensym(dumpster);
 
     let mut dumpster = analysis::short_circuit_logicals(dumpster);
-    let mut symtab = analysis::SymbolTable::build(&dumpster)
-        .expect("symtab error");
-
-    analysis::resolve_deferred(&mut dumpster, &mut symtab)
-        .expect("resolve error");
+    let symtab = analysis::SymbolTable::build(&mut dumpster)
+        .expect("symtab/resolve error");
 
     analysis::typecheck(&dumpster, &symtab)
         .expect("typeck error");

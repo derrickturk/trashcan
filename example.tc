@@ -3,7 +3,7 @@
 // define ordinary module
 mod example {
 
-struct nothing {
+pub struct nothing {
     x: i32,
     y: f64[],
     z: i32[1:10; 9:17],
@@ -15,7 +15,7 @@ pub fn f(x: i32, y: &f64[]) -> str {
     let f: str = "it's got the same name as the function!";
 
     // need deferred type resolution...
-    // let s: nothing;
+    let s: nothing;
 
     let end: f64 = 17, lbound: f64 = end;
 
@@ -107,7 +107,7 @@ mod more_examples {
     fn arrays() {
         let x: i32[10];
         let y: obj[];
-        let z: SomeType[2:17];
+        let z: example::nothing[2:17];
 
         for i: i32 = `LBound(x)` : `UBound(x)` {
             print x[i];
@@ -129,7 +129,7 @@ mod other_mod {
         xs[1;2] = 3;
     }
 
-    pub fn fun2(x: &i32[], y: &obj[], z: &SomeType[]) -> bool {
+    pub fn fun2(x: &i32[], y: &obj[], z: &example::nothing[]) -> bool {
         return true;
     }
 

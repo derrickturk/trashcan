@@ -4,6 +4,7 @@ use super::*;
 use ast::*;
 use visit::NameCtxt;
 use visit::ASTVisitor;
+use visit::ASTVisitorMut;
 
 use std::io;
 use std::io::Write;
@@ -61,7 +62,7 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    pub fn build(dumpster: &Dumpster) -> AnalysisResult<SymbolTable> {
+    pub fn build(dumpster: &mut Dumpster) -> AnalysisResult<SymbolTable> {
         // first make a pass to collect all type declarations into
         //   the symbol table...
         let mut type_collector = TypeCollectingSymbolTableBuilder::new();
@@ -70,15 +71,23 @@ impl SymbolTable {
             return Err(err);
         }
 
-        // then a mutation pass over the AST to resolve Deferred type nodes
+        let symtab = SymbolTable {
+            symtab: type_collector.symtab,
+        };
 
-        // TODO: implement this
-        // resolve_deferred(&mut symtab);
+        {
+            // then a mutation pass over the AST to resolve Deferred type nodes
+            let mut resolver = DeferredResolver::from(&symtab);
+            resolver.visit_dumpster(dumpster);
+            for err in resolver.errors.drain(..) { // for now
+                return Err(err);
+            }
+        }
 
         // then a final pass to collect values and functions into the symbol
         //   table, using the resolved types
         let mut value_collector =
-            ValueCollectingSymbolTableBuilder::from(type_collector.symtab);
+            ValueCollectingSymbolTableBuilder::from(symtab.symtab);
         value_collector.visit_dumpster(dumpster);
         for err in value_collector.errors.drain(..) { // for now
             return Err(err);
@@ -404,5 +413,54 @@ impl ASTVisitor for ValueCollectingSymbolTableBuilder {
                 mod_tab.insert(i.0.clone(), Symbol::Value(ty.clone(), mode));
             }
         }
+    }
+}
+
+struct DeferredResolver<'a> {
+    symtab: &'a SymbolTable,
+    errors: Vec<AnalysisError>,
+}
+
+impl<'a> DeferredResolver<'a> {
+    fn from(symtab: &'a SymbolTable) -> Self {
+        DeferredResolver {
+            symtab: symtab,
+            errors: Vec::new(),
+        }
+    }
+}
+
+impl<'a> ASTVisitorMut for DeferredResolver<'a> {
+    fn visit_type(&mut self, t: &mut Type, module: &Ident, loc: &SrcLoc) {
+        let new_type = match *t {
+            Type::Deferred(ref path) => {
+                match self.symtab.symbol_at_path(path,
+                  NameCtxt::Type(module, Access::Private), loc) {
+                    Ok(&Symbol::Struct { .. }) => {
+                        Type::Struct(path.clone())
+                    },
+
+                    Ok(_) => {
+                        panic!("internal compiler error: \
+                          type lookup produced non-type");
+                    },
+
+                    Err(e) => {
+                        self.errors.push(e);
+                        return;
+                    },
+                }
+            }
+
+            // this is a goofy way to build this but I don't feel like
+            //   fighting the damn borrow checker right now
+            _ => {
+                // we need to potentially recurse into e.g. array types
+                self.walk_type(t, module, loc);
+                return;
+            }
+        };
+
+        *t = new_type;
     }
 }
