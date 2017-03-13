@@ -6,16 +6,16 @@ in which the compiler is not conincidentally written) which compiles to
 Visual Basic (the old, gross one).
 
 Key features of the trashcan language over VB include:  
-[x] No more damn case insensitivity  
-[ ] Short-circuiting boolean expressions  
-[ ] Generic types and functions  
-[ ] Simplified iteration (for-each loops)  
-[x] Mandatory typing with limited type-checking enhancements  
-[x] Syntactic conveniences (e.g. += and friends)  
-[ ] Array and structure literals  
-[ ] Objects with constructors (use validated only for trashcan code)  
-[ ] Somehow, improved error handling (?)  
-[ ] Closures (?)  
+* [x] No more damn case insensitivity  
+* [ ] Short-circuiting boolean expressions  
+* [ ] Generic types and functions  
+* [ ] Simplified iteration (for-each loops)  
+* [x] Mandatory typing with limited type-checking enhancements  
+* [x] Syntactic conveniences (e.g. += and friends)  
+* [ ] Array and structure literals  
+* [ ] Objects with constructors (use validated only for trashcan code)  
+* [ ] Somehow, improved error handling (?)  
+* [ ] Closures (?)  
 
 trashcan is inspired by previous work on extending the VB language with m4 macros: https://gist.github.com/derrickturk/5c01caab93bbd6bc9ddd
 
