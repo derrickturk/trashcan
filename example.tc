@@ -19,6 +19,7 @@ pub fn f(x: i32, y: &f64[]) -> str {
     // need deferred type resolution...
     let s: nothing;
     s.x = 17;
+    // s.f(23);
     // s.end = 92.3;
     // s.begin = 17;
 

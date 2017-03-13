@@ -181,14 +181,30 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     return Err(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
                         regarding: Some(format!("attempt to access member \
-                          of type {} (not struct, class, or var)", ty)),
+                          of type {} (not struct, class, obj, or var)", ty)),
                         loc: expr.loc.clone(),
                     });
                 }
             }
         },
 
-        // TODO: member invoke (we need type definitions first)
+        ExprKind::MemberInvoke(ref expr, ref mem, ref args) => {
+            let expr_ty = type_of(&**expr, symtab, ctxt)?;
+            match expr_ty {
+                // for now
+                Type::Variant | Type::Obj | Type::Object(_) =>
+                    Ok(Type::Variant),
+
+                ty => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!("attempt to invoke member \
+                          function of type {} (not class, obj, or var)", ty)),
+                        loc: expr.loc.clone(),
+                    });
+                }
+            }
+        },
 
         ExprKind::UnOpApp(ref expr, ref op) => {
             let expr_ty = type_of(&**expr, symtab, ctxt)?;
@@ -387,8 +403,8 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(ub_ty)
         },
 
-        // TODO: panic here, let's finish the typechecker
-        _ => { Ok(Type::Variant) } // unimplemented!(),
+        // could be anything
+        ExprKind::VbExpr(_) => Ok(Type::Variant),
     }
 }
 
