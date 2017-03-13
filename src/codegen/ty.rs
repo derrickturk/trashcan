@@ -18,7 +18,7 @@ impl Emit<TypePos> for Type {
       ctxt: TypePos, indent: u32) -> io::Result<()> {
         match *self {
             Type::Deferred(ref i) =>
-                panic!("internal compiler error: unresolved type \
+                panic!("dumpster fire: unresolved type \
                   {:?} in codegen", i),
 
             Type::Array(_, ref bounds) => {
@@ -65,7 +65,7 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
         &Type::Enum(ref path) => path.emit(out, symtab, (), 0),
         &Type::Deferred(ref path) => path.emit(out, symtab, (), 0),
         &Type::Void =>
-            panic!("internal compiler error: tried to emit void type"),
+            panic!("dumpster fire: tried to emit void type"),
     }
 }
 

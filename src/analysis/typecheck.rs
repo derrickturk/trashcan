@@ -52,7 +52,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
               &expr.loc)? {
                 Symbol::Const(ref ty) => Ok(ty.clone()),
                 Symbol::Value(ref ty, _) => Ok(ty.clone()),
-                _ => panic!("internal compiler error: non-value slipped past \
+                _ => panic!("dumpster fire: non-value slipped past \
                   lookup typecheck"),
             }
         },
@@ -102,7 +102,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             let fun = match *symtab.symbol_at_path(path,
               NameCtxt::Function(&ctxt.0, Access::Private), &expr.loc)? {
                 Symbol::Fun { ref def, .. } => def,
-                _ => panic!("internal compiler error: non-function \
+                _ => panic!("dumpster fire: non-function \
                   slipped past lookup typecheck"),
             };
 
@@ -169,12 +169,11 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                             }
                         }
                     } else {
-                        panic!("internal compiler error: struct definition \
-                          not found");
+                        panic!("dumpster fire: struct definition not found");
                     }
                 },
 
-                Type::Deferred(ref path) => panic!("internal compiler error:
+                Type::Deferred(ref path) => panic!("dumpster fire:
                   deferred type in type checking pass"),
 
                 ty => {
@@ -423,7 +422,7 @@ pub fn upper_bound_type(lhs: &Type, rhs: &Type) -> Option<Type> {
 
 pub fn may_coerce(from: &Type, to: &Type) -> bool {
     if let Type::Deferred(ref path) = *to {
-        panic!("attempt to coerce-check deferred type {}", path);
+        panic!("dumpster fire: attempt to coerce-check deferred type {}", path);
     }
 
     match *from {
@@ -528,12 +527,14 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
             _ => false,
         },
 
-        Type::Deferred(ref path) => panic!("internal compiler error:\
+        Type::Deferred(ref path) => panic!("dumpster fire: \
             attempt to coerce-check deferred type {}", path),
 
         Type::Void => false,
 
-        _ => panic!("we haven't figured out the rules for this type yet."),
+        // TODO: handle currency, date, etc
+        _ => panic!("dumpster fire: we haven't figured out the rules for \
+          this type yet."),
     }
 }
 
@@ -577,7 +578,7 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
 
         // these should already be gensymmed away
         if &p.name == f {
-            panic!("internal compiler error: \
+            panic!("dumpster fire: \
               parameter {} has same name as function", p.name);
         }
 
@@ -617,7 +618,7 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 if let Some(ref fun) = ctxt.1 {
                     // these should already be gensymmed away
                     if ident == fun {
-                        panic!("internal compiler error: \
+                        panic!("dumpster fire: \
                           variable {} has same name as function", ident);
                     }
                 }
@@ -756,7 +757,7 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                         }
                     }
                 } else {
-                    panic!("internal compiler error: fn definition not \
+                    panic!("dumpster fire: fn definition not \
                       found in symbol table.");
                 }
             } else {

@@ -152,7 +152,7 @@ impl SymbolTable {
                 }),
             },
 
-            _ => panic!("internal compiler error: invalid context for path lookup")
+            _ => panic!("dumpster fire: invalid context for path lookup")
         }
     }
 
@@ -191,7 +191,7 @@ impl SymbolTable {
             NameCtxt::Function(m, access) => (m, None, access),
             NameCtxt::Type(m, access) => (m, None, access),
             NameCtxt::Value(m, scope, access) => (m, scope, access),
-            _ => panic!("internal compiler error: invalid context for path lookup")
+            _ => panic!("dumpster fire: invalid context for path lookup")
         };
 
         let allow_private = access == Access::Private;
@@ -212,7 +212,7 @@ impl SymbolTable {
                         }
                     }
                 } else {
-                    panic!("internal compiler error: no function record for {}",
+                    panic!("dumpster fire: no function record for {}",
                       fun);
                 }
             }
@@ -306,7 +306,7 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
     fn visit_structdef(&mut self, def: &StructDef, m: &Ident) {
         {
             let mod_tab = self.symtab.module_table_mut(m).expect(
-                "internal compiler error: no module entry in symbol table");
+                "dumpster fire: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
                 self.errors.push(AnalysisError {
@@ -328,11 +328,12 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
     fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
         {
             let mod_tab = self.symtab.module_table_mut(m).expect(
-                "internal compiler error: no module entry in symbol table");
+                "dumpster fire: no module entry in symbol table");
 
             let members = match mod_tab.get_mut(&st.0) {
                 Some(&mut Symbol::Struct { ref mut members, .. }) => members,
-                _ => panic!("internal compiler error"),
+                _ => panic!("dumpster fire: \
+                  no struct entry for {}::{}", m, st),
             };
 
             if members.contains_key(&mem.name.0) {
@@ -377,7 +378,7 @@ impl ASTVisitor for ValueCollectingSymbolTableBuilder {
     fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
         {
             let mod_tab = self.symtab.module_table_mut(m).expect(
-                "internal compiler error: no module entry in symbol table");
+                "dumpster fire: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
                 self.errors.push(AnalysisError {
@@ -429,12 +430,13 @@ impl ASTVisitor for ValueCollectingSymbolTableBuilder {
         };
 
         let mod_tab = self.symtab.module_table_mut(module).expect(
-            "internal compiler error: no module entry in symbol table");
+            "dumpster fire: no module entry in symbol table");
 
         if let Some(f) = scope {
             let locals = match mod_tab.get_mut(&f.0) {
                 Some(&mut Symbol::Fun { ref mut locals, .. }) => locals,
-                _ => panic!("internal compiler error"),
+                _ => panic!("dumpster fire: \
+                  no fn entry in symbol table for {}::{}", module, f),
             };
 
             if locals.contains_key(&i.0) {
@@ -485,7 +487,7 @@ impl<'a> ASTVisitorMut for DeferredResolver<'a> {
                     },
 
                     Ok(_) => {
-                        panic!("internal compiler error: \
+                        panic!("dumpster fire: \
                           type lookup produced non-type");
                     },
 

@@ -35,14 +35,14 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                   in = (indent * INDENT) as usize)?;
 
                 let place_ty = analysis::type_of(place, symtab, &ctxt.1)
-                    .expect("internal compiler error: untypeable expression \
+                    .expect("dumpster fire: untypeable expression \
                       in codegen");
                 match place_ty.is_object() {
                     Some(true) => out.write_all(b"Set ")?,
                     Some(false) => {},
                     None => {
                         let expr_ty = analysis::type_of(expr, symtab, &ctxt.1)
-                            .expect("internal compiler error: untypeable expression \
+                            .expect("dumpster fire: untypeable expression \
                               in codegen");
                         match expr_ty.is_object() {
                             Some(true) => out.write_all(b"Set ")?,
@@ -80,7 +80,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                             None => {
                                 let ret_ty = analysis::type_of(
                                     e, symtab, &ctxt.1)
-                                    .expect("internal compiler error: \
+                                    .expect("dumpster fire: \
                                       untypeable expression in codegen");
                                 match ret_ty.is_object() {
                                     Some(true) => out.write_all(b"Set ")?,

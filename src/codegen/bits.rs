@@ -69,8 +69,8 @@ impl Emit<()> for AssignOp {
             AssignOp::BitOrAssign => b" Or ",
             AssignOp::LogAndAssign => b" And ",
             AssignOp::LogOrAssign => b" Or ",
-            AssignOp::Assign => panic!("basic assign should never result in \
-                AssignOp::emit()"),
+            AssignOp::Assign => panic!("dumpster fire basic assign should \
+              never result in AssignOp::emit()"),
         };
         out.write_all(op)
     }
@@ -99,8 +99,8 @@ impl Emit<()> for BinOp {
             BinOp::BitOr => b" Or ",
             BinOp::LogAnd => b" And ",
             BinOp::LogOr => b" Or ",
-            BinOp::NotIdentEq => panic!("BinOp::NotIdentEq should never be \
-              emitted directly"),
+            BinOp::NotIdentEq => panic!("dumpster fire: BinOp::NotIdentEq \
+              should never be emitted directly"),
         };
         out.write_all(op)
     }

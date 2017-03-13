@@ -22,7 +22,8 @@ impl Emit<()> for Literal {
             Literal::Float32(n) => format!("!{}", n),
             Literal::Float64(n) => format!("#{}", n),
             Literal::String(ref s) => vb_string(s),
-            _ => panic!("don't know how to emit that yet"),
+            // TODO: handle wacky types
+            _ => panic!("dumpster fire: don't know how to emit that yet"),
         };
 
         write!(out, "{:in$}{}", "", as_str, in = (indent * INDENT) as usize)

@@ -54,7 +54,7 @@ named!(literal_int<Literal>, complete!(map_res!(do_parse!(
             Some("isize") => num.parse::<i64>().map(Literal::IntPtr),
             // default i32
             None => num.parse::<i32>().map(Literal::Int32),
-            _ => panic!("internal parser error")
+            _ => panic!("dumpster fire: bad tag in int literal")
         }
     })));
 
@@ -85,7 +85,7 @@ named!(literal_float<Literal>, complete!(map_res!(do_parse!(
             Some("f64") => num.parse::<f64>().map(Literal::Float64),
             // default f64
             None => num.parse::<f64>().map(Literal::Float64),
-            _ => panic!("internal parser error")
+            _ => panic!("dumpster fire: bad tag in float literal")
         }
     })));
 

@@ -129,7 +129,7 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
                 (false, false, false, true, false, &mut self.member_renamers),
             Rename::Module =>
                 (false, false, false, false, true, &mut self.module_renamers),
-            _ => panic!(),
+            _ => panic!("dumpster fire: invalid rename type"),
         };
 
         let g = gensym(Some(ident.clone()));
@@ -294,7 +294,7 @@ impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
             },
             Rename::Module =>
                 (false, false, false, false, true, &mut self.module_renamers),
-            _ => panic!(),
+            _ => panic!("dumpster fire: invalid rename type"),
         };
 
         let g = gensym(Some(ident.clone()));

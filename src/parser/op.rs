@@ -34,7 +34,7 @@ named!(pub un_op<UnOp>, complete!(preceded!(
         '~' => UnOp::BitNot,
         '!' => UnOp::LogNot,
         '&' => UnOp::AddressOf,
-        _ => panic!("internal parser error")
+        _ => panic!("dumpster fire: bad unary operator")
     })
 )));
 
@@ -44,7 +44,7 @@ named!(pub muldiv_op<BinOp>, complete!(preceded!(
         '*' => BinOp::Mul,
         '/' => BinOp::Div,
         '%' => BinOp::Mod,
-        _ => panic!("internal parser error")
+        _ => panic!("dumpster fire: bad binary operator")
     })
 )));
 
@@ -54,7 +54,7 @@ named!(pub addsub_op<BinOp>, complete!(preceded!(
         '+' => BinOp::Add,
         '-' => BinOp::Sub,
         '@' => BinOp::StrCat,
-        _ => panic!("internal parser error")
+        _ => panic!("dumpster fire: bad binary operator")
     })
 )));
 
@@ -66,7 +66,7 @@ named!(pub cmp_op<BinOp>, complete!(preceded!(
       | one_of!("<>") => { |c| match c {
             '<' => BinOp::Lt,
             '>' => BinOp::Gt,
-            _ => panic!("internal parser error")
+            _ => panic!("dumpster fire: bad binary operator")
         }}
     )
 )));

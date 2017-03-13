@@ -490,16 +490,14 @@ macro_rules! make_ast_vistor {
                     Path(Some(ref $($_mut)* path_m), ref $($_mut)* i) => {
                         let inner_ctxt = match ctxt {
                             NameCtxt::Module | NameCtxt::DefModule =>
-                                panic!("internal compiler error: path as \
-                                       module name"),
+                                panic!("dumpster fire: path as module name"),
 
                             NameCtxt::DefFunction(_)
                           | NameCtxt::DefType(_)
                           | NameCtxt::DefValue(_, _, _)
                           | NameCtxt::DefParam(_, _, _, _)
                           | NameCtxt::DefMember(_, _, _) =>
-                                panic!("internal compiler error: path as \
-                                       name definition"),
+                                panic!("dumpster fire: path as name definition"),
 
                             // TODO: do we want any notion of "inheriting"
                             //   access from the original lookup?
@@ -536,8 +534,7 @@ macro_rules! make_ast_vistor {
                                 }),
 
                             NameCtxt::Member(_, _, _) =>
-                                panic!("internal compiler error: path as \
-                                       member name"),
+                                panic!("dumpster fire: path as member name"),
                         };
                         (i, inner_ctxt)
                     },
