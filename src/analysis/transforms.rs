@@ -340,9 +340,14 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
       function: &Ident) -> Vec<Stmt> {
         stmts.into_iter().flat_map(|stmt| {
             let stmt = self.fold_stmt(stmt, module, function);
+
             let mut before_stmts = self.before_stmt_stack.pop()
                 .expect("dumpster fire: error in before statement stack");
             let mut result: Vec<_> = before_stmts.drain(..).collect();
+
+            // am I crazy?
+            result = self.fold_stmt_list(result, module, function);
+
             result.push(stmt);
             result
         }).collect()
@@ -412,13 +417,90 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
         let data = match data {
             ExprKind::BinOpApp(lhs, rhs, op) => {
                 match op {
-                    // TODO: finish these
                     BinOp::LogAnd => {
-                        ExprKind::BinOpApp(lhs, rhs, BinOp::LogAnd)
+                        // use a gensym for this term
+                        let g = gensym(None);
+
+                        let before_stmts = self.before_stmt_stack.last_mut()
+                          .expect("dumpster fire: \
+                                  error in before statement stack");
+
+                        // add symbol table entry for it
+                        self.symtab.add_value_entry(&g, module, Some(function),
+                          &Type::Bool, &loc)
+                          .expect("dumpster fire: \
+                                  failure adding symtab entry for gensym");
+
+                        // push a declaration for it
+                        before_stmts.push(Stmt {
+                            data: StmtKind::VarDecl(vec![
+                              (g.clone(), Type::Bool, Some(*lhs))
+                            ]),
+                            loc: loc.clone(),
+                        });
+
+                        // build a path-expression for it
+                        let g_expr = Expr {
+                            data: ExprKind::Name(Path(None, g)),
+                            loc: loc.clone(),
+                        };
+
+                        // push an &&= for it, using existing short-circuiting
+                        //   rules in .fold_stmt(...)
+                        before_stmts.push(Stmt {
+                            data: StmtKind::Assign(
+                                g_expr.clone(),
+                                AssignOp::LogAndAssign,
+                                *rhs
+                            ),
+                            loc: loc.clone(),
+                        });
+
+                        // use the gensym as our new expression
+                        g_expr.data
                     },
 
                     BinOp::LogOr => {
-                        ExprKind::BinOpApp(lhs, rhs, BinOp::LogOr)
+                        // use a gensym for this term
+                        let g = gensym(None);
+
+                        let before_stmts = self.before_stmt_stack.last_mut()
+                          .expect("dumpster fire: \
+                                  error in before statement stack");
+
+                        // add symbol table entry for it
+                        self.symtab.add_value_entry(&g, module, Some(function),
+                          &Type::Bool, &loc)
+                          .expect("dumpster fire: \
+                                  failure adding symtab entry for gensym");
+
+                        // push a declaration for it
+                        before_stmts.push(Stmt {
+                            data: StmtKind::VarDecl(vec![
+                              (g.clone(), Type::Bool, Some(*lhs))
+                            ]),
+                            loc: loc.clone(),
+                        });
+
+                        // build a path-expression for it
+                        let g_expr = Expr {
+                            data: ExprKind::Name(Path(None, g)),
+                            loc: loc.clone(),
+                        };
+
+                        // push an &&= for it, using existing short-circuiting
+                        //   rules in .fold_stmt(...)
+                        before_stmts.push(Stmt {
+                            data: StmtKind::Assign(
+                                g_expr.clone(),
+                                AssignOp::LogOrAssign,
+                                *rhs
+                            ),
+                            loc: loc.clone(),
+                        });
+
+                        // use the gensym as our new expression
+                        g_expr.data
                     },
 
                     op => {
@@ -449,10 +531,11 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                   &ty, &loc).expect("dumpster fire: \
                                     failure adding symtab entry for gensym");
 
+                let before_stmts = self.before_stmt_stack.last_mut()
+                  .expect("dumpster fire: error in before statement stack");
+
                 // push declaration for g
-                self.before_stmt_stack.last_mut()
-                  .expect("dumpster fire: error in before statement stack")
-                  .push(Stmt {
+                before_stmts.push(Stmt {
                     data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
                     loc: loc.clone(),
                 });
@@ -462,11 +545,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                     loc: loc.clone(),
                 };
 
-                // TODO: push declaration for g
-
-                self.before_stmt_stack.last_mut()
-                  .expect("dumpster fire: error in before statement stack")
-                  .push(Stmt {
+                before_stmts.push(Stmt {
                     data: StmtKind::IfStmt {
                         cond: *cond,
                         body: vec![

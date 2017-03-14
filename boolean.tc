@@ -25,4 +25,9 @@ mod bools {
             print i;
         }
     }
+
+    fn big_ol_bool() {
+        let x: bool = (true && (false || (true && true)))
+          || (!false && true && true);
+    }
 }
