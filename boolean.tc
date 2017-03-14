@@ -8,4 +8,11 @@ mod bools {
         let d: bool = true;
         d &&= a || b && c;
     }
+
+    fn condexpr_test() {
+        let x: bool = true;
+        let y: bool = false;
+
+        let z: i32 = x ? (y ? 1 : 17) : 22;
+    }
 }

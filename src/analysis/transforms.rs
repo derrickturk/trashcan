@@ -315,24 +315,37 @@ impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
 
 /// replace logical-op expressions (and conditions) with short-circuiting
 /// equivalents
-pub fn short_circuit_logicals(dumpster: Dumpster) -> Dumpster {
-    let mut f = ShortCircuitLogicalsFolder::new();
+pub fn short_circuit_logicals(dumpster: Dumpster, symtab: &mut SymbolTable)
+  -> Dumpster {
+    let mut f = ShortCircuitLogicalsFolder::build(symtab);
     f.fold_dumpster(dumpster)
 }
 
-struct ShortCircuitLogicalsFolder {
+struct ShortCircuitLogicalsFolder<'a> {
+    symtab: &'a mut SymbolTable,
     before_stmts: Vec<Stmt>,
 }
 
-impl ShortCircuitLogicalsFolder {
-    fn new() -> Self {
+impl<'a> ShortCircuitLogicalsFolder<'a> {
+    fn build(symtab: &'a mut SymbolTable) -> Self {
         ShortCircuitLogicalsFolder {
+            symtab: symtab,
             before_stmts: Vec::new(),
         }
     }
 }
 
-impl ASTFolder for ShortCircuitLogicalsFolder {
+impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
+    fn fold_stmt_list(&mut self, stmts: Vec<Stmt>, module: &Ident,
+      function: &Ident) -> Vec<Stmt> {
+        stmts.into_iter().flat_map(|stmt| {
+            let stmt = self.fold_stmt(stmt, module, function);
+            let mut result: Vec<_> = self.before_stmts.drain(..).collect();
+            result.push(stmt);
+            result
+        }).collect()
+    }
+
     fn fold_stmt(&mut self, stmt: Stmt, module: &Ident,
       function: &Ident) -> Stmt {
         // first recurse into the statement...
@@ -406,6 +419,68 @@ impl ASTFolder for ShortCircuitLogicalsFolder {
                         ExprKind::BinOpApp(lhs, rhs, op)
                     },
                 }
+            },
+
+            ExprKind::CondExpr { cond, if_expr, else_expr } => {
+                let g = gensym(None);
+
+                let this_expr = Expr {
+                    data: ExprKind::CondExpr {
+                        cond: cond.clone(),
+                        if_expr: if_expr.clone(),
+                        else_expr: else_expr.clone()
+                    },
+                    loc: loc.clone(),
+                };
+                
+                let ty = type_of(&this_expr, self.symtab,
+                  &ExprCtxt(module.clone(), Some(function.clone())))
+                  .expect("dumpster fire: \
+                     untypeable condexpr in short-ciruiter");
+
+                // add symbol table entry for g
+                self.symtab.add_value_entry(&g, module, Some(function),
+                  &ty, &loc).expect("dumpster fire: \
+                                    failure adding symtab entry for gensym");
+
+                // push declaration for g
+                self.before_stmts.push(Stmt {
+                    data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
+                    loc: loc.clone(),
+                });
+
+                let g_expr = Expr {
+                    data: ExprKind::Name(Path(None, g)),
+                    loc: loc.clone(),
+                };
+
+                // TODO: push declaration for g
+
+                self.before_stmts.push(Stmt {
+                    data: StmtKind::IfStmt {
+                        cond: *cond,
+                        body: vec![
+                            Stmt {
+                                data: StmtKind::Assign(
+                                  g_expr.clone(), AssignOp::Assign, *if_expr),
+                                loc: loc.clone(),
+                            }
+                        ],
+                        // TODO: we could use this for condexpr chains
+                        elsifs: vec![],
+                        els: Some(vec![
+                           Stmt {
+                               data: StmtKind::Assign(
+                                 g_expr.clone(), AssignOp::Assign, *else_expr),
+                               loc: loc.clone()
+                           }
+                        ]),
+                    },
+
+                    loc: loc.clone(),
+                });
+
+                g_expr.data
             },
 
             e => e,

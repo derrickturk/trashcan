@@ -48,18 +48,25 @@ fn main() {
         }
     }
 
+    // pre-processing / rename passes
     let dumpster = analysis::merge_dumpsters(dumpsters);
     let dumpster = analysis::case_folding_duplicate_gensym(dumpster);
     let dumpster = analysis::vb_keyword_gensym(dumpster);
     let dumpster = analysis::fn_name_local_gensym(dumpster);
-    let dumpster = analysis::for_loop_var_gensym(dumpster);
-    let mut dumpster = analysis::short_circuit_logicals(dumpster);
+    let mut dumpster = analysis::for_loop_var_gensym(dumpster);
 
-    let symtab = analysis::SymbolTable::build(&mut dumpster)
+    // symbol table generation & deferred type resolution
+    let mut symtab = analysis::SymbolTable::build(&mut dumpster)
         .expect("symtab/resolve error");
 
+    // typecheck
     analysis::typecheck(&dumpster, &symtab)
         .expect("typeck error");
+
+    // post-processing / semantics-preserving passes
+    //   (these need symbols and access to typing)
+    //   (they also may emit new symbols etc)
+    let dumpster = analysis::short_circuit_logicals(dumpster, &mut symtab);
 
     for m in dumpster.modules.iter() {
         let file = m.filename();

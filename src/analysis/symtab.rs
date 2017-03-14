@@ -66,28 +66,36 @@ pub struct SymbolTable {
 
 impl SymbolTable {
     pub fn build(dumpster: &mut Dumpster) -> AnalysisResult<SymbolTable> {
+        let mut symtab = SymbolTable::new();
+
         // first make a pass to collect all type declarations into
         //   the symbol table...
-        let mut type_collector = TypeCollectingSymbolTableBuilder::new();
-        type_collector.visit_dumpster(dumpster);
-        let symtab = type_collector.result()?;
-
         {
-            // then a mutation pass over the AST to resolve Deferred type nodes
+            let mut type_collector =
+                TypeCollectingSymbolTableBuilder::build(&mut symtab);
+            type_collector.visit_dumpster(dumpster);
+
+            let _ = type_collector.result()?;
+        }
+
+        // then a mutation pass over the AST to resolve Deferred type nodes
+        {
             let mut resolver = DeferredResolver::from(&symtab);
             resolver.visit_dumpster(dumpster);
-            for err in resolver.errors.drain(..) { // for now
-                return Err(err);
-            }
+            let _ = resolver.result()?;
         }
 
         // then a final pass to collect values and functions into the symbol
         //   table, using the resolved types
-        let mut value_collector =
-            ValueCollectingSymbolTableBuilder::from(symtab);
-        value_collector.visit_dumpster(dumpster);
+        {
+            let mut value_collector =
+                ValueCollectingSymbolTableBuilder::build(&mut symtab);
+            value_collector.visit_dumpster(dumpster);
 
-        value_collector.result()
+            let _ = value_collector.result()?;
+        }
+
+        Ok(symtab)
     }
 
     // TODO: probably build symbol_at_ident etc (steal guts of
@@ -162,6 +170,18 @@ impl SymbolTable {
             write!(out, "module {}:\n", m)?;
             dump_sub_tbl(out, tbl, ind + 1)?;
         }
+        Ok(())
+    }
+
+    pub fn add_value_entry(&mut self, ident: &Ident, module: &Ident,
+      function: Option<&Ident>, ty: &Type, err_loc: &SrcLoc)
+      -> AnalysisResult<()> {
+        let mut value_collector =
+            ValueCollectingSymbolTableBuilder::build(self);
+        value_collector.visit_ident(ident,
+          NameCtxt::DefValue(module, function, ty), err_loc);
+        let _ = value_collector.result()?;
+
         Ok(())
     }
 
@@ -267,28 +287,28 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
     Ok(())
 }
 
-struct TypeCollectingSymbolTableBuilder {
-    symtab: SymbolTable,
+struct TypeCollectingSymbolTableBuilder<'a> {
+    symtab: &'a mut SymbolTable,
     errors: Vec<AnalysisError>,
 }
 
-impl TypeCollectingSymbolTableBuilder {
-    fn new() -> Self {
+impl<'a> TypeCollectingSymbolTableBuilder<'a> {
+    fn build(symtab: &'a mut SymbolTable) -> Self {
         TypeCollectingSymbolTableBuilder {
-            symtab: SymbolTable::new(),
+            symtab: symtab,
             errors: Vec::new(),
         }
     }
 
-    fn result(self) -> AnalysisResult<SymbolTable> {
+    fn result(self) -> AnalysisResult<()> {
         for e in self.errors {
             return Err(e);
         }
-        Ok(self.symtab)
+        Ok(())
     }
 }
 
-impl ASTVisitor for TypeCollectingSymbolTableBuilder {
+impl<'a> ASTVisitor for TypeCollectingSymbolTableBuilder<'a> {
     fn visit_module(&mut self, m: &Module) {
         if self.symtab.symtab.contains_key(&m.name.0) {
             self.errors.push(AnalysisError {
@@ -352,13 +372,13 @@ impl ASTVisitor for TypeCollectingSymbolTableBuilder {
     }
 }
 
-struct ValueCollectingSymbolTableBuilder {
-    symtab: SymbolTable,
+struct ValueCollectingSymbolTableBuilder<'a> {
+    symtab: &'a mut SymbolTable,
     errors: Vec<AnalysisError>,
 }
 
-impl ValueCollectingSymbolTableBuilder {
-    fn from(symtab: SymbolTable) -> Self {
+impl<'a> ValueCollectingSymbolTableBuilder<'a> {
+    fn build(symtab: &'a mut SymbolTable) -> Self {
         ValueCollectingSymbolTableBuilder {
             symtab: symtab,
             errors: Vec::new(),
@@ -366,15 +386,15 @@ impl ValueCollectingSymbolTableBuilder {
     }
 
     // TODO: allow vector of errors
-    fn result(self) -> AnalysisResult<SymbolTable> {
+    fn result(self) -> AnalysisResult<()> {
         for e in self.errors {
             return Err(e);
         }
-        Ok(self.symtab)
+        Ok(())
     }
 }
 
-impl ASTVisitor for ValueCollectingSymbolTableBuilder {
+impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
     fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
         {
             let mod_tab = self.symtab.module_table_mut(m).expect(
@@ -473,6 +493,14 @@ impl<'a> DeferredResolver<'a> {
             symtab: symtab,
             errors: Vec::new(),
         }
+    }
+
+    fn result(self) -> AnalysisResult<()> {
+        // for now
+        for e in self.errors {
+            return Err(e);
+        }
+        Ok(())
     }
 }
 
