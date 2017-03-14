@@ -256,9 +256,9 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
                 dump_sub_tbl(out, locals, ind + 1)?;
             },
             Symbol::Struct { ref def, ref members } => {
-                write!(out, "struct {}\n", def.name)?;
+                write!(out, "struct {}\n", def.name.0)?;
                 for m in members {
-                    write!(out, "{:in$}member {}: {}\n", "", m, m,
+                    write!(out, "{:in$}member {}: {}\n", "", m.0, m.1,
                       in=(ind + 1)*4).unwrap();
                 }
             },
