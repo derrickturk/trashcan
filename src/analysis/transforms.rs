@@ -323,14 +323,14 @@ pub fn short_circuit_logicals(dumpster: Dumpster, symtab: &mut SymbolTable)
 
 struct ShortCircuitLogicalsFolder<'a> {
     symtab: &'a mut SymbolTable,
-    before_stmts: Vec<Vec<Stmt>>,
+    before_stmt_stack: Vec<Vec<Stmt>>,
 }
 
 impl<'a> ShortCircuitLogicalsFolder<'a> {
     fn build(symtab: &'a mut SymbolTable) -> Self {
         ShortCircuitLogicalsFolder {
             symtab: symtab,
-            before_stmts: Vec::new(),
+            before_stmt_stack: Vec::new(),
         }
     }
 }
@@ -340,7 +340,8 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
       function: &Ident) -> Vec<Stmt> {
         stmts.into_iter().flat_map(|stmt| {
             let stmt = self.fold_stmt(stmt, module, function);
-            let mut before_stmts = self.before_stmts.pop().unwrap();
+            let mut before_stmts = self.before_stmt_stack.pop()
+                .expect("dumpster fire: error in before statement stack");
             let mut result: Vec<_> = before_stmts.drain(..).collect();
             result.push(stmt);
             result
@@ -350,7 +351,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
     fn fold_stmt(&mut self, stmt: Stmt, module: &Ident,
       function: &Ident) -> Stmt {
         // push a new before-context
-        self.before_stmts.push(Vec::new());
+        self.before_stmt_stack.push(Vec::new());
 
         // first recurse into the statement...
         let Stmt { data, loc } =
@@ -411,6 +412,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
         let data = match data {
             ExprKind::BinOpApp(lhs, rhs, op) => {
                 match op {
+                    // TODO: finish these
                     BinOp::LogAnd => {
                         ExprKind::BinOpApp(lhs, rhs, BinOp::LogAnd)
                     },
@@ -448,7 +450,9 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                                     failure adding symtab entry for gensym");
 
                 // push declaration for g
-                self.before_stmts.last_mut().unwrap().push(Stmt {
+                self.before_stmt_stack.last_mut()
+                  .expect("dumpster fire: error in before statement stack")
+                  .push(Stmt {
                     data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
                     loc: loc.clone(),
                 });
@@ -460,7 +464,9 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                 // TODO: push declaration for g
 
-                self.before_stmts.last_mut().unwrap().push(Stmt {
+                self.before_stmt_stack.last_mut()
+                  .expect("dumpster fire: error in before statement stack")
+                  .push(Stmt {
                     data: StmtKind::IfStmt {
                         cond: *cond,
                         body: vec![
