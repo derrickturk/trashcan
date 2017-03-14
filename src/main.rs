@@ -53,8 +53,8 @@ fn main() {
     let dumpster = analysis::vb_keyword_gensym(dumpster);
     let dumpster = analysis::fn_name_local_gensym(dumpster);
     let dumpster = analysis::for_loop_var_gensym(dumpster);
-
     let mut dumpster = analysis::short_circuit_logicals(dumpster);
+
     let symtab = analysis::SymbolTable::build(&mut dumpster)
         .expect("symtab/resolve error");
 

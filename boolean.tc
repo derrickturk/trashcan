@@ -1,0 +1,11 @@
+mod bools {
+    fn sc_test() {
+        let a: bool = true, b: bool = false, c: bool = true;
+
+        a &&= b;
+        a ||= c;
+
+        let d: bool = true;
+        d &&= a || b && c;
+    }
+}

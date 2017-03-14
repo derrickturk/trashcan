@@ -80,6 +80,7 @@ pub enum StmtKind {
     /// variable declaration(s) with optional initializer(s)
     VarDecl(Vec<(Ident, Type, Option<Expr>)>),
 
+    // TODO: why did I make this infix and BinOpApp et al postfix
     /// assignment statement (including += et. al)
     Assign(Expr, AssignOp, Expr),
 

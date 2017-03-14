@@ -316,36 +316,106 @@ impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
 /// replace logical-op expressions (and conditions) with short-circuiting
 /// equivalents
 pub fn short_circuit_logicals(dumpster: Dumpster) -> Dumpster {
-    Dumpster {
-        modules: dumpster.modules.into_iter().map(|m| {
-            Module {
-                name: m.name,
-                data: match m.data {
-                    ModuleKind::Normal(items) =>
-                        ModuleKind::Normal(items.into_iter().map(|i| {
-                            match i {
-                                NormalItem::Function(def) =>
-                                    NormalItem::Function(FunDef {
-                                        name: def.name,
-                                        access: def.access,
-                                        params: def.params,
-                                        ret: def.ret,
-                                        body: short_circuit_logicals_stmts(def.body),
-                                        loc: def.loc,
-                                    }),
+    let mut f = ShortCircuitLogicalsFolder::new();
+    f.fold_dumpster(dumpster)
+}
 
-                                item => item,
-                            }
-                        }).collect()),
-                },
-                loc: m.loc,
-            }
-        }).collect()
+struct ShortCircuitLogicalsFolder {
+    before_stmts: Vec<Stmt>,
+}
+
+impl ShortCircuitLogicalsFolder {
+    fn new() -> Self {
+        ShortCircuitLogicalsFolder {
+            before_stmts: Vec::new(),
+        }
     }
 }
 
-fn short_circuit_logicals_stmts(stmts: Vec<Stmt>) -> Vec<Stmt> {
-    stmts
+impl ASTFolder for ShortCircuitLogicalsFolder {
+    fn fold_stmt(&mut self, stmt: Stmt, module: &Ident,
+      function: &Ident) -> Stmt {
+        // first recurse into the statement...
+        let Stmt { data, loc } =
+            fold::noop_fold_stmt(self, stmt, module, function);
+
+        let data = match data {
+            StmtKind::Assign(lhs, op, rhs) => {
+                match op {
+                    AssignOp::LogAndAssign => StmtKind::IfStmt {
+                        cond: lhs.clone(),
+                        body: vec![
+                            Stmt {
+                                data: StmtKind::Assign(
+                                          lhs, AssignOp::LogAndAssign, rhs),
+                                loc: loc.clone(),
+                            }
+                        ],
+                        elsifs: vec![],
+                        els: None
+                    },
+
+                    AssignOp::LogOrAssign => StmtKind::IfStmt {
+                        cond: Expr {
+                            data: ExprKind::UnOpApp(
+                                      Box::new(lhs.clone()), UnOp::LogNot),
+                            loc: loc.clone(),
+                        },
+                        body: vec![
+                            Stmt {
+                                data: StmtKind::Assign(
+                                          lhs, AssignOp::LogOrAssign, rhs),
+                                loc: loc.clone(),
+                            }
+                        ],
+                        elsifs: vec![],
+                        els: None,
+                    },
+
+                    op => StmtKind::Assign(lhs, op, rhs),
+                }
+            },
+
+            s => s,
+        };
+
+        Stmt {
+            data: data,
+            loc: loc,
+        }
+    }
+
+    fn fold_expr(&mut self, expr: Expr, module: &Ident,
+      function: &Ident) -> Expr {
+        // first recurse into the expression...
+        let Expr { data, loc } =
+            fold::noop_fold_expr(self, expr, module, function);
+
+        let data = match data {
+            ExprKind::BinOpApp(lhs, rhs, op) => {
+                match op {
+                    BinOp::LogAnd => {
+                        ExprKind::BinOpApp(lhs, rhs, BinOp::LogAnd)
+                    },
+
+                    BinOp::LogOr => {
+                        ExprKind::BinOpApp(lhs, rhs, BinOp::LogOr)
+                    },
+
+                    op => {
+                        ExprKind::BinOpApp(lhs, rhs, op)
+                    },
+                }
+            },
+
+            e => e,
+        };
+
+        Expr {
+            data: data,
+            loc: loc,
+        }
+    }
 }
 
 pub const VB_KEYWORDS: [&'static str; 152] = [
