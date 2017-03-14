@@ -15,4 +15,14 @@ mod bools {
 
         let z: i32 = x ? (y ? 1 : 17) : 22;
     }
+
+    fn condexpr_loops() {
+        let x: bool = true;
+        for i: i32 = (x ? 1 : 2) : 10 {
+            for j: i32 = (i > 5 ? 2 : 5) : 8 {
+                print j;
+            }
+            print i;
+        }
+    }
 }

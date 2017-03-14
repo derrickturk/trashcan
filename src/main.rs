@@ -68,6 +68,10 @@ fn main() {
     //   (they also may emit new symbols etc)
     let dumpster = analysis::short_circuit_logicals(dumpster, &mut symtab);
 
+    // let's see what's in here
+    println!("dumpster dump: {:?}", dumpster);
+
+    // codegen pass
     for m in dumpster.modules.iter() {
         let file = m.filename();
         let mut file = File::create(&file).expect(

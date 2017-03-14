@@ -323,7 +323,7 @@ pub fn short_circuit_logicals(dumpster: Dumpster, symtab: &mut SymbolTable)
 
 struct ShortCircuitLogicalsFolder<'a> {
     symtab: &'a mut SymbolTable,
-    before_stmts: Vec<Stmt>,
+    before_stmts: Vec<Vec<Stmt>>,
 }
 
 impl<'a> ShortCircuitLogicalsFolder<'a> {
@@ -340,7 +340,8 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
       function: &Ident) -> Vec<Stmt> {
         stmts.into_iter().flat_map(|stmt| {
             let stmt = self.fold_stmt(stmt, module, function);
-            let mut result: Vec<_> = self.before_stmts.drain(..).collect();
+            let mut before_stmts = self.before_stmts.pop().unwrap();
+            let mut result: Vec<_> = before_stmts.drain(..).collect();
             result.push(stmt);
             result
         }).collect()
@@ -348,6 +349,9 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
     fn fold_stmt(&mut self, stmt: Stmt, module: &Ident,
       function: &Ident) -> Stmt {
+        // push a new before-context
+        self.before_stmts.push(Vec::new());
+
         // first recurse into the statement...
         let Stmt { data, loc } =
             fold::noop_fold_stmt(self, stmt, module, function);
@@ -444,7 +448,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                                     failure adding symtab entry for gensym");
 
                 // push declaration for g
-                self.before_stmts.push(Stmt {
+                self.before_stmts.last_mut().unwrap().push(Stmt {
                     data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
                     loc: loc.clone(),
                 });
@@ -456,7 +460,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                 // TODO: push declaration for g
 
-                self.before_stmts.push(Stmt {
+                self.before_stmts.last_mut().unwrap().push(Stmt {
                     data: StmtKind::IfStmt {
                         cond: *cond,
                         body: vec![
