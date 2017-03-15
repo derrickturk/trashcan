@@ -66,6 +66,7 @@ fn do_something(x: /* ByRef Long */ &i32) {
     }
 
     let o: obj;
+    // we're still gensymming the parameter...
     for x: obj in o.arr {
         // this doesn't get renamed because we don't have a memberdef anywhere
         //   for lbound, which I guess I'm ok with

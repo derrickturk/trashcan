@@ -51,10 +51,11 @@ fn main() {
     // pre-processing / rename passes
     let dumpster = analysis::merge_dumpsters(dumpsters);
 
-    let dumpster = analysis::case_folding_duplicate_gensym(dumpster);
+    // order matters here!
+    let dumpster = analysis::for_loop_var_gensym(dumpster);
     let dumpster = analysis::vb_keyword_gensym(dumpster);
     let dumpster = analysis::fn_name_local_gensym(dumpster);
-    let mut dumpster = analysis::for_loop_var_gensym(dumpster);
+    let mut dumpster = analysis::case_folding_duplicate_gensym(dumpster);
 
     // symbol table generation & deferred type resolution
     let mut symtab = analysis::SymbolTable::build(&mut dumpster)

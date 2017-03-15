@@ -217,7 +217,8 @@ impl ASTFolder for ForLoopVarGensymFolder {
                     data: StmtKind::ForLoop {
                         var: (g, ty, mode),
                         spec: spec,
-                        body: self.fold_stmt_list(body, module, function),
+                        // TODO: I think this is right...
+                        body: body,
                     },
                     loc: stmt.loc,
                 }
