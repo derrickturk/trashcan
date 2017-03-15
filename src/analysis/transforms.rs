@@ -615,23 +615,19 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         // inclusive ranges would be nice here...
         let mut g_iters: Vec<_> = (1..dims + 1).map(|_| gensym(None)).collect();
 
-        // these .rev() calls are tricky and ugly
-
-        let mut dim_lits: Vec<_> = (1..dims + 1).rev().map(|d| Expr {
+        let mut dim_lits: Vec<_> = (1..dims + 1).map(|d| Expr {
             data: ExprKind::Lit(Literal::Int32(d as i32)),
             loc: loc.clone(),
         }).collect();
 
         let index_expr = Expr {
             data: ExprKind::Index(Box::new(expr.clone()),
-              g_iters.iter().rev().cloned().map(|g| Expr {
+              g_iters.iter().cloned().map(|g| Expr {
                   data: ExprKind::Name(Path(None, g)),
                   loc: loc.clone(),
               }).collect()),
             loc: loc.clone(),
         };
-
-        // ^^^ ... that's bullshit but I believe it
 
         // add gensyms to symbol table
         for g in &g_iters {
@@ -685,35 +681,6 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
 
         };
 
-        let var = (g_iters.pop().unwrap(), Type::Int32, ParamMode::ByVal);
-        let dim_lit = dim_lits.pop().unwrap();
-        let spec = ForSpec::Range(
-            // TODO: gross
-            Expr {
-                data: ExprKind::Call(
-                    Path(None, Ident(String::from("LBound"), None)),
-                    if dims == 1 {
-                        vec![expr.clone()]
-                    } else {
-                        vec![expr.clone(), dim_lit.clone()]
-                    }
-                ),
-                loc: loc.clone(),
-            },
-            Expr {
-                data: ExprKind::Call(
-                    Path(None, Ident(String::from("UBound"), None)),
-                    if dims == 1 {
-                        vec![expr.clone()]
-                    } else {
-                        vec![expr.clone(), dim_lit]
-                    }
-                ),
-                loc: loc.clone(),
-            },
-            None
-        );
-
         // nested inner loops, if needed
         for _ in (2..dims + 1).rev() {
             let dim_lit = dim_lits.pop().unwrap();
@@ -747,6 +714,35 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                 loc: loc.clone(),
             }];
         }
+
+        let var = (g_iters.pop().unwrap(), Type::Int32, ParamMode::ByVal);
+        let dim_lit = dim_lits.pop().unwrap();
+        let spec = ForSpec::Range(
+            // TODO: gross
+            Expr {
+                data: ExprKind::Call(
+                    Path(None, Ident(String::from("LBound"), None)),
+                    if dims == 1 {
+                        vec![expr.clone()]
+                    } else {
+                        vec![expr.clone(), dim_lit.clone()]
+                    }
+                ),
+                loc: loc.clone(),
+            },
+            Expr {
+                data: ExprKind::Call(
+                    Path(None, Ident(String::from("UBound"), None)),
+                    if dims == 1 {
+                        vec![expr.clone()]
+                    } else {
+                        vec![expr.clone(), dim_lit]
+                    }
+                ),
+                loc: loc.clone(),
+            },
+            None
+        );
 
         StmtKind::ForLoop {
             var: var,
