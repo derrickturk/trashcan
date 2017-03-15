@@ -191,6 +191,8 @@ struct ForLoopVarGensymFolder;
 impl ASTFolder for ForLoopVarGensymFolder {
     fn fold_stmt(&mut self, stmt: Stmt, module: &Ident, function: &Ident)
   -> Stmt {
+        let stmt = fold::noop_fold_stmt(self, stmt, module, function);
+
         match stmt.data {
             StmtKind::ForLoop { var: (ident, ty, mode), spec, body } => {
                 let g = gensym(Some(ident.clone()));
@@ -221,7 +223,7 @@ impl ASTFolder for ForLoopVarGensymFolder {
                 }
             },
 
-            _ => fold::noop_fold_stmt(self, stmt, module, function),
+            _ => stmt,
         }
     }
 }
@@ -612,20 +614,32 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
           &Type::Int32, &loc).expect("dumpster fire: \
                                      failure adding symtab entry for gensym");
 
-        let before_stmts = self.before_stmt_stack.last_mut()
-          .expect("dumpster fire: \
-                  error in before statement stack");
-
-        // push a declaration for the original variable
-        before_stmts.push(Stmt {
-            data: StmtKind::VarDecl(vec![
-              (var.clone(), ty, None)
-            ]),
+        let index_expr = Expr {
+            data: ExprKind::Index(
+                      Box::new(expr.clone()),
+                      vec![Expr {
+                          data: ExprKind::Name(Path(None, g.clone())),
+                          loc: loc.clone(),
+                      }]
+            ),
             loc: loc.clone(),
-        });
+        };
 
-        match mode {
+        let body = match mode {
             ParamMode::ByVal => {
+                // push a before-declaration for the original variable
+                let before_stmts = self.before_stmt_stack.last_mut()
+                  .expect("dumpster fire: \
+                          error in before statement stack");
+
+                before_stmts.push(Stmt {
+                    data: StmtKind::VarDecl(vec![
+                      (var.clone(), ty, None)
+                    ]),
+                    loc: loc.clone(),
+                });
+
+                // and copy into it at the beginning of each iteration
                 let copy_stmt = Stmt {
                     data: StmtKind::Assign(
                         Expr {
@@ -633,53 +647,56 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                             loc: loc.clone(),
                         },
                         AssignOp::Assign,
-                        Expr {
-                            data: ExprKind::Index(
-                              Box::new(expr.clone()),
-                              vec![Expr {
-                                  data: ExprKind::Name(Path(None, g.clone())),
-                                  loc: loc.clone(),
-                              }]
-                            ),
-                            loc: loc.clone(),
-                        }
+                        index_expr,
                     ),
                     loc: loc.clone(),
                 };
 
                 body.insert(0, copy_stmt);
 
-                StmtKind::ForLoop {
-                    var: (g, Type::Int32, ParamMode::ByVal),
-                    spec: ForSpec::Range(
-                        // TODO: gross
-                        Expr {
-                            data: ExprKind::Call(
-                                Path(None, Ident(String::from("LBound"), None)),
-                                vec![expr.clone()],
-                            ),
-                            loc: loc.clone(),
-                        },
-
-                        Expr {
-                            data: ExprKind::Call(
-                                Path(None, Ident(String::from("UBound"), None)),
-                                vec![expr],
-                            ),
-                            loc: loc.clone(),
-                        },
-
-                        None
-                    ),
-                    body: body
-                }
+                body
             },
 
             ParamMode::ByRef => {
-                panic!("fuck my life")
+                let mut subst_folder = ScopedExprSubstitutionFolder {
+                    orig: var,
+                    replace: index_expr,
+                    module: module.clone(),
+                    function: function.clone(),
+                };
+
+                subst_folder.fold_stmt_list(body, module, function)
             },
+
+        };
+
+        let var = (g, Type::Int32, ParamMode::ByVal);
+        let spec = ForSpec::Range(
+            // TODO: gross
+            Expr {
+                data: ExprKind::Call(
+                    Path(None, Ident(String::from("LBound"), None)),
+                    vec![expr.clone()],
+                ),
+                loc: loc.clone(),
+            },
+            Expr {
+                data: ExprKind::Call(
+                    Path(None, Ident(String::from("UBound"), None)),
+                    vec![expr],
+                ),
+                loc: loc.clone(),
+            },
+            None
+        );
+
+        StmtKind::ForLoop {
+            var: var,
+            spec: spec,
+            body: body,
         }
     }
+
 }
 
 impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {

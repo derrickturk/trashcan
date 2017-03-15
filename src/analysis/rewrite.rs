@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use super::*;
 use ast::*;
 use visit::NameCtxt;
+use fold;
 use fold::ASTFolder;
 
 static mut GENSYM_ID: AtomicUsize = ATOMIC_USIZE_INIT;
@@ -78,6 +79,40 @@ impl ASTFolder for ScopedSubstitutionFolder {
             self.replace.clone()
         } else {
             ident
+        }
+    }
+}
+
+/// use to substitute single-ident name-exprs within a given scope
+/// it's easier if this thing owns copies of everything
+pub struct ScopedExprSubstitutionFolder {
+    pub orig: Ident,
+    pub replace: Expr,
+    pub module: Ident,
+    pub function: Ident,
+}
+
+impl ASTFolder for ScopedExprSubstitutionFolder {
+    fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
+      -> Expr {
+        let expr = fold::noop_fold_expr(self, expr, module, function);
+
+        if self.module != *module || self.function != *function {
+            return expr;
+        }
+
+        let Expr { data, loc } = expr;
+
+        let data = match data {
+            ExprKind::Name(Path(None, ref ident)) if *ident == self.orig =>
+                self.replace.clone().data,
+
+            e => e,
+        };
+
+        Expr {
+            data: data,
+            loc: loc,
         }
     }
 }
