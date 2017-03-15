@@ -246,7 +246,7 @@ named!(vbexpr<Vec<u8>>, complete!(do_parse!(
 named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('[') >>
-   indices: separated_nonempty_list!(ws!(char!(';')), expr) >>
+   indices: separated_nonempty_list!(ws!(char!(',')), expr) >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
             (UnitaryRecExprRest::Indexed(indices))

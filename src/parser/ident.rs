@@ -121,12 +121,12 @@ named!(array_spec<ArrayBounds>, complete!(do_parse!(
 )));
 
 named!(array_dynamic_bounds<ArrayBounds>, complete!(map!(
-        many0!(ws!(char!(';'))),
+        many0!(ws!(char!(','))),
         |vec: Vec<_>| ArrayBounds::Dynamic(vec.len() + 1)
 )));
 
 named!(array_static_bounds<ArrayBounds>, complete!(map!(
-        separated_nonempty_list!(ws!(char!(';')), array_dim),
+        separated_nonempty_list!(ws!(char!(',')), array_dim),
         ArrayBounds::Static
 )));
 

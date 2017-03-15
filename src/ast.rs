@@ -412,7 +412,7 @@ impl fmt::Display for ArrayBounds {
             ArrayBounds::Static(ref bounds) => {
                 for (i, &(lb, ub)) in bounds.iter().enumerate() {
                     if i != 0 {
-                        f.write_str("; ")?;
+                        f.write_str(", ")?;
                     }
                     write!(f, "{}:{}", lb, ub)?;
                 }
@@ -421,7 +421,7 @@ impl fmt::Display for ArrayBounds {
 
             ArrayBounds::Dynamic(dims) => {
                 for i in 1..dims {
-                    f.write_str(";")?;
+                    f.write_str(",")?;
                 }
                 Ok(())
             },

@@ -6,7 +6,7 @@ mod example {
 pub struct nothing {
     x: i32,
     y: f64[],
-    z: i32[1:10; 9:17],
+    z: i32[1:10, 9:17],
     end: i32,
 }
 
@@ -128,7 +128,7 @@ mod more_examples {
 
         print retobj() !== retobj();
 
-        let matrix: i32[10;10];
+        let matrix: i32[10, 10];
 
         // it's a VB keyword
         other_mod::input(matrix);
@@ -138,8 +138,8 @@ mod more_examples {
 }
 
 mod other_mod {
-    pub fn input(xs: &i32[;]) {
-        xs[1;2] = 3;
+    pub fn input(xs: &i32[,]) {
+        xs[1, 2] = 3;
     }
 
     pub fn fun2(x: &i32[], y: &obj[], z: &example::nothing[]) -> bool {
