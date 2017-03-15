@@ -605,27 +605,70 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         }
     }
 
-    // TODO: account for bounds
+    // TODO: this whole loop-and-a-half is ugly
     fn array_for_loop(&mut self, var: Ident, ty: Type, mode: ParamMode,
       expr: Expr, base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
       loc: &SrcLoc, module: &Ident, function: &Ident) -> StmtKind {
-        let g = gensym(None);
+        let dims = bounds.dims();
 
-        // add symbol table entry for it
-        self.symtab.add_value_entry(&g, module, Some(function),
-          &Type::Int32, &loc).expect("dumpster fire: \
-                                     failure adding symtab entry for gensym");
+        // build indexing gensyms by dimension
+        // inclusive ranges would be nice here...
+        let mut g_iters: Vec<_> = (1..dims + 1).map(|_| gensym(None)).collect();
+
+        let mut dim_lits: Vec<_> = (1..dims + 1).map(|d| Expr {
+            data: ExprKind::Lit(Literal::Int32(d as i32)),
+            loc: loc.clone(),
+        }).collect();
 
         let index_expr = Expr {
-            data: ExprKind::Index(
-                      Box::new(expr.clone()),
-                      vec![Expr {
-                          data: ExprKind::Name(Path(None, g.clone())),
-                          loc: loc.clone(),
-                      }]
-            ),
+            data: ExprKind::Index(Box::new(expr.clone()),
+              g_iters.iter().cloned().map(|g| Expr {
+                  data: ExprKind::Name(Path(None, g)),
+                  loc: loc.clone(),
+              }).collect()),
             loc: loc.clone(),
         };
+
+        // add gensyms to symbol table
+        for g in &g_iters {
+            self.symtab.add_value_entry(g, module, Some(function),
+              &Type::Int32, &loc)
+              .expect("dumpster fire: failure adding symtab entry for gensym");
+        }
+
+        // nested inner loops, if needed
+        for dim in (2..dims + 1).rev() {
+            let dim_lit = dim_lits.pop().unwrap();
+            let spec = ForSpec::Range(
+                // TODO: gross
+                Expr {
+                    data: ExprKind::Call(
+                        Path(None, Ident(String::from("LBound"), None)),
+                        vec![expr.clone(), dim_lit.clone()],
+                    ),
+                    loc: loc.clone(),
+                },
+
+                Expr {
+                    data: ExprKind::Call(
+                        Path(None, Ident(String::from("UBound"), None)),
+                        vec![expr.clone(), dim_lit],
+                    ),
+                    loc: loc.clone(),
+                },
+                None
+            );
+
+            body = vec![Stmt {
+                data: StmtKind::ForLoop {
+                    var: (g_iters.pop().unwrap(),
+                      Type::Int32, ParamMode::ByVal),
+                    spec: spec,
+                    body: body,
+                },
+                loc: loc.clone(),
+            }];
+        }
 
         let body = match mode {
             ParamMode::ByVal => {
@@ -672,20 +715,29 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
 
         };
 
-        let var = (g, Type::Int32, ParamMode::ByVal);
+        let var = (g_iters.pop().unwrap(), Type::Int32, ParamMode::ByVal);
+        let dim_lit = dim_lits.pop().unwrap();
         let spec = ForSpec::Range(
             // TODO: gross
             Expr {
                 data: ExprKind::Call(
                     Path(None, Ident(String::from("LBound"), None)),
-                    vec![expr.clone()],
+                    if dims == 1 {
+                        vec![expr.clone()]
+                    } else {
+                        vec![expr.clone(), dim_lit.clone()]
+                    }
                 ),
                 loc: loc.clone(),
             },
             Expr {
                 data: ExprKind::Call(
                     Path(None, Ident(String::from("UBound"), None)),
-                    vec![expr],
+                    if dims == 1 {
+                        vec![expr]
+                    } else {
+                        vec![expr, dim_lit]
+                    }
                 ),
                 loc: loc.clone(),
             },
