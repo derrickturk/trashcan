@@ -69,14 +69,20 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
     }
 }
 
-fn emit_bounds<W: Write>(out: &mut W, bounds: &Vec<(i32, i32)>)
+fn emit_bounds<W: Write>(out: &mut W, bounds: &ArrayBounds)
   -> io::Result<()> {
     out.write_all(b"(")?;
-    for (i, &(l, u)) in bounds.iter().enumerate() {
-        if i != 0 {
-            out.write_all(b", ")?;
-        }
-        write!(out, "{} To {}", l, u)?;
-    }
+    match *bounds {
+        ArrayBounds::Static(ref bounds) => {
+            for (i, &(l, u)) in bounds.iter().enumerate() {
+                if i != 0 {
+                    out.write_all(b", ")?;
+                }
+                write!(out, "{} To {}", l, u)?;
+            }
+        },
+
+        ArrayBounds::Dynamic(_) => {},
+    };
     out.write_all(b")")
 }

@@ -605,8 +605,9 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         }
     }
 
+    // TODO: account for bounds
     fn array_for_loop(&mut self, var: Ident, ty: Type, mode: ParamMode,
-      expr: Expr, base: &Type, bounds: &Vec<(i32, i32)>, mut body: Vec<Stmt>,
+      expr: Expr, base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
       loc: &SrcLoc, module: &Ident, function: &Ident) -> StmtKind {
         let g = gensym(None);
 

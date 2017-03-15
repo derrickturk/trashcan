@@ -108,13 +108,26 @@ named!(pub typename<Type>, complete!(do_parse!(
         })
 )));
 
-named!(array_spec<Vec<(i32, i32)>>, complete!(do_parse!(
+named!(array_spec<ArrayBounds>, complete!(do_parse!(
         opt!(call!(nom::multispace)) >>
         char!('[') >>
-  dims: separated_list!(ws!(char!(';')), array_dim) >>
+  dims: alt_complete!(
+            array_static_bounds
+          | array_dynamic_bounds
+        ) >>
         opt!(call!(nom::multispace)) >>
         char!(']') >>
         (dims)
+)));
+
+named!(array_dynamic_bounds<ArrayBounds>, complete!(map!(
+        many0!(ws!(char!(';'))),
+        |vec: Vec<_>| ArrayBounds::Dynamic(vec.len() + 1)
+)));
+
+named!(array_static_bounds<ArrayBounds>, complete!(map!(
+        separated_nonempty_list!(ws!(char!(';')), array_dim),
+        ArrayBounds::Static
 )));
 
 named!(array_dim<(i32, i32)>, map_res!(complete!(do_parse!(

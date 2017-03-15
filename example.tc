@@ -128,15 +128,17 @@ mod more_examples {
 
         print retobj() !== retobj();
 
+        let matrix: i32[10;10];
+
         // it's a VB keyword
-        other_mod::input(x);
+        other_mod::input(matrix);
 
         let res: bool = other_mod::fun2(x, y, z);
     }
 }
 
 mod other_mod {
-    pub fn input(xs: &i32[]) {
+    pub fn input(xs: &i32[;]) {
         xs[1;2] = 3;
     }
 

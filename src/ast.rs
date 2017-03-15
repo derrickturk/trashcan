@@ -282,7 +282,7 @@ pub enum Type {
     /// obj (unspecified object type)
     Obj,
     /// T[] (possibly multidimensional)
-    Array(Box<Type>, Vec<(i32, i32)>),
+    Array(Box<Type>, ArrayBounds),
     /// named object type
     Object(Path),
     /// named structure type
@@ -355,7 +355,8 @@ impl Type {
     /// argument; we only use this for array types so far
     pub fn decay(&self) -> Type {
         match *self {
-            Type::Array(ref base, _) => Type::Array(base.clone(), vec![]),
+            Type::Array(ref base, ref bounds) =>
+                Type::Array(base.clone(), ArrayBounds::Dynamic(bounds.dims())),
             ref ty => ty.clone(),
         }
     }
@@ -380,18 +381,50 @@ impl fmt::Display for Type {
             Type::Enum(ref path) => write!(f, "{}", path),
             Type::Struct(ref path) => write!(f, "{}", path),
             Type::Deferred(ref path) => write!(f, "{}", path),
-            Type::Array(ref base, ref bounds) => {
-                write!(f, "{}[", base)?;
+            Type::Array(ref base, ref bounds) =>
+                write!(f, "{}[{}]", base, bounds),
+            Type::Void => write!(f, "void"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+/// Array bound descriptions
+pub enum ArrayBounds {
+    /// static bounds lower-to-upper by dimension
+    Static(Vec<(i32, i32)>),
+    /// dynamic array: typed by dimensionality only
+    Dynamic(usize),
+}
+
+impl ArrayBounds {
+    pub fn dims(&self) -> usize {
+        match *self {
+            ArrayBounds::Static(ref bounds) => bounds.len(),
+            ArrayBounds::Dynamic(dims) => dims,
+        }
+    }
+}
+
+impl fmt::Display for ArrayBounds {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ArrayBounds::Static(ref bounds) => {
                 for (i, &(lb, ub)) in bounds.iter().enumerate() {
                     if i != 0 {
-                        write!(f, "; ")?;
+                        f.write_str("; ")?;
                     }
                     write!(f, "{}:{}", lb, ub)?;
                 }
-                write!(f, "]")?;
                 Ok(())
             },
-            Type::Void => write!(f, "void"),
+
+            ArrayBounds::Dynamic(dims) => {
+                for i in 0..dims {
+                    f.write_str(";")?;
+                }
+                Ok(())
+            },
         }
     }
 }

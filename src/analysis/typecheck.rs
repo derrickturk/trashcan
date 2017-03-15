@@ -73,14 +73,14 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
             match expr_t {
                 Type::Array(ref base_t, ref bounds) => {
-                    if bounds.len() == 0 || bounds.len() == indices.len() {
+                    if bounds.dims() == indices.len() {
                         Ok((**base_t).clone())
                     } else {
                         Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(format!("expression indexed with \
                               {} dimensions; {} required", indices.len(),
-                              bounds.len())),
+                              bounds.dims())),
                             loc: expr.loc.clone(),
                         })
                     }
@@ -489,7 +489,8 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
         },
 
         Type::Variant => match *to {
-            Type::Array(_, ref dims) if !dims.is_empty() => false,
+            // can't assign to statically-dimensioned array
+            Type::Array(_, ArrayBounds::Static(_)) => false,
             Type::Void => false,
             _ => true,
         },
@@ -501,9 +502,10 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
             _ => false,
         },
 
-        Type::Array(ref basety, _) => match *to {
-            Type::Array(ref targetty, ref dims) =>
-                targetty == basety && dims.is_empty(),
+        Type::Array(ref basety, ref bounds) => match *to {
+            // can't assign to statically-dimensioned array
+            Type::Array(ref targetty, ArrayBounds::Dynamic(dims)) =>
+                targetty == basety && bounds.dims() == dims,
 
             Type::Variant => {
                 match **basety {
@@ -556,11 +558,11 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
     fn visit_funparam(&mut self, p: &FunParam, m: &Ident, f: &Ident) {
         match p.mode {
             ParamMode::ByRef => match p.ty {
-                Type::Array(_, ref bounds) if !bounds.is_empty() =>
+                Type::Array(_, ArrayBounds::Static(_)) =>
                     self.errors.push(AnalysisError {
                         kind: AnalysisErrorKind::FnCallError,
                         regarding: Some(String::from("array types cannot \
-                          specify bounds when used as parameters.")),
+                          specify static bounds when used as parameters.")),
                         loc: p.loc.clone(),
                     }),
                 _ => { },
