@@ -100,6 +100,11 @@ pub trait ASTFolder {
       module: &Ident, function: &Ident, loc: &SrcLoc) -> Vec<u8> {
         data
     }
+
+    fn fold_arraybounds(&mut self, bounds: ArrayBounds, base_ty: &Type,
+      module: &Ident, loc: &SrcLoc) -> ArrayBounds {
+        bounds
+    }
 }
 
 pub fn noop_fold_dumpster<F: ASTFolder + ?Sized>(folder: &mut F,
@@ -283,6 +288,26 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 body: folder.fold_stmt_list(body, module, function),
             },
 
+        StmtKind::Alloc(expr, extents) => {
+            let expr = folder.fold_expr(expr, module, function);
+            let extents = extents.into_iter().map(|(lb, ub)| {
+                (lb.map(|e| folder.fold_expr(e, module, function)), ub)
+            }).collect();
+            StmtKind::Alloc(expr, extents)
+        },
+
+        StmtKind::ReAlloc(expr, preserved, (lb, ub)) => {
+            let expr = folder.fold_expr(expr, module, function);
+            let extents = (
+                lb.map(|e| folder.fold_expr(e, module, function)),
+                ub
+            );
+            StmtKind::ReAlloc(expr, preserved, extents)
+        },
+
+        StmtKind::DeAlloc(expr) =>
+            StmtKind::DeAlloc(folder.fold_expr(expr, module, function)),
+
         StmtKind::Print(expr) =>
             StmtKind::Print(folder.fold_expr(expr, module, function)),
     };
@@ -394,8 +419,11 @@ pub fn noop_fold_path<F: ASTFolder + ?Sized>(folder: &mut F,
 pub fn noop_fold_type<F: ASTFolder + ?Sized>(folder: &mut F, ty: Type,
   module: &Ident, loc: &SrcLoc) -> Type {
     match ty {
-        Type::Array(base, bounds) =>
-            Type::Array(Box::new(folder.fold_type(*base, module, loc)), bounds),
+        Type::Array(base, bounds) => {
+            let base = folder.fold_type(*base, module, loc);
+            let bounds = folder.fold_arraybounds(bounds, &base, module, loc);
+            Type::Array(Box::new(base), bounds)
+        },
 
         Type::Struct(path) =>
             Type::Struct(folder.fold_path(path,

@@ -108,6 +108,17 @@ pub enum StmtKind {
         body: Vec<Stmt>,
     },
 
+    /// array allocation
+    Alloc(Expr, Vec<(Option<Expr>, Expr)>),
+                     // (0 ... Expr - 1) None, otherwise Expr...Expr
+
+    /// array re-allocation (can only re-allocate along outermost dimension)
+    ReAlloc(Expr, usize, (Option<Expr>, Expr)),
+                  // # of preserved dimensions (typechecker will verify)
+
+    /// array de-allocation
+    DeAlloc(Expr),
+
     /// `print` statement (i.e. Debug.Print)
     Print(Expr),
 }

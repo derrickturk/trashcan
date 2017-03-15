@@ -133,6 +133,11 @@ macro_rules! make_ast_vistor {
                 // do nothing
             }
 
+            fn visit_arraybounds(&mut self, bounds: & $($_mut)* ArrayBounds,
+              base_ty: & $($_mut)* Type, module: &Ident, loc: &SrcLoc) {
+                // do nothing
+            }
+
             // BELOW THIS LINE
             //   do not override; these functions provide tree traversal
 
@@ -336,6 +341,40 @@ macro_rules! make_ast_vistor {
                         }
                     },
 
+                    StmtKind::Alloc(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* extents
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        for & $($_mut)* (ref $($_mut)* lb, ref $($_mut)* ub)
+                          in extents {
+                            match *lb {
+                                Some(ref $($_mut)* lb) =>
+                                    self.visit_expr(lb, module, function),
+                                None => {}
+                            };
+                            self.visit_expr(ub, module, function);
+                        }
+                    },
+
+                    StmtKind::ReAlloc(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* dims,
+                        (ref $($_mut)* lb, ref $($_mut)* ub)
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        match *lb {
+                            Some(ref $($_mut)* lb) =>
+                                self.visit_expr(lb, module, function),
+                            None => {}
+                        };
+                        self.visit_expr(ub, module, function);
+                    },
+
+                    StmtKind::DeAlloc(ref $($_mut)* expr) => {
+                        self.visit_expr(expr, module, function);
+                    },
+
                     StmtKind::Print(ref $($_mut)* expr) =>
                         self.visit_expr(expr, module, function),
                 }
@@ -461,8 +500,9 @@ macro_rules! make_ast_vistor {
             fn walk_type(&mut self, ty: & $($_mut)* Type, module: &Ident,
               loc: &SrcLoc) {
                 match *ty {
-                    Type::Array(ref $($_mut)* base, _) => {
-                        self.visit_type(base, module, loc)
+                    Type::Array(ref $($_mut)* base, ref $($_mut)* bounds) => {
+                        self.visit_type(base, module, loc);
+                        self.visit_arraybounds(bounds, base, module, loc);
                     },
 
                     Type::Struct(ref $($_mut)* path) => {

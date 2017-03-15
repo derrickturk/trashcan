@@ -953,6 +953,144 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             return Ok(());
         },
 
+        StmtKind::Alloc(ref expr, ref extents) => {
+            match type_of(expr, symtab, ctxt)? {
+                Type::Array(_, ArrayBounds::Dynamic(dims)) => {
+                    if dims != extents.len() {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("extents dimensions ({}) \
+                              do not match array dimensions ({}) in alloc",
+                              extents.len(), dims)),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    for &(ref lb, ref ub) in extents {
+                        if let Some(ref lb) = *lb {
+                            let extent_ty = type_of(lb, symtab, ctxt)?;
+                            if !may_coerce(&extent_ty, &Type::Int32) {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(String::from("array extent \
+                                      bound not coercible to i32")),
+                                    loc: stmt.loc.clone(),
+                                });
+                            }
+                        }
+
+                        let extent_ty = type_of(ub, symtab, ctxt)?;
+                        if !may_coerce(&extent_ty, &Type::Int32) {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("array extent \
+                                  bound not coercible to i32")),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+                    }
+                },
+
+                Type::Array(_, ArrayBounds::Static(_)) => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(String::from("attempt to allocate \
+                          statically-dimensioned array")),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+
+                ref ty => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(format!("attempt to allocate \
+                          expression of non-array type {}", ty)),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+            }
+        },
+
+        StmtKind::ReAlloc(ref expr, preserved, (ref lb, ref ub)) => {
+            match type_of(expr, symtab, ctxt)? {
+                Type::Array(_, ArrayBounds::Dynamic(dims)) => {
+                    if dims != preserved + 1 {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("extents dimensions ({}) \
+                              do not match array dimensions ({}) in realloc",
+                              preserved + 1, dims)),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    if let Some(ref lb) = *lb {
+                        let extent_ty = type_of(lb, symtab, ctxt)?;
+                        if !may_coerce(&extent_ty, &Type::Int32) {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("array extent \
+                                  bound not coercible to i32")),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+                    }
+
+                    let extent_ty = type_of(ub, symtab, ctxt)?;
+                    if !may_coerce(&extent_ty, &Type::Int32) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("array extent \
+                              bound not coercible to i32")),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+                },
+
+                Type::Array(_, ArrayBounds::Static(_)) => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(String::from("attempt to reallocate \
+                          statically-dimensioned array")),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+
+                ref ty => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(format!("attempt to reallocate \
+                          expression of non-array type {}", ty)),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+            }
+        },
+
+        StmtKind::DeAlloc(ref expr) => {
+            match type_of(expr, symtab, ctxt)? {
+                Type::Array(_, ArrayBounds::Dynamic(_)) => { },
+
+                Type::Array(_, ArrayBounds::Static(_)) => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(String::from("attempt to deallocate \
+                          statically-dimensioned array")),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+
+                ref ty => {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(format!("attempt to deallocate \
+                          expression of non-array type {}", ty)),
+                        loc: stmt.loc.clone(),
+                    });
+                },
+            }
+        },
+
         StmtKind::Print(ref expr) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Void => return Err(AnalysisError {

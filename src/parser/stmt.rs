@@ -10,6 +10,9 @@ named!(pub stmt<Stmt>, alt_complete!(
     decl
   | ret
   | print
+  | alloc
+  | realloc
+  | dealloc
   | ifstmt
   | whileloop
   | forloop
@@ -204,6 +207,81 @@ named!(for_each<Expr>, complete!(do_parse!(
         call!(nom::multispace) >>
      e: expr >>
         (e)
+)));
+
+// a note on the syntax:
+// yeah, the thing <- alloc [...] "placement" syntax sucks, but:
+//   1) it avoided an Extremely Vexing Parse (alloc arr[...]; looks
+//     like `alloc indexing-expr` not `alloc name-expr bounds`)
+//   2) I dunno maybe we'll use it for something else later?
+
+named!(alloc<Stmt>, complete!(do_parse!(
+     array: expr >>
+            opt!(call!(nom::multispace)) >>
+            tag!("<-") >>
+            opt!(call!(nom::multispace)) >>
+            tag!("alloc") >>
+   extents: alloc_extents >>
+            terminator >>
+            (Stmt {
+                data: StmtKind::Alloc(array, extents),
+                loc: empty_loc!(),
+            })
+)));
+
+named!(realloc<Stmt>, complete!(do_parse!(
+     array: expr >>
+            opt!(call!(nom::multispace)) >>
+            tag!("<-") >>
+            opt!(call!(nom::multispace)) >>
+            tag!("realloc") >>
+   extents: realloc_extents >>
+            terminator >>
+            (Stmt {
+                data: StmtKind::ReAlloc(array, extents.0, extents.1),
+                loc: empty_loc!(),
+            })
+)));
+
+named!(dim_extent<(Option<Expr>, Expr)>, complete!(do_parse!(
+    lb: opt!(complete!(terminated!(
+            expr,
+            preceded!(
+                opt!(call!(nom::multispace)),
+                char!(':'))
+        ))) >>
+    ub: expr >>
+        (lb, ub)
+)));
+
+named!(alloc_extents<Vec<(Option<Expr>, Expr)>>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            char!('[') >>
+   extents: separated_nonempty_list!(ws!(char!(',')), dim_extent) >>
+            opt!(call!(nom::multispace)) >>
+            char!(']') >>
+            (extents)
+)));
+
+named!(realloc_extents<(usize, (Option<Expr>, Expr))>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            char!('[') >>
+   predims: many0!(ws!(char!(','))) >>
+    extent: dim_extent >>
+            opt!(call!(nom::multispace)) >>
+            char!(']') >>
+            (predims.len(), extent)
+)));
+
+named!(dealloc<Stmt>, complete!(do_parse!(
+    opt!(call!(nom::multispace)) >>
+    tag!("dealloc") >>
+ e: preceded!(call!(nom::multispace), expr) >>
+    terminator >>
+    (Stmt {
+        data: StmtKind::DeAlloc(e),
+        loc: empty_loc!(),
+    })
 )));
 
 named!(print<Stmt>, complete!(do_parse!(
