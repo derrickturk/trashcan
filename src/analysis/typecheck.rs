@@ -504,6 +504,15 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
         Type::Array(ref basety, _) => match *to {
             Type::Array(ref targetty, ref dims) =>
                 targetty == basety && dims.is_empty(),
+
+            Type::Variant => {
+                match **basety {
+                    // can't put structs into Arrays inside Variants :/
+                    Type::Struct(_) => false,
+                    _ => true,
+                }
+            },
+
             _ => false,
         },
 
@@ -628,8 +637,8 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     if !may_coerce(&init_ty, &ty) {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("initializer not \
-                              coercible to declared type")),
+                            regarding: Some(format!("initializer (of type {}) \
+                              not coercible to declared type {}", init_ty, ty)),
                             loc: stmt.loc.clone(),
                         })
                     }
