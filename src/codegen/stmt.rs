@@ -170,7 +170,6 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 write!(out, "{:in$}For ", "",
                   in = (indent * INDENT) as usize)?;
 
-                // TODO: somewhere decide what foreach means on arrays
                 match *spec {
                     ForSpec::Range(ref from, ref to, ref by) => {
                         var.0.emit(out, symtab, (), 0)?;

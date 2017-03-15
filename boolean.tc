@@ -29,5 +29,10 @@ mod bools {
     fn big_ol_bool() {
         let x: bool = (true && (false || (true && true)))
           || (!false && true && true);
+
+        let o: obj;
+        if o !== nullptr && o.x > 7 {
+            print o;
+        }
     }
 }

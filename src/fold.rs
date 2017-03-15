@@ -269,7 +269,7 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 body: folder.fold_stmt_list(body, module, function),
             },
 
-        StmtKind::ForLoop { var: (ident, ty), spec, body } =>
+        StmtKind::ForLoop { var: (ident, ty, mode), spec, body } =>
             StmtKind::ForLoop {
                 var: (
                     folder.fold_ident(
@@ -277,6 +277,7 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                         NameCtxt::DefValue(module, Some(function), &ty),
                         &loc),
                     folder.fold_type(ty, module, &loc),
+                    mode,
                 ),
                 spec: folder.fold_forspec(spec, module, function, &loc),
                 body: folder.fold_stmt_list(body, module, function),

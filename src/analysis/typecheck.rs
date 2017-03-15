@@ -810,11 +810,20 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             return Ok(());
         },
 
-        StmtKind::ForLoop { ref var, ref spec, .. } => {
-            // TODO: changes here as we improve for loop semantics
+        StmtKind::ForLoop { var: (ref var, ref ty, ref mode), ref spec, .. } => {
             match *spec {
                 ForSpec::Range(ref from, ref to, ref step) => {
-                    if !var.1.might_be_numeric() {
+                    if *mode == ParamMode::ByRef {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(format!("reference variable \
+                              {} cannot be used with for loop over range",
+                              var)),
+                            loc: stmt.loc.clone(),
+                        });
+                    }
+
+                    if !ty.might_be_numeric() {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(String::from("non-numeric control \
@@ -870,23 +879,52 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 // TODO: maybe use for-each by-ref to signify local
                 //   lvalue rebinding?
                 ForSpec::Each(ref expr) => {
-                    match var.1 {
-                        Type::Variant | Type::Obj | Type::Object(_) => { },
-                        _ => return Err(AnalysisError {
-                            kind: AnalysisErrorKind::InvalidStmt,
-                            regarding: Some(String::from("for-each loop \
-                              iteration variable must be var or object type \
-                              (for now)")),
-                            loc: stmt.loc.clone(),
-                        })
-                    }
-
                     let expr_ty = type_of(expr, symtab, ctxt)?;
                     match expr_ty {
-                        Type::Array(_, _)
+                        Type::Array(ref base, _) => {
+                            match *mode {
+                                ParamMode::ByVal => {
+                                    if !may_coerce(base, ty) {
+                                        return Err(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(format!(
+                                              "element type {} not coercible \
+                                                to variable type {}",
+                                              base, ty)),
+                                            loc: stmt.loc.clone(),
+                                        });
+                                    }
+                                },
+
+                                ParamMode::ByRef => {
+                                    if **base != *ty {
+                                        return Err(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(format!(
+                                              "loop variable {} has type &{}; \
+                                              element type {} provided",
+                                              var, ty, base)),
+                                            loc: stmt.loc.clone(),
+                                        });
+                                    }
+                                },
+                            }
+                        },
+
+                        Type::Variant
                       | Type::Obj
-                      | Type::Object(_)
-                      | Type::Variant => { },
+                      | Type::Object(_) => {
+                            if *mode == ParamMode::ByRef {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(format!("reference \
+                                      variable {} cannot be used to loop over \
+                                      expression of object or var type (for now)",
+                                      var)),
+                                    loc: stmt.loc.clone(),
+                                });
+                            }
+                        },
 
                         _ => return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,

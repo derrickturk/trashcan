@@ -50,6 +50,7 @@ fn main() {
 
     // pre-processing / rename passes
     let dumpster = analysis::merge_dumpsters(dumpsters);
+
     let dumpster = analysis::case_folding_duplicate_gensym(dumpster);
     let dumpster = analysis::vb_keyword_gensym(dumpster);
     let dumpster = analysis::fn_name_local_gensym(dumpster);
@@ -66,7 +67,8 @@ fn main() {
     // post-processing / semantics-preserving passes
     //   (these need symbols and access to typing)
     //   (they also may emit new symbols etc)
-    let dumpster = analysis::short_circuit_logicals(dumpster, &mut symtab);
+    let mut dumpster = analysis::short_circuit_logicals(dumpster, &mut symtab);
+    let dumpster = analysis::array_loop_rewrite(dumpster, &mut symtab);
 
     // codegen pass
     for m in dumpster.modules.iter() {

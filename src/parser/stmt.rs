@@ -150,7 +150,7 @@ named!(forloop<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             tag!("for") >>
             call!(nom::multispace) >>
-       var: vardecl >>
+       var: forvardecl >>
       spec: alt_complete!(
                 for_range => { |(from, to, step)|
                     ForSpec::Range(from, to, step) }
@@ -169,6 +169,17 @@ named!(forloop<Stmt>, complete!(do_parse!(
                 },
                 loc: empty_loc!(),
             })
+)));
+
+named!(forvardecl<(Ident, Type, ParamMode)>, complete!(do_parse!(
+  name: ident >>
+        opt!(call!(nom::multispace)) >>
+        char!(':') >>
+byref:  opt!(preceded!(
+            opt!(nom::multispace),
+            char!('&'))) >>
+    ty: typename >>
+        (name, ty, byref.map(|_| ParamMode::ByRef).unwrap_or(ParamMode::ByVal))
 )));
 
 named!(for_range<(Expr, Expr, Option<Expr>)>, complete!(do_parse!(

@@ -322,7 +322,11 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* spec,
                         ref $($_mut)* body,
                     } => {
-                        let (ref $($_mut)* ident, ref $($_mut)* ty) = *var;
+                        let (
+                            ref $($_mut)* ident,
+                            ref $($_mut)* ty,
+                            ref $($_mut)* mode
+                        ) = *var;
                         self.visit_ident(ident,
                           NameCtxt::DefValue(module, Some(function), ty), loc);
                         self.visit_type(ty, module, loc);

@@ -103,7 +103,7 @@ pub enum StmtKind {
 
     /// while loop
     ForLoop {
-        var: (Ident, Type),
+        var: (Ident, Type, ParamMode),
         spec: ForSpec,
         body: Vec<Stmt>,
     },

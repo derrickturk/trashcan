@@ -19,8 +19,8 @@ impl Emit<()> for Literal {
             Literal::Int16(n) => n.to_string(),
             Literal::Int32(n) => n.to_string(),
             Literal::IntPtr(n) => n.to_string(),
-            Literal::Float32(n) => format!("!{}", n),
-            Literal::Float64(n) => format!("#{}", n),
+            Literal::Float32(n) => format!("{}!", n),
+            Literal::Float64(n) => format!("{}#", n),
             Literal::String(ref s) => vb_string(s),
             // TODO: handle wacky types
             _ => panic!("dumpster fire: don't know how to emit that yet"),
