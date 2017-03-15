@@ -7,9 +7,9 @@ Visual Basic (the old, gross one).
 
 Key features of the trashcan language over VB include:  
 * [x] No more damn case insensitivity  
-* [ ] Short-circuiting boolean expressions  
+* [x] Short-circuiting boolean expressions  
 * [ ] Generic types and functions  
-* [ ] Simplified iteration (for-each loops)  
+* [x] Simplified iteration (for-each loops)  
 * [x] Mandatory typing with limited type-checking enhancements  
 * [x] Syntactic conveniences (e.g. += and friends)  
 * [ ] Array and structure literals  
