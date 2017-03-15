@@ -29,9 +29,15 @@ impl Emit<TypePos> for Type {
                         emit_basename(out, symtab, self)
                     },
 
-                    TypePos::FunParam | TypePos::FunRet => {
+                    TypePos::FunParam => {
                         out.write_all(b"() As ")?;
                         emit_basename(out, symtab, self)
+                    },
+
+                    TypePos::FunRet => {
+                        out.write_all(b" As ")?;
+                        emit_basename(out, symtab, self)?;
+                        out.write_all(b"()")
                     },
                 }
             },
