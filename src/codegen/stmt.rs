@@ -275,8 +275,16 @@ fn emit_alloc_extents<W: Write>(out: &mut W,
         match *lb {
             None => {
                 out.write_all(b"0 To ")?;
-                ub.emit(out, symtab, ExprPos::Expr, 0)?;
-                out.write_all(b" - 1")?;
+                match ub.data {
+                    ExprKind::Lit(Literal::Int32(n)) => {
+                        write!(out, "{}", n - 1)?;
+                    },
+
+                    _ => {
+                        ub.emit(out, symtab, ExprPos::Expr, 0)?;
+                        out.write_all(b" - 1")?;
+                    },
+                };
             },
 
             Some(ref lb) => {
@@ -305,8 +313,16 @@ fn emit_realloc_extents<W: Write>(out: &mut W, array_expr: &Expr,
     match *lb {
         None => {
             out.write_all(b"0 To ")?;
-            ub.emit(out, symtab, ExprPos::Expr, 0)?;
-            out.write_all(b" - 1")?;
+            match ub.data {
+                ExprKind::Lit(Literal::Int32(n)) => {
+                    write!(out, "{}", n - 1)?;
+                },
+
+                _ => {
+                    ub.emit(out, symtab, ExprPos::Expr, 0)?;
+                    out.write_all(b" - 1")?;
+                },
+            };
         },
 
         Some(ref lb) => {
