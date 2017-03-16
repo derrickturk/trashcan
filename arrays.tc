@@ -5,14 +5,94 @@ struct ratio {
     denom: f64,
 }
 
+fn ratio_average(xs: &ratio[]) -> f64 {
+    let total_num: f64 = 0.0, total_denom: f64 = 0.0;
+    for x: ratio in xs {
+        total_num += x.num;
+        total_denom += x.denom;
+    }
+
+    return total_num / (total_denom != 0.0 ? total_denom : 1.0);
+}
+
+fn whatever(o: obj) {
+    if o !== nullptr && o.x > 17 {
+        print "whatever";
+    }
+
+    for o: obj in o {
+        print o;
+    }
+}
+
+fn something(xs: &u8[]) {
+    for x: /* & */ i32 in xs {
+        print x;
+    }
+}
+
 fn test() {
-    let rs2d: ratio[];
-    rs2d <- alloc [1:10];
-    // rs2d <- alloc[10];
-    // rs2d <- realloc [ 10 ];
-    rs2d <- realloc [1:15];
-    dealloc rs2d;
-    print last_index < 0 > (rs2d);
+    let rs2d: ratio[,];
+    rs2d <- alloc[10, 10];
+    for i: i32 = 0:9 {
+        for j: i32 = 0:9 {
+            rs2d[i,j].num = i;
+            rs2d[i,j].denom = j;
+        }
+    }
+
+    let rs: ratio[];
+    rs <- alloc[10];
+    for i: i32 = 0:9 {
+        rs[i].num = i;
+        rs[i].denom = 10 - i;
+    }
+
+    for r: &ratio in rs2d {
+        r.num *= 3;
+    }
+
+    for r: ratio in rs2d {
+        print r.denom;
+    }
+
+    for r: &ratio in rs {
+        r.num *= 3;
+    }
+
+    rs <- realloc[5];
+
+    for r: ratio in rs {
+        print r.denom;
+    }
+
+    /*
+    let v: var = rs;
+    for r: var in v {
+        r.num *= 2;
+    }
+    */
+
+    print ratio_average(rs);
+}
+
+fn bad_enough_dude() -> ratio[,,,,] {
+    let res: ratio[,,,,];
+    res <- alloc[5,5,5,5,5];
+
+    for r: &ratio in res {
+        r.num = 22;
+        r.denom = 3;
+    }
+
+    return res;
+}
+
+fn use_dude() {
+    let dude: ratio[,,,,] = bad_enough_dude();
+    for r: &ratio in dude {
+        print r.num;
+    }
 }
 
 }

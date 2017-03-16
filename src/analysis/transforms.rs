@@ -615,11 +615,6 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         // inclusive ranges would be nice here...
         let mut g_iters: Vec<_> = (1..dims + 1).map(|_| gensym(None)).collect();
 
-        let mut dim_lits: Vec<_> = (1..dims + 1).map(|d| Expr {
-            data: ExprKind::Lit(Literal::Int32(d as i32)),
-            loc: loc.clone(),
-        }).collect();
-
         let index_expr = Expr {
             data: ExprKind::Index(Box::new(expr.clone()),
               g_iters.iter().cloned().map(|g| Expr {
@@ -682,23 +677,22 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         };
 
         // nested inner loops, if needed
-        for _ in (2..dims + 1).rev() {
-            let dim_lit = dim_lits.pop().unwrap();
+        for dim in (1..dims).rev() {
             let spec = ForSpec::Range(
                 // TODO: gross
                 Expr {
-                    data: ExprKind::Call(
-                        Path(None, Ident(String::from("LBound"), None)),
-                        vec![expr.clone(), dim_lit.clone()],
-                    ),
+                    data: ExprKind::ExtentExpr(
+                              Box::new(expr.clone()),
+                              ExtentKind::First,
+                              dim),
                     loc: loc.clone(),
                 },
 
                 Expr {
-                    data: ExprKind::Call(
-                        Path(None, Ident(String::from("UBound"), None)),
-                        vec![expr.clone(), dim_lit],
-                    ),
+                    data: ExprKind::ExtentExpr(
+                              Box::new(expr.clone()),
+                              ExtentKind::Last,
+                              dim),
                     loc: loc.clone(),
                 },
                 None
@@ -716,31 +710,23 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         }
 
         let var = (g_iters.pop().unwrap(), Type::Int32, ParamMode::ByVal);
-        let dim_lit = dim_lits.pop().unwrap();
         let spec = ForSpec::Range(
-            // TODO: gross
             Expr {
-                data: ExprKind::Call(
-                    Path(None, Ident(String::from("LBound"), None)),
-                    if dims == 1 {
-                        vec![expr.clone()]
-                    } else {
-                        vec![expr.clone(), dim_lit.clone()]
-                    }
-                ),
+                data: ExprKind::ExtentExpr(
+                          Box::new(expr.clone()),
+                          ExtentKind::First,
+                          0usize),
                 loc: loc.clone(),
             },
+
             Expr {
-                data: ExprKind::Call(
-                    Path(None, Ident(String::from("UBound"), None)),
-                    if dims == 1 {
-                        vec![expr.clone()]
-                    } else {
-                        vec![expr.clone(), dim_lit]
-                    }
-                ),
+                data: ExprKind::ExtentExpr(
+                          Box::new(expr.clone()),
+                          ExtentKind::Last,
+                          0usize),
                 loc: loc.clone(),
             },
+
             None
         );
 
