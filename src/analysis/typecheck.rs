@@ -402,6 +402,31 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(ub_ty)
         },
 
+        ExprKind::ExtentExpr(ref expr, kind, dim) => {
+            let expr_ty = type_of(expr, symtab, ctxt)?;
+            match expr_ty {
+                Type::Array(_, ref bounds) => {
+                    if dim < bounds.dims() {
+                        Ok(Type::Int32)
+                    } else {
+                        Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("dimension {} not \
+                              valid for type {}", dim, expr_ty)),
+                            loc: expr.loc.clone(),
+                        })
+                    }
+                },
+
+                _ => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("cannot get extents for \
+                      non-array type {}", expr_ty)),
+                    loc: expr.loc.clone(),
+                }),
+            }
+        },
+
         // could be anything
         ExprKind::VbExpr(_) => Ok(Type::Variant),
     }

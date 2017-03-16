@@ -471,6 +471,14 @@ macro_rules! make_ast_vistor {
                         self.visit_expr(else_expr, module, function);
                     },
 
+                    ExprKind::ExtentExpr(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* kind,
+                        ref $($_mut)* dim
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                    },
+
                     ExprKind::VbExpr(ref $($_mut)* data) =>
                         self.visit_vbexpr(data, module, function, loc),
                 }

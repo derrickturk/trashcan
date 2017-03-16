@@ -11,7 +11,7 @@ pub const IDENT_CONT_CHARS: &'static str =
      0123456789\
      _";
 
-pub const KEYWORDS: [&'static str; 33] = [
+pub const KEYWORDS: [&'static str; 36] = [
     "let",
     "print",
     "return",
@@ -27,6 +27,9 @@ pub const KEYWORDS: [&'static str; 33] = [
     "alloc",
     "realloc",
     "dealloc",
+    "first_index",
+    "last_index",
+    "along",
     "nullptr",
     "emptyvar",
     "nullvar",

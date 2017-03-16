@@ -185,6 +185,9 @@ pub enum ExprKind {
         else_expr: Box<Expr>,
     },
 
+    /// an extent expression e.g. first_index<0>(arr)
+    ExtentExpr(Box<Expr>, ExtentKind, usize),
+
     /// pass-through literal VB expression (raw bytes)
     VbExpr(Vec<u8>),
 }
@@ -199,12 +202,13 @@ impl Expr {
             _ => false,
         }
     }
+}
 
-    /*
-    pub fn might_need_parens(&self) -> {
-
-    }
-    */
+/// an array-extents expression
+#[derive(Copy, Clone, Debug)]
+pub enum ExtentKind {
+    First,
+    Last,
 }
 
 /// A struct type definition

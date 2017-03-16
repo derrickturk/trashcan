@@ -382,6 +382,13 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
             else_expr: Box::new(folder.fold_expr(*else_expr, module, function))
         },
 
+        ExprKind::ExtentExpr(expr, kind, dim) =>
+            ExprKind::ExtentExpr(
+                Box::new(folder.fold_expr(*expr, module, function)),
+                kind,
+                dim
+            ),
+
         ExprKind::VbExpr(data) =>
             ExprKind::VbExpr(folder.fold_vbexpr(data, module, function, &loc)),
     };
