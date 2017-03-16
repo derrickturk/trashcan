@@ -50,6 +50,7 @@ pub struct FunDef {
     pub name: Ident,
     pub access: Access,
     pub params: Vec<FunParam>,
+    pub optparams: Vec<(FunParam, Literal)>,
     pub ret: Type,
     pub body: Vec<Stmt>,
     pub loc: SrcLoc,

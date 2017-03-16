@@ -6,11 +6,11 @@ struct ratio {
 }
 
 fn test() {
-    let rs2d: ratio[,];
-    rs2d <- alloc [1:10, 1:10];
+    let rs2d: ratio[];
+    rs2d <- alloc [1:10];
     // rs2d <- alloc[10];
     // rs2d <- realloc [ 10 ];
-    rs2d <- realloc [, 1:15];
+    rs2d <- realloc [1:15];
     dealloc rs2d;
 }
 

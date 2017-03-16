@@ -23,6 +23,13 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
             char!('(') >>
     params: separated_list!(ws!(char!(',')), fnparam) >>
             opt!(call!(nom::multispace)) >>
+ optparams: opt!(preceded!(
+                char!('|'), // TODO: this is kind of gross, but 
+                            //   I do like setting apart the optionals visually,
+                            //   since they MUST come at the end
+                separated_nonempty_list!(ws!(char!(',')), optfnparam)
+            )) >>
+            opt!(call!(nom::multispace)) >>
             char!(')') >>
        ret: opt!(fnret) >>
             opt!(call!(nom::multispace)) >>
@@ -34,6 +41,7 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
                 name: name,
                 access: access,
                 params: params,
+                optparams: optparams.unwrap_or(vec![]),
                 ret: ret.unwrap_or(Type::Void),
                 body: body,
                 loc: empty_loc!(),
@@ -57,6 +65,31 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                 },
                 loc: empty_loc!()
             })
+)));
+
+named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
+      name: ident >>
+            opt!(call!(nom::multispace)) >>
+            char!(':') >>
+    byref:  opt!(preceded!(
+                opt!(nom::multispace),
+                char!('&'))) >>
+        ty: typename >>
+            opt!(call!(nom::multispace)) >>
+            char!('=') >>
+   default: literal >>
+            (
+                FunParam {
+                    name: name,
+                    ty: ty,
+                    mode: match byref {
+                        Some(_) => ParamMode::ByRef,
+                        None => ParamMode::ByVal,
+                    },
+                    loc: empty_loc!()
+                },
+                default
+            )
 )));
 
 named!(pub structdef<StructDef>, complete!(do_parse!(

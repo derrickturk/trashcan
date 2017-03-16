@@ -180,16 +180,26 @@ macro_rules! make_ast_vistor {
                     ref $($_mut)* name,
                     ref $($_mut)* access,
                     ref $($_mut)* params,
+                    ref $($_mut)* optparams,
                     ref $($_mut)* ret,
                     ref $($_mut)* body,
                     ref $($_mut)* loc,
                 } = *def;
 
                 self.visit_ident(name, NameCtxt::DefFunction(module), loc);
+
                 for p in params {
                     self.visit_funparam(p, module, name);
                 }
+
+                for & $($_mut)* (ref $($_mut)* p, ref $($_mut)* default)
+                  in optparams {
+                    self.visit_funparam(p, module, name);
+                    self.visit_literal(default, module, name, loc);
+                }
+
                 self.visit_type(ret, module, loc);
+
                 for stmt in body {
                     self.visit_stmt(stmt, module, name);
                 }

@@ -146,17 +146,20 @@ pub fn noop_fold_normal_item<F: ASTFolder + ?Sized>(folder: &mut F,
 }
 
 pub fn noop_fold_fundef<F: ASTFolder + ?Sized>(folder: &mut F,
-  FunDef { name, access, params, ret, body, loc }: FunDef, module: &Ident)
+  FunDef { name, access, params, optparams, ret, body, loc }: FunDef,
+  module: &Ident)
   -> FunDef {
     let name = folder.fold_ident(name, NameCtxt::DefFunction(module), &loc);
-    let params = folder.fold_funparam_list(params, module, &name);
     // TODO: hook for fold_access
+    let params = folder.fold_funparam_list(params, module, &name);
+    // hmmmm
     let ret = folder.fold_type(ret, module, &loc);
     let body = folder.fold_stmt_list(body, module, &name);
 
     FunDef {
         name: name,
         params: params,
+        optparams: optparams,
         access: access,
         ret: ret,
         body: body,
