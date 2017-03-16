@@ -1,4 +1,4 @@
-mod test {
+mod arrays {
 
 struct ratio {
     num: f64,
@@ -12,6 +12,7 @@ fn test() {
     // rs2d <- realloc [ 10 ];
     rs2d <- realloc [1:15];
     dealloc rs2d;
+    print last_index < 0 > (rs2d);
 }
 
 }

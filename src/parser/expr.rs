@@ -8,6 +8,8 @@ use super::op::*;
 use super::lit::*;
 use super::ident::*;
 
+use std::str;
+
 // we have to handle left recursion very carefully
 //   when parsing expressions (see https://en.wikipedia.org/wiki/Left_recursion)
 //   and an example at https://github.com/Geal/nom/blob/master/tests/arithmetic_ast.rs
@@ -190,6 +192,8 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
     // if we ever allow indirect fncalls this will become left-recursive
     fncall
 
+  | extent_expr // n.b. this MUST be above path
+
   | path => { |p| Expr {
         data: ExprKind::Name(p),
         loc: empty_loc!(),
@@ -229,6 +233,33 @@ named!(grouped<Expr>, complete!(do_parse!(
        char!(')') >>
        (e)
 )));
+
+// an extents expression e.g. first_index<0>(arr)
+named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+      kind: alt_complete!(
+                tag!("first_index") => { |_| ExtentKind::First }
+              | tag!("last_index") => { |_| ExtentKind::Last }
+            ) >>
+            opt!(call!(nom::multispace)) >>
+            char!('<') >>
+            opt!(call!(nom::multispace)) >>
+       dim: call!(nom::digit) >>
+            opt!(call!(nom::multispace)) >>
+            char!('>') >>
+            opt!(call!(nom::multispace)) >>
+            char!('(') >>
+       arr: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!(')') >>
+            (arr, kind, dim)
+), |(arr, kind, dim): (Expr, ExtentKind, &[u8])| -> Result<Expr, <usize as str::FromStr>::Err> {
+    let dim = unsafe { str::from_utf8_unchecked(dim) };
+    Ok(Expr {
+        data: ExprKind::ExtentExpr(Box::new(arr), kind, dim.parse::<usize>()?),
+        loc: empty_loc!(),
+    })
+})));
 
 // a passthrough VB expression
 // TODO: this needs work to pass through location,
