@@ -139,7 +139,14 @@ impl<'a> Emit<ExprPos> for Expr {
                 out.write_all(b")")
             },
 
+            ExprKind::CondExpr { .. } => {
+                panic!("dumpster fire: un-transformed CondExpr in codegen");
+            },
+
             ExprKind::ExtentExpr(ref expr, kind, dim) => {
+                // TODO: we could typecheck and drop the ,1 in the 1-D array
+                //   case (it'd make the output slightly prettier)
+
                 let builtin = match kind {
                     ExtentKind::First => "LBound",
                     ExtentKind::Last => "UBound",
@@ -156,12 +163,6 @@ impl<'a> Emit<ExprPos> for Expr {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 out.write_all(bytes)
             },
-
-            ref e => {
-                // TODO: unimplemented cases
-                write!(out, "{:in$}{:?}", "", e,
-                  in = (indent * INDENT) as usize)
-            }
         }
     }
 }
