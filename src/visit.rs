@@ -107,6 +107,17 @@ macro_rules! make_ast_vistor {
                 self.walk_forspec(spec, module, function, loc)
             }
 
+            fn visit_allocextents(&mut self, extents: & $($_mut)* AllocExtents,
+              module: &Ident, function: &Ident, loc: &SrcLoc) {
+                self.walk_allocextents(extents, module, function, loc)
+            }
+
+            fn visit_reallocextents(&mut self,
+              extents: & $($_mut)* ReAllocExtents, module: &Ident,
+              function: &Ident, loc: &SrcLoc) {
+                self.walk_reallocextents(extents, module, function, loc)
+            }
+
             // TODO: can we ever not be in a function when we walk a path?
             fn visit_path(&mut self, p: & $($_mut)* Path, ctxt: NameCtxt,
               loc: &SrcLoc) {
@@ -356,29 +367,16 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* extents
                     ) => {
                         self.visit_expr(expr, module, function);
-                        for & $($_mut)* (ref $($_mut)* lb, ref $($_mut)* ub)
-                          in extents {
-                            match *lb {
-                                Some(ref $($_mut)* lb) =>
-                                    self.visit_expr(lb, module, function),
-                                None => {}
-                            };
-                            self.visit_expr(ub, module, function);
-                        }
+                        self.visit_allocextents(extents, module, function, loc);
                     },
 
                     StmtKind::ReAlloc(
                         ref $($_mut)* expr,
-                        ref $($_mut)* dims,
-                        (ref $($_mut)* lb, ref $($_mut)* ub)
+                        ref $($_mut)* extents
                     ) => {
                         self.visit_expr(expr, module, function);
-                        match *lb {
-                            Some(ref $($_mut)* lb) =>
-                                self.visit_expr(lb, module, function),
-                            None => {}
-                        };
-                        self.visit_expr(ub, module, function);
+                        self.visit_reallocextents(extents, module, function,
+                          loc);
                     },
 
                     StmtKind::DeAlloc(ref $($_mut)* expr) => {
@@ -504,6 +502,49 @@ macro_rules! make_ast_vistor {
                     ForSpec::Each(ref $($_mut)* of) =>
                         self.visit_expr(of, module, function)
                 }
+            }
+
+            fn walk_allocextents(&mut self, extents: & $($_mut)* AllocExtents,
+              module: &Ident, function: &Ident, _loc: &SrcLoc) {
+                match *extents {
+                    AllocExtents::Along(ref $($_mut)* expr) => {
+                        self.visit_expr(expr, module, function);
+                    },
+
+                    AllocExtents::Range(ref $($_mut)* bounds) => {
+                        for & $($_mut)* (ref $($_mut)* lb, ref $($_mut)* ub)
+                          in bounds {
+                            match *lb {
+                                Some(ref $($_mut)* lb) =>
+                                    self.visit_expr(lb, module, function),
+                                None => {},
+                            };
+                            self.visit_expr(ub, module, function);
+                        }
+                    },
+                };
+            }
+
+            fn walk_reallocextents(&mut self,
+              extents: & $($_mut)* ReAllocExtents, module: &Ident,
+              function: &Ident, _loc: &SrcLoc) {
+                match *extents {
+                    ReAllocExtents::Along(ref $($_mut)* expr) => {
+                        self.visit_expr(expr, module, function);
+                    },
+
+                    ReAllocExtents::Range(
+                        _,
+                        (ref $($_mut)* lb, ref $($_mut)* ub)
+                    ) => {
+                        match *lb {
+                            Some(ref $($_mut)* lb) =>
+                                self.visit_expr(lb, module, function),
+                            None => {},
+                        };
+                        self.visit_expr(ub, module, function);
+                    },
+                };
             }
 
             fn walk_path(&mut self, p: & $($_mut)* Path, ctxt: NameCtxt,

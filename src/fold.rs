@@ -76,6 +76,16 @@ pub trait ASTFolder {
         noop_fold_forspec(self, spec, module, function, loc)
     }
 
+    fn fold_allocextents(&mut self, extents: AllocExtents, module: &Ident,
+      function: &Ident, loc: &SrcLoc) -> AllocExtents {
+        noop_fold_allocextents(self, extents, module, function, loc)
+    }
+
+    fn fold_reallocextents(&mut self, extents: ReAllocExtents, module: &Ident,
+      function: &Ident, loc: &SrcLoc) -> ReAllocExtents {
+        noop_fold_reallocextents(self, extents, module, function, loc)
+    }
+
     // TODO: can we ever not be in a function when we walk a path?
     fn fold_path(&mut self, p: Path, ctxt: NameCtxt, loc: &SrcLoc) -> Path {
         noop_fold_path(self, p, ctxt, loc)
@@ -291,22 +301,17 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 body: folder.fold_stmt_list(body, module, function),
             },
 
-        StmtKind::Alloc(expr, extents) => {
-            let expr = folder.fold_expr(expr, module, function);
-            let extents = extents.into_iter().map(|(lb, ub)| {
-                (lb.map(|e| folder.fold_expr(e, module, function)), ub)
-            }).collect();
-            StmtKind::Alloc(expr, extents)
-        },
+        StmtKind::Alloc(expr, extents) =>
+            StmtKind::Alloc(
+                folder.fold_expr(expr, module, function),
+                folder.fold_allocextents(extents, module, function, &loc)
+            ),
 
-        StmtKind::ReAlloc(expr, preserved, (lb, ub)) => {
-            let expr = folder.fold_expr(expr, module, function);
-            let extents = (
-                lb.map(|e| folder.fold_expr(e, module, function)),
-                ub
-            );
-            StmtKind::ReAlloc(expr, preserved, extents)
-        },
+        StmtKind::ReAlloc(expr, extents) =>
+            StmtKind::ReAlloc(
+                folder.fold_expr(expr, module, function),
+                folder.fold_reallocextents(extents, module, function, &loc)
+            ),
 
         StmtKind::DeAlloc(expr) =>
             StmtKind::DeAlloc(folder.fold_expr(expr, module, function)),
@@ -411,6 +416,40 @@ pub fn noop_fold_forspec<F: ASTFolder + ?Sized>(folder: &mut F, spec: ForSpec,
 
         ForSpec::Each(of) =>
             ForSpec::Each(folder.fold_expr(of, module, function)),
+    }
+}
+
+fn noop_fold_allocextents<F: ASTFolder + ?Sized>(folder: &mut F,
+  extents: AllocExtents, module: &Ident,
+  function: &Ident, _loc: &SrcLoc) -> AllocExtents {
+    match extents {
+        AllocExtents::Along(expr) =>
+            AllocExtents::Along(folder.fold_expr(expr, module, function)),
+        AllocExtents::Range(bounds) =>
+            AllocExtents::Range(bounds.into_iter().map(|(lb, ub)| {
+                (
+                    lb.map(|lb| folder.fold_expr(lb, module, function)),
+                    folder.fold_expr(ub, module, function)
+                )
+            }).collect()),
+    }
+}
+
+fn noop_fold_reallocextents<F: ASTFolder + ?Sized>(folder: &mut F,
+  extents: ReAllocExtents, module: &Ident,
+  function: &Ident, _loc: &SrcLoc) -> ReAllocExtents {
+    match extents {
+        ReAllocExtents::Along(expr) =>
+            ReAllocExtents::Along(
+                folder.fold_expr(expr, module, function)),
+        ReAllocExtents::Range(preserved, (lb, ub)) =>
+            ReAllocExtents::Range(
+                preserved,
+                (
+                    lb.map(|lb| folder.fold_expr(lb, module, function)),
+                    folder.fold_expr(ub, module, function)
+                )
+            ),
     }
 }
 

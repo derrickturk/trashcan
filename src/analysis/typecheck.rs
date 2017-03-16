@@ -981,38 +981,59 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         StmtKind::Alloc(ref expr, ref extents) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    if dims != extents.len() {
+                    let extent_dims = match *extents {
+                        AllocExtents::Along(ref expr) => {
+                            match type_of(expr, symtab, &ctxt)? {
+                                Type::Array(_, ref bounds) => bounds.dims(),
+
+                                ty => return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(format!("along expression of non-array \
+                                      type {}", ty)),
+                                    loc: stmt.loc.clone(),
+                                }),
+                            }
+                        },
+
+                        AllocExtents::Range(ref bounds) => {
+                            for &(ref lb, ref ub) in bounds {
+                                if let Some(ref lb) = *lb {
+                                    let extent_ty = type_of(lb, symtab, ctxt)?;
+                                    if !may_coerce(&extent_ty, &Type::Int32) {
+                                        return Err(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(String::from(
+                                              "array extent bound not \
+                                                coercible to i32")),
+                                            loc: stmt.loc.clone(),
+                                        });
+                                    }
+                                }
+
+                                let extent_ty = type_of(ub, symtab, ctxt)?;
+                                if !may_coerce(&extent_ty, &Type::Int32) {
+                                    return Err(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(String::from(
+                                          "array extent bound not coercible \
+                                          to i32")),
+                                        loc: stmt.loc.clone(),
+                                    });
+                                }
+                            }
+
+                            bounds.len()
+                        },
+                    };
+
+                    if dims != extent_dims {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(format!("extents dimensions ({}) \
                               do not match array dimensions ({}) in alloc",
-                              extents.len(), dims)),
+                              extent_dims, dims)),
                             loc: stmt.loc.clone(),
                         });
-                    }
-
-                    for &(ref lb, ref ub) in extents {
-                        if let Some(ref lb) = *lb {
-                            let extent_ty = type_of(lb, symtab, ctxt)?;
-                            if !may_coerce(&extent_ty, &Type::Int32) {
-                                return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(String::from("array extent \
-                                      bound not coercible to i32")),
-                                    loc: stmt.loc.clone(),
-                                });
-                            }
-                        }
-
-                        let extent_ty = type_of(ub, symtab, ctxt)?;
-                        if !may_coerce(&extent_ty, &Type::Int32) {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(String::from("array extent \
-                                  bound not coercible to i32")),
-                                loc: stmt.loc.clone(),
-                            });
-                        }
                     }
                 },
 
@@ -1036,37 +1057,61 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        StmtKind::ReAlloc(ref expr, preserved, (ref lb, ref ub)) => {
+        StmtKind::ReAlloc(ref expr, ref extents) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    if dims != preserved + 1 {
+                    let extent_dims = match *extents {
+                        ReAllocExtents::Along(ref expr) => {
+                            match type_of(expr, symtab, &ctxt)? {
+                                Type::Array(_, ref bounds) => bounds.dims(),
+
+                                ty => return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(format!("along expression of non-array \
+                                      type {}", ty)),
+                                    loc: stmt.loc.clone(),
+                                }),
+                            }
+                        },
+
+                        ReAllocExtents::Range(
+                            ref pre_dims,
+                            (ref lb, ref ub)
+                        ) => {
+                            if let Some(ref lb) = *lb {
+                                let extent_ty = type_of(lb, symtab, ctxt)?;
+                                if !may_coerce(&extent_ty, &Type::Int32) {
+                                    return Err(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(String::from(
+                                          "array extent bound not \
+                                            coercible to i32")),
+                                        loc: stmt.loc.clone(),
+                                    });
+                                }
+                            }
+
+                            let extent_ty = type_of(ub, symtab, ctxt)?;
+                            if !may_coerce(&extent_ty, &Type::Int32) {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(String::from(
+                                      "array extent bound not coercible \
+                                      to i32")),
+                                    loc: stmt.loc.clone(),
+                                });
+                            }
+
+                            pre_dims + 1
+                        },
+                    };
+
+                    if dims != extent_dims {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(format!("extents dimensions ({}) \
                               do not match array dimensions ({}) in realloc",
-                              preserved + 1, dims)),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
-
-                    if let Some(ref lb) = *lb {
-                        let extent_ty = type_of(lb, symtab, ctxt)?;
-                        if !may_coerce(&extent_ty, &Type::Int32) {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(String::from("array extent \
-                                  bound not coercible to i32")),
-                                loc: stmt.loc.clone(),
-                            });
-                        }
-                    }
-
-                    let extent_ty = type_of(ub, symtab, ctxt)?;
-                    if !may_coerce(&extent_ty, &Type::Int32) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("array extent \
-                              bound not coercible to i32")),
+                              extent_dims, dims)),
                             loc: stmt.loc.clone(),
                         });
                     }

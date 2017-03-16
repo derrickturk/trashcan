@@ -238,7 +238,7 @@ named!(realloc<Stmt>, complete!(do_parse!(
    extents: realloc_extents >>
             terminator >>
             (Stmt {
-                data: StmtKind::ReAlloc(array, extents.0, extents.1),
+                data: StmtKind::ReAlloc(array, extents),
                 loc: empty_loc!(),
             })
 )));
@@ -254,23 +254,23 @@ named!(dim_extent<(Option<Expr>, Expr)>, complete!(do_parse!(
         (lb, ub)
 )));
 
-named!(alloc_extents<Vec<(Option<Expr>, Expr)>>, complete!(do_parse!(
+named!(alloc_extents<AllocExtents>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('[') >>
    extents: separated_nonempty_list!(ws!(char!(',')), dim_extent) >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
-            (extents)
+            (AllocExtents::Range(extents))
 )));
 
-named!(realloc_extents<(usize, (Option<Expr>, Expr))>, complete!(do_parse!(
+named!(realloc_extents<ReAllocExtents>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('[') >>
    predims: many0!(ws!(char!(','))) >>
     extent: dim_extent >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
-            (predims.len(), extent)
+            (ReAllocExtents::Range(predims.len(), extent))
 )));
 
 named!(dealloc<Stmt>, complete!(do_parse!(
