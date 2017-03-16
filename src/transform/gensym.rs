@@ -1,10 +1,12 @@
-//! trashcan's AST rewrite rules, used to implement various language features
+//! trashcan's gensym and substitution tools
 
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 
-use super::*;
 use ast::*;
+use parser::SrcLoc;
+
 use visit::NameCtxt;
+
 use fold;
 use fold::ASTFolder;
 

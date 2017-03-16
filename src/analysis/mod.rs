@@ -30,7 +30,5 @@ pub type AnalysisResult<T> = Result<T, AnalysisError>;
 
 pub mod symtab;
 pub use self::symtab::*;
-pub mod rewrite;
-pub use self::rewrite::*;
 pub mod typecheck;
 pub use self::typecheck::*;
