@@ -12,6 +12,7 @@ extern crate nom;
 extern crate trashcan;
 use trashcan::parser;
 use trashcan::analysis;
+use trashcan::transform;
 use trashcan::codegen::Emit;
 
 fn main() {
@@ -49,13 +50,13 @@ fn main() {
     }
 
     // pre-processing / rename passes
-    let dumpster = analysis::merge_dumpsters(dumpsters);
+    let dumpster = transform::merge_dumpsters(dumpsters);
 
     // order matters here!
-    let dumpster = analysis::for_loop_var_gensym(dumpster);
-    let dumpster = analysis::vb_keyword_gensym(dumpster);
-    let dumpster = analysis::fn_name_local_gensym(dumpster);
-    let mut dumpster = analysis::case_folding_duplicate_gensym(dumpster);
+    let dumpster = transform::for_loop_var_gensym(dumpster);
+    let dumpster = transform::vb_keyword_gensym(dumpster);
+    let dumpster = transform::fn_name_local_gensym(dumpster);
+    let mut dumpster = transform::case_folding_duplicate_gensym(dumpster);
 
     // symbol table generation & deferred type resolution
     let mut symtab = analysis::SymbolTable::build(&mut dumpster)
@@ -68,8 +69,8 @@ fn main() {
     // post-processing / semantics-preserving passes
     //   (these need symbols and access to typing)
     //   (they also may emit new symbols etc)
-    let mut dumpster = analysis::short_circuit_logicals(dumpster, &mut symtab);
-    let dumpster = analysis::array_loop_rewrite(dumpster, &mut symtab);
+    let mut dumpster = transform::short_circuit_logicals(dumpster, &mut symtab);
+    let dumpster = transform::array_loop_rewrite(dumpster, &mut symtab);
 
     // codegen pass
     for m in dumpster.modules.iter() {

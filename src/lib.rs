@@ -8,3 +8,4 @@ pub mod fold;
 pub mod parser;
 pub mod codegen;
 pub mod analysis;
+pub mod transform;
