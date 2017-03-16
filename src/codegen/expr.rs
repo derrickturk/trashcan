@@ -139,6 +139,19 @@ impl<'a> Emit<ExprPos> for Expr {
                 out.write_all(b")")
             },
 
+            ExprKind::ExtentExpr(ref expr, kind, dim) => {
+                let builtin = match kind {
+                    ExtentKind::First => "LBound",
+                    ExtentKind::Last => "UBound",
+                };
+
+                write!(out, "{:in$}{}(", "", builtin,
+                  in = (indent * INDENT) as usize)?;
+                expr.emit(out, symtab, ctxt, 0)?;
+                // 0-based to 1-based
+                write!(out, ", {})", dim + 1)
+            },
+
             ExprKind::VbExpr(ref bytes) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 out.write_all(bytes)

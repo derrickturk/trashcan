@@ -253,7 +253,8 @@ named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!(')') >>
             (arr, kind, dim)
-), |(arr, kind, dim): (Expr, ExtentKind, &[u8])| -> Result<Expr, <usize as str::FromStr>::Err> {
+), |(arr, kind, dim): (Expr, ExtentKind, &[u8])|
+            -> Result<Expr, <usize as str::FromStr>::Err> {
     let dim = unsafe { str::from_utf8_unchecked(dim) };
     Ok(Expr {
         data: ExprKind::ExtentExpr(Box::new(arr), kind, dim.parse::<usize>()?),
