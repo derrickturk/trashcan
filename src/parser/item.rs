@@ -3,10 +3,10 @@
 use nom::{self, IResult, ErrorKind};
 
 use ast::*;
-use super::*;
 use super::ident::*;
 use super::expr::*;
 use super::stmt::*;
+use super::lit::*;
 
 named!(pub normal_item<NormalItem>, alt_complete!(
     fundef => { |f| NormalItem::Function(f) }

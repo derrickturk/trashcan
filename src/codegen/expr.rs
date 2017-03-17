@@ -100,12 +100,12 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 match *op {
                     UnOp::Negate => {
-                        out.write_all(b"-");
+                        out.write_all(b"-")?;
                         expr.emit(out, symtab, ctxt, 0)?;
                     },
 
                     UnOp::BitNot | UnOp::LogNot => {
-                        out.write_all(b"Not ");
+                        out.write_all(b"Not ")?;
                         expr.emit(out, symtab, ctxt, 0)?;
                     },
 

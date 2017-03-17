@@ -15,7 +15,7 @@ pub enum TypePos {
 // TODO: need context here (are we in fn-ret, param, or decl position?)
 impl Emit<TypePos> for Type {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: TypePos, indent: u32) -> io::Result<()> {
+      ctxt: TypePos, _indent: u32) -> io::Result<()> {
         match *self {
             Type::Deferred(ref i) =>
                 panic!("dumpster fire: unresolved type \

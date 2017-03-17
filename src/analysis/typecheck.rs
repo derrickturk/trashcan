@@ -124,7 +124,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 },
 
                 Type::Deferred(ref path) => panic!("dumpster fire:
-                  deferred type in type checking pass"),
+                  deferred type {} in type checking pass", path),
 
                 ty => {
                     return Err(AnalysisError {
@@ -354,7 +354,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             Ok(ub_ty)
         },
 
-        ExprKind::ExtentExpr(ref expr, kind, dim) => {
+        ExprKind::ExtentExpr(ref expr, _, dim) => {
             let expr_ty = type_of(expr, symtab, ctxt)?;
             match expr_ty {
                 Type::Array(_, ref bounds) => {
@@ -1131,12 +1131,12 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                                 },
 
                                 // checked in allocextent visitor
-                                ty => { },
+                                _ => { },
                             }
                         },
 
                         // checked in allocextent visitor
-                        AllocExtent::Range(ref lb, ref ub) => { },
+                        AllocExtent::Range(_, _) => { },
                     };
 
                     if dims != preserved + 1 {
@@ -1220,7 +1220,7 @@ fn typecheck_allocextent(extent: &AllocExtent, symtab: &SymbolTable,
     match *extent {
         AllocExtent::Along(ref expr) => {
             match type_of(expr, symtab, &ctxt)? {
-                Type::Array(_, ref bounds) => Ok(()),
+                Type::Array(_, _) => Ok(()),
 
                 ty => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,

@@ -6,7 +6,6 @@
 //   (possibly gensymmed for private scopes) and the inner is the symbol name
 
 use parser::SrcLoc;
-use ast;
 
 #[derive(Clone, Debug)]
 pub struct AnalysisError {

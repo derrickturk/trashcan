@@ -83,7 +83,7 @@ impl<'a> Emit<&'a Module> for FunDef {
 
 impl Emit<()> for FunParam {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: (), indent: u32) -> io::Result<()> {
+      _ctxt: (), indent: u32) -> io::Result<()> {
         self.mode.emit(out, symtab, (), indent)?;
         out.write_all(b" ")?;
         self.name.emit(out, symtab, (), 0)?;
@@ -93,7 +93,7 @@ impl Emit<()> for FunParam {
 
 impl<'a> Emit<()> for StructDef {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: (), indent: u32) -> io::Result<()> {
+      _ctxt: (), indent: u32) -> io::Result<()> {
         self.access.emit(out, symtab, (), indent)?;
         out.write_all(b" Type ")?;
         self.name.emit(out, symtab, (), 0)?;
@@ -109,7 +109,7 @@ impl<'a> Emit<()> for StructDef {
 
 impl Emit<()> for StructMem {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: (), indent: u32) -> io::Result<()> {
+      _ctxt: (), indent: u32) -> io::Result<()> {
         self.name.emit(out, symtab, (), indent)?;
         self.ty.emit(out, symtab, TypePos::Decl, 0)?;
         out.write_all(b"\n")

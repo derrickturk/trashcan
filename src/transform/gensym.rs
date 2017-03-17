@@ -37,7 +37,7 @@ pub struct ScopedSubstitutionFolder {
 impl ASTFolder for ScopedSubstitutionFolder {
     // TODO: should we hook fold_path instead?
 
-    fn fold_ident(&mut self, ident: Ident, ctxt: NameCtxt, loc: &SrcLoc)
+    fn fold_ident(&mut self, ident: Ident, ctxt: NameCtxt, _loc: &SrcLoc)
       -> Ident {
         let (module, function) = match ctxt {
             NameCtxt::Value(m, f, _) if self.values =>

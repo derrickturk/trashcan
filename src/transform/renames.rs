@@ -1,5 +1,4 @@
 use ast::*;
-use analysis::*;
 use super::gensym::*;
 use parser::SrcLoc;
 
@@ -103,7 +102,7 @@ impl VbKeywordGensymCollectVisitor {
 }
 
 impl ASTVisitor for VbKeywordGensymCollectVisitor {
-    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, _loc: &SrcLoc) {
         if !VB_KEYWORDS.contains(&ident.0.to_uppercase().as_str()) {
             return;
         }
@@ -129,7 +128,6 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
                 (false, false, false, true, false, &mut self.member_renamers),
             Rename::Module =>
                 (false, false, false, false, true, &mut self.module_renamers),
-            _ => panic!("dumpster fire: invalid rename type"),
         };
 
         let g = gensym(Some(ident.clone()));
@@ -161,7 +159,7 @@ impl FnNameLocalGensymCollectVisitor {
 }
 
 impl ASTVisitor for FnNameLocalGensymCollectVisitor {
-    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, _loc: &SrcLoc) {
         let (module, function) = match ctxt {
             NameCtxt::DefValue(m, Some(f), _) => (m, f),
             NameCtxt::DefParam(m, f, _, _) => (m, f),
@@ -288,7 +286,7 @@ impl CaseFoldingDuplicateGensymVisitor {
 }
 
 impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
-    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
+    fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, _loc: &SrcLoc) {
         let (mut module, mut function, what) = match ctxt {
             NameCtxt::DefValue(m, f, _) => (Some(m), f, Rename::Value),
             NameCtxt::DefParam(m, f, _, _) => (Some(m), Some(f), Rename::Value),
@@ -332,7 +330,6 @@ impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
             },
             Rename::Module =>
                 (false, false, false, false, true, &mut self.module_renamers),
-            _ => panic!("dumpster fire: invalid rename type"),
         };
 
         let g = gensym(Some(ident.clone()));

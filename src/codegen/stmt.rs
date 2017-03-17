@@ -139,7 +139,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                     if i != 0 {
                         // TODO: is this what we want or & & &
                         //   probably punt until we have "as str"
-                        out.write_all(b"; ");
+                        out.write_all(b"; ")?;
                     }
                     expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
                 }
@@ -215,7 +215,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                             },
                             None => {},
                         }
-                        out.write_all(b"\n");
+                        out.write_all(b"\n")?;
                     },
 
                     ForSpec::Each(ref expr) => {

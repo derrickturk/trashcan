@@ -5,11 +5,24 @@ use nom::{self, IResult, ErrorKind};
 
 use ast::*;
 
+#[derive(Clone, Debug)]
+pub struct SrcLoc {
+    pub file: String,
+    pub line: u32,
+    pub start: u32,
+    pub len: u32,
+}
+
+pub enum CustomErrors {
+    KeywordAsIdent,
+    InvalidEscape,
+}
+
 // for now...
 #[macro_export]
 macro_rules! empty_loc {
     () => {
-        SrcLoc {
+        $crate::parser::SrcLoc {
             file: String::new(),
             line: 0,
             start: 0,
@@ -21,7 +34,7 @@ macro_rules! empty_loc {
 macro_rules! expect_parse {
     ($e:expr ; $i:ident => $p:pat) => {
         match $i($e) {
-            IResult::Done(s, $p) => { assert_eq!(s.len(), 0) },
+            nom::IResult::Done(s, $p) => { assert_eq!(s.len(), 0) },
             r => panic!("{:?}", r),
         }
     }
@@ -39,19 +52,6 @@ mod op;
 use self::op::*;
 mod lit;
 use self::lit::*;
-
-#[derive(Clone, Debug)]
-pub struct SrcLoc {
-    pub file: String,
-    pub line: u32,
-    pub start: u32,
-    pub len: u32,
-}
-
-pub enum CustomErrors {
-    KeywordAsIdent,
-    InvalidEscape,
-}
 
 pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     let mut in_line_comment = false;

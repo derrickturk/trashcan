@@ -30,8 +30,7 @@ pub fn array_loop_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
 }
 
 /// replace for-along loops with equivalent nested range loops
-pub fn along_loop_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
-  -> Dumpster {
+pub fn along_loop_rewrite(dumpster: Dumpster) -> Dumpster {
     let mut f = AlongLoopRewriteFolder::new();
     f.fold_dumpster(dumpster)
 }
@@ -319,7 +318,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
 
     // TODO: this whole loop-and-a-half is ugly hot garbage
     fn array_for_loop(&mut self, var: Ident, ty: Type, mode: ParamMode,
-      expr: Expr, base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
+      expr: Expr, _base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
       loc: &SrcLoc, module: &Ident, function: &Ident) -> StmtKind {
         let dims = bounds.dims();
 
@@ -479,7 +478,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
             fold::noop_fold_stmt(self, stmt, module, function);
 
         let data = match data {
-            StmtKind::ForLoop { var: (var, ty, mode), spec, mut body } => {
+            StmtKind::ForLoop { var: (var, ty, mode), spec, body } => {
                 match spec {
                     ForSpec::Range(first, last, step) =>
                         StmtKind::ForLoop {

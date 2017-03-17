@@ -3,9 +3,6 @@ use std::fs::File;
 
 use std::io;
 use std::io::Read;
-use std::io::Write;
-
-use std::collections::HashMap;
 
 extern crate nom;
 
@@ -69,9 +66,9 @@ fn main() {
     // post-processing / semantics-preserving passes
     //   (these need symbols and access to typing)
     //   (they also may emit new symbols etc)
-    let mut dumpster = transform::short_circuit_logicals(dumpster, &mut symtab);
-    let mut dumpster = transform::array_loop_rewrite(dumpster, &mut symtab);
-    let mut dumpster = transform::along_loop_rewrite(dumpster, &mut symtab);
+    let dumpster = transform::short_circuit_logicals(dumpster, &mut symtab);
+    let dumpster = transform::array_loop_rewrite(dumpster, &mut symtab);
+    let dumpster = transform::along_loop_rewrite(dumpster);
     let dumpster = transform::alloc_along_rewrite(dumpster, &mut symtab);
 
     // codegen pass

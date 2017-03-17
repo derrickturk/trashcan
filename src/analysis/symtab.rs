@@ -10,7 +10,6 @@ use std::io;
 use std::io::Write;
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 // TODO: types get their own namespace... or not
 /// A symbol table entry
@@ -216,7 +215,7 @@ impl SymbolTable {
 
         let allow_private = access == Access::Private;
 
-        let symtab = self.symtab.get(&m.0).ok_or(AnalysisError {
+        let symtab = self.module_table(m).ok_or(AnalysisError {
             kind: AnalysisErrorKind::NotDefined,
             regarding: Some(format!("mod {}", m)),
             loc: err_loc.clone(),
@@ -420,7 +419,7 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
     fn visit_path(&mut self, p: &Path, ctxt: NameCtxt, loc: &SrcLoc) {
         // ensure declare-before-use of "local" names
         match *p {
-            Path(None, ref ident) => {
+            Path(None, _) => {
                 match ctxt {
                     NameCtxt::Value(_, _, _) => {
                         if let Err(e) =
