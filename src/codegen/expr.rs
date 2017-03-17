@@ -8,6 +8,8 @@ use super::*;
 use super::bits::*;
 use super::ty::*;
 
+use analysis::ExprCtxt;
+
 #[derive(Copy, Clone, Debug)]
 pub enum ExprPos {
     /// used as expression
@@ -17,9 +19,9 @@ pub enum ExprPos {
     Stmt,
 }
 
-impl<'a> Emit<ExprPos> for Expr {
+impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: ExprPos, indent: u32) -> io::Result<()> {
+      ctxt: (ExprPos, &'a ExprCtxt), indent: u32) -> io::Result<()> {
         match self.data {
             ExprKind::Lit(ref literal) => literal.emit(out, symtab, (), indent),
 
@@ -28,13 +30,13 @@ impl<'a> Emit<ExprPos> for Expr {
             },
 
             ExprKind::Index(ref expr, ref indices) => {
-                expr.emit(out, symtab, ExprPos::Expr, indent)?;
+                expr.emit(out, symtab, (ExprPos::Expr, ctxt.1), indent)?;
                 out.write_all(b"(")?;
                 for (i, index) in indices.iter().enumerate() {
                     if i != 0 {
                         out.write_all(b", ")?;
                     }
-                    index.emit(out, symtab, ExprPos::Expr, 0)?;
+                    index.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
                 }
                 out.write_all(b")")
             },
@@ -46,17 +48,17 @@ impl<'a> Emit<ExprPos> for Expr {
                 };
                 pathexpr.emit(out, symtab, ctxt, indent)?;
 
-                match ctxt {
+                match ctxt.0 {
                     ExprPos::Expr => out.write_all(b"(")?,
                     ExprPos::Stmt => out.write_all(b" ")?,
                 };
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
-                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
+                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
                 }
 
-                match ctxt {
+                match ctxt.0 {
                     ExprPos::Expr => out.write_all(b")")?,
                     ExprPos::Stmt => {},
                 };
@@ -75,17 +77,17 @@ impl<'a> Emit<ExprPos> for Expr {
                 out.write_all(b".")?;
                 member.emit(out, symtab, (), 0)?;
 
-                match ctxt {
+                match ctxt.0 {
                     ExprPos::Expr => out.write_all(b"(")?,
                     ExprPos::Stmt => out.write_all(b" ")?,
                 };
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
-                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
+                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
                 }
 
-                match ctxt {
+                match ctxt.0 {
                     ExprPos::Expr => out.write_all(b")")?,
                     ExprPos::Stmt => {},
                 };

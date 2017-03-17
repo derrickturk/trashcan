@@ -17,16 +17,42 @@ pub trait Emit<Ctxt> {
       ctxt: Ctxt, indent: u32) -> io::Result<()>;
 }
 
-/* SOON
+/*
 
 struct EmitVisitor<'a, W: Write + 'a> {
     indent: u32,
     symtab: &'a SymbolTable,
-    out: &'a mut W,
+    out: Option<W>,
+}
+
+impl<'a> EmitVisitor<'a> {
+    fn new(symtab: &'a SymbolTable) -> Self {
+        Self {
+            indent: 0,
+            symtab: symtab,
+            out: None,
+            error: io::Result<()>,
+        }
+    }
+}
+
+macro_rules! vtry {
+    ($e:expr) => {
+        match $e {
+            Ok(res) => res,
+            Err(e) => {
+                self.error = Err(e);
+                return;
+            }
+        }
+    }
 }
 
 impl<'a> ASTVisitor for EmitVisitor<'a> {
     fn visit_module(&mut self, m: &Module) {
+        let file = m.filename();
+        let self.out = vtry!(File::create(&file));
+        vtry!(m.emit(&mut file, &symtab, (), 0));
     }
 }
 
