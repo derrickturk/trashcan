@@ -29,6 +29,13 @@ pub fn array_loop_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
     f.fold_dumpster(dumpster)
 }
 
+/// replace for-along loops with equivalent nested range loops
+pub fn along_loop_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
+  -> Dumpster {
+    let mut f = AlongLoopRewriteFolder::new();
+    f.fold_dumpster(dumpster)
+}
+
 /// rewrite alloc-along exprs to equivalent range exprs
 pub fn alloc_along_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
   -> Dumpster {
@@ -679,6 +686,74 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
         };
 
         Expr {
+            data: data,
+            loc: loc,
+        }
+    }
+}
+
+struct AlongLoopRewriteFolder;
+
+impl AlongLoopRewriteFolder {
+    fn new() -> Self {
+        Self {
+        }
+    }
+}
+
+impl ASTFolder for AlongLoopRewriteFolder {
+    fn fold_stmt(&mut self, stmt: Stmt, module: &Ident, function: &Ident)
+      -> Stmt {
+        // first recurse...
+        let Stmt { data, loc } =
+            fold::noop_fold_stmt(self, stmt, module, function);
+
+        let data = match data {
+            StmtKind::ForAlong { mut vars, along, mut body } => {
+                let dims = vars.len();
+
+                for dim in (0..dims).rev() {
+                    body = vec![
+                        Stmt {
+                            data: StmtKind::ForLoop {
+                                var: (
+                                         vars.pop().unwrap(),
+                                         Type::Int32,
+                                         ParamMode::ByVal
+                                ),
+                                spec: ForSpec::Range(
+                                    Expr {
+                                        data: ExprKind::ExtentExpr(
+                                            Box::new(along.clone()),
+                                            ExtentKind::First,
+                                            dim
+                                        ),
+                                        loc: loc.clone(),
+                                    },
+                                    Expr {
+                                        data: ExprKind::ExtentExpr(
+                                            Box::new(along.clone()),
+                                            ExtentKind::Last,
+                                            dim
+                                        ),
+                                        loc: loc.clone(),
+                                    },
+                                    None
+                                ),
+                                body: body,
+                            },
+                            loc: loc.clone(),
+                        }
+                    ];
+                }
+
+                body.pop().unwrap().data
+            },
+
+            data => data,
+        };
+
+        Stmt {
             data: data,
             loc: loc,
         }

@@ -71,6 +71,7 @@ fn main() {
     //   (they also may emit new symbols etc)
     let mut dumpster = transform::short_circuit_logicals(dumpster, &mut symtab);
     let mut dumpster = transform::array_loop_rewrite(dumpster, &mut symtab);
+    let mut dumpster = transform::along_loop_rewrite(dumpster, &mut symtab);
     let dumpster = transform::alloc_along_rewrite(dumpster, &mut symtab);
 
     // codegen pass

@@ -214,7 +214,7 @@ named!(foralong<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             tag!("for") >>
             call!(nom::multispace) >>
-      vars: separated_list!(ws!(char!(',')), ident) >>
+      vars: separated_nonempty_list!(ws!(char!(',')), ident) >>
             call!(nom::multispace) >>
             tag!("along") >>
             call!(nom::multispace) >>
