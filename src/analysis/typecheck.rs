@@ -92,59 +92,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                   slipped past lookup typecheck"),
             };
 
-            if args.len() < fun.params.len() {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::FnCallError,
-                    regarding: Some(format!("{} requires {} arguments; \
-                      {} were provided", path, fun.params.len(), args.len())),
-                    loc: expr.loc.clone(),
-                })
-            }
-
-            if args.len() > fun.params.len() + fun.optparams.len() {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::FnCallError,
-                    regarding: Some(format!("{} requires {} arguments{}; \
-                      {} were provided", path,
-                      fun.params.len(),
-                      if fun.optparams.is_empty() {
-                          String::from("")
-                      } else {
-                          format!(" (+ {} optional)", fun.optparams.len())
-                      },
-                      args.len())),
-                    loc: expr.loc.clone(),
-                })
-            }
-
-            for (i, param) in fun.params.iter().enumerate() {
-                let arg_type = type_of(&args[i], symtab, ctxt)?.decay();
-
-                match param.mode {
-                    ParamMode::ByRef =>
-                        if param.ty != arg_type {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(format!(
-                                  "parameter {} has type &{}; type {} provided",
-                                  param.name, param.ty, arg_type)),
-                                loc: expr.loc.clone(),
-                            })
-                        },
-                    ParamMode::ByVal =>
-                        if !may_coerce(&arg_type, &param.ty) {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(format!(
-                                  "parameter {} has type {}; type {} provided",
-                                  param.name, param.ty, arg_type)),
-                                loc: expr.loc.clone(),
-                            })
-                        },
-                }
-            }
-
-            Ok(fun.ret.clone())
+            typeof_fn_call(fun, args, symtab, ctxt, path, &expr.loc)
         },
 
         ExprKind::Member(ref expr, ref mem) => {
@@ -205,6 +153,8 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     });
                 }
             }
+
+            // eventually use typeof_fn_call
         },
 
         ExprKind::UnOpApp(ref expr, ref op) => {
@@ -1309,4 +1259,95 @@ fn typecheck_allocextent(extent: &AllocExtent, symtab: &SymbolTable,
             Ok(())
         },
     }
+}
+
+fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, symtab: &SymbolTable,
+  ctxt: &ExprCtxt, invoke_path: &Path, invoke_loc: &SrcLoc)
+  -> AnalysisResult<Type> {
+    if args.len() < fun.params.len() {
+        return Err(AnalysisError {
+            kind: AnalysisErrorKind::FnCallError,
+            regarding: Some(format!("{} requires {} arguments; \
+              {} were provided", invoke_path, fun.params.len(), args.len())),
+            loc: invoke_loc.clone(),
+        })
+    }
+
+    if args.len() > fun.params.len() + fun.optparams.len() {
+        return Err(AnalysisError {
+            kind: AnalysisErrorKind::FnCallError,
+            regarding: Some(format!("{} requires {} arguments{}; \
+              {} were provided", invoke_path,
+              fun.params.len(),
+              if fun.optparams.is_empty() {
+                  String::from("")
+              } else {
+                  format!(" (+ {} optional)", fun.optparams.len())
+              },
+              args.len())),
+            loc: invoke_loc.clone(),
+        })
+    }
+
+    for (i, param) in fun.params.iter().enumerate() {
+        let arg_type = type_of(&args[i], symtab, ctxt)?.decay();
+
+        match param.mode {
+            ParamMode::ByRef =>
+                if param.ty != arg_type {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!(
+                          "parameter {} has type &{}; type {} provided",
+                          param.name, param.ty, arg_type)),
+                        loc: args[i].loc.clone(),
+                    })
+                },
+            ParamMode::ByVal =>
+                if !may_coerce(&arg_type, &param.ty) {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!(
+                          "parameter {} has type {}; type {} provided",
+                          param.name, param.ty, arg_type)),
+                        loc: args[i].loc.clone(),
+                    })
+                },
+        }
+    }
+
+    let opt_args = &args[fun.params.len()..];
+    for (i, &(ref param, _)) in fun.optparams.iter().enumerate() {
+        // argument was provided
+        if i < opt_args.len() {
+            let arg_type = type_of(&opt_args[i], symtab, ctxt)?.decay();
+
+            match param.mode {
+                ParamMode::ByRef =>
+                    if param.ty != arg_type {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!(
+                              "parameter {} has type &{}; type {} \
+                                provided",
+                              param.name, param.ty, arg_type)),
+                            loc: opt_args[i].loc.clone(),
+                        })
+                    },
+                ParamMode::ByVal =>
+                    if !may_coerce(&arg_type, &param.ty) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!(
+                              "parameter {} has type {}; type {} \
+                                provided",
+                              param.name, param.ty, arg_type)),
+                            loc: opt_args[i].loc.clone(),
+                        })
+                    },
+            }
+        }
+    }
+
+    Ok(fun.ret.clone())
 }
