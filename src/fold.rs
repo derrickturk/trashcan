@@ -40,6 +40,16 @@ pub trait ASTFolder {
         noop_fold_funparam(self, param, module, function)
     }
 
+    fn fold_optparam_list(&mut self, params: Vec<(FunParam, Literal)>,
+      module: &Ident, function: &Ident) -> Vec<(FunParam, Literal)> {
+        noop_fold_optparam_list(self, params, module, function)
+    }
+
+    fn fold_optparam(&mut self, param: (FunParam, Literal), module: &Ident,
+      function: &Ident) -> (FunParam, Literal) {
+        noop_fold_optparam(self, param, module, function)
+    }
+
     fn fold_structdef(&mut self, def: StructDef, module: &Ident) -> StructDef {
         noop_fold_structdef(self, def, module)
     }
@@ -167,7 +177,7 @@ pub fn noop_fold_fundef<F: ASTFolder + ?Sized>(folder: &mut F,
     let name = folder.fold_ident(name, NameCtxt::DefFunction(module), &loc);
     // TODO: hook for fold_access
     let params = folder.fold_funparam_list(params, module, &name);
-    // hmmmm
+    let optparams = folder.fold_optparam_list(optparams, module, &name);
     let ret = folder.fold_type(ret, module, &loc);
     let body = folder.fold_stmt_list(body, module, &name);
 
@@ -201,6 +211,21 @@ pub fn noop_fold_funparam<F: ASTFolder + ?Sized>(folder: &mut F,
         mode: mode,
         loc: loc,
     }
+}
+
+pub fn noop_fold_optparam_list<F: ASTFolder + ?Sized>(folder: &mut F,
+  params : Vec<(FunParam, Literal)>, module: &Ident, function: &Ident)
+  -> Vec<(FunParam, Literal)> {
+    params.into_iter().map(|p| folder.fold_optparam(p, module, function))
+        .collect()
+}
+
+pub fn noop_fold_optparam<F: ASTFolder + ?Sized>(folder: &mut F,
+  (param, default) : (FunParam, Literal), module: &Ident, function: &Ident)
+  -> (FunParam, Literal) {
+    let param = folder.fold_funparam(param, module, function);
+    let default = folder.fold_literal(default, module, function, &param.loc);
+    (param, default)
 }
 
 pub fn noop_fold_structdef<F: ASTFolder + ?Sized>(folder: &mut F,

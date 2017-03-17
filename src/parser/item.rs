@@ -4,7 +4,6 @@ use nom;
 
 use ast::*;
 use super::ident::*;
-use super::expr::*;
 use super::stmt::*;
 use super::lit::*;
 

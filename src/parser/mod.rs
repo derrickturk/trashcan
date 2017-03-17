@@ -1,6 +1,5 @@
 //! trashcan's parser and affiliated types
 
-use std::str;
 use nom;
 
 use ast::*;
