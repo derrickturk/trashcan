@@ -15,7 +15,6 @@ use std::str;
 
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
-    BinOpExpr(BinOp, Expr),
     CondExpr(Expr, Expr),
 }
 
@@ -50,11 +49,6 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
    |(first, rest)| {
        match rest {
            None => first,
-
-           Some(RecExprRest::BinOpExpr(op, e)) => Expr {
-               data: ExprKind::BinOpApp(Box::new(first), Box::new(e), op),
-               loc: empty_loc!(),
-           },
 
            Some(RecExprRest::CondExpr(ifexpr, elseexpr)) => Expr {
                data: ExprKind::CondExpr {

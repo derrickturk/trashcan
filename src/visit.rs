@@ -128,23 +128,23 @@ macro_rules! make_ast_vistor {
                 self.walk_type(ty, module, loc)
             }
 
-            fn visit_ident(&mut self, i: & $($_mut)* Ident, ctxt: NameCtxt,
-              loc: &SrcLoc) {
+            fn visit_ident(&mut self, _i: & $($_mut)* Ident, _ctxt: NameCtxt,
+              _loc: &SrcLoc) {
                 // do nothing
             }
 
-            fn visit_literal(&mut self, lit: & $($_mut)* Literal,
-              module: &Ident, function: &Ident, loc: &SrcLoc) {
+            fn visit_literal(&mut self, _lit: & $($_mut)* Literal,
+              _module: &Ident, _function: &Ident, _loc: &SrcLoc) {
                 // do nothing
             }
 
-            fn visit_vbexpr(&mut self, data: & $($_mut)* Vec<u8>,
-              module: &Ident, function: &Ident, loc: &SrcLoc) {
+            fn visit_vbexpr(&mut self, _data: & $($_mut)* Vec<u8>,
+              _module: &Ident, _function: &Ident, _loc: &SrcLoc) {
                 // do nothing
             }
 
-            fn visit_arraybounds(&mut self, bounds: & $($_mut)* ArrayBounds,
-              base_ty: & $($_mut)* Type, module: &Ident, loc: &SrcLoc) {
+            fn visit_arraybounds(&mut self, _bounds: & $($_mut)* ArrayBounds,
+              _base_ty: & $($_mut)* Type, _module: &Ident, _loc: &SrcLoc) {
                 // do nothing
             }
 
@@ -188,7 +188,7 @@ macro_rules! make_ast_vistor {
             fn walk_fundef(&mut self, def: & $($_mut)* FunDef, module: &Ident) {
                 let FunDef {
                     ref $($_mut)* name,
-                    ref $($_mut)* access,
+                    access: ref $($_mut)* _access,
                     ref $($_mut)* params,
                     ref $($_mut)* optparams,
                     ref $($_mut)* ret,
@@ -238,7 +238,7 @@ macro_rules! make_ast_vistor {
               module: &Ident) {
                 let StructDef {
                     ref $($_mut)* name,
-                    ref $($_mut)* access,
+                    access: ref $($_mut)* _access,
                     ref $($_mut)* members,
                     ref $($_mut)* loc,
                 } = *def;
@@ -355,7 +355,7 @@ macro_rules! make_ast_vistor {
                         let (
                             ref $($_mut)* ident,
                             ref $($_mut)* ty,
-                            ref $($_mut)* mode
+                            ref $($_mut)* _mode
                         ) = *var;
                         self.visit_ident(ident,
                           NameCtxt::DefValue(module, Some(function), ty), loc);
@@ -398,7 +398,7 @@ macro_rules! make_ast_vistor {
 
                     StmtKind::ReAlloc(
                         ref $($_mut)* expr,
-                        ref $($_mut)* preserved,
+                        ref $($_mut)* _preserved,
                         ref $($_mut)* extent
                     ) => {
                         self.visit_expr(expr, module, function);
@@ -501,8 +501,8 @@ macro_rules! make_ast_vistor {
 
                     ExprKind::ExtentExpr(
                         ref $($_mut)* expr,
-                        ref $($_mut)* kind,
-                        ref $($_mut)* dim
+                        ref $($_mut)* _kind,
+                        ref $($_mut)* _dim
                     ) => {
                         self.visit_expr(expr, module, function);
                     },
@@ -513,7 +513,7 @@ macro_rules! make_ast_vistor {
             }
 
             fn walk_forspec(&mut self, spec: & $($_mut)* ForSpec,
-              module: &Ident, function: &Ident, loc: &SrcLoc) {
+              module: &Ident, function: &Ident, _loc: &SrcLoc) {
                 match *spec {
                     ForSpec::Range(
                         ref $($_mut)* from,

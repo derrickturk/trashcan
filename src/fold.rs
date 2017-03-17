@@ -112,22 +112,23 @@ pub trait ASTFolder {
 
     // below: "do-nothing" defaults (terminal nodes)
 
-    fn fold_ident(&mut self, i: Ident, ctxt: NameCtxt, loc: &SrcLoc) -> Ident {
+    fn fold_ident(&mut self, i: Ident, _ctxt: NameCtxt, _loc: &SrcLoc)
+      -> Ident {
         i
     }
 
     fn fold_literal(&mut self, lit: Literal,
-      module: &Ident, function: &Ident, loc: &SrcLoc) -> Literal {
+      _module: &Ident, _function: &Ident, _loc: &SrcLoc) -> Literal {
         lit
     }
 
     fn fold_vbexpr(&mut self, data: Vec<u8>,
-      module: &Ident, function: &Ident, loc: &SrcLoc) -> Vec<u8> {
+      _module: &Ident, _function: &Ident, _loc: &SrcLoc) -> Vec<u8> {
         data
     }
 
-    fn fold_arraybounds(&mut self, bounds: ArrayBounds, base_ty: &Type,
-      module: &Ident, loc: &SrcLoc) -> ArrayBounds {
+    fn fold_arraybounds(&mut self, bounds: ArrayBounds, _base_ty: &Type,
+      _module: &Ident, _loc: &SrcLoc) -> ArrayBounds {
         bounds
     }
 }
@@ -449,7 +450,7 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
 }
 
 pub fn noop_fold_forspec<F: ASTFolder + ?Sized>(folder: &mut F, spec: ForSpec,
-  module: &Ident, function: &Ident, loc: &SrcLoc) -> ForSpec {
+  module: &Ident, function: &Ident, _loc: &SrcLoc) -> ForSpec {
     match spec {
         ForSpec::Range(from, to, step) =>
             ForSpec::Range(

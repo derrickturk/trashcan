@@ -450,7 +450,7 @@ impl fmt::Display for ArrayBounds {
             },
 
             ArrayBounds::Dynamic(dims) => {
-                for i in 1..dims {
+                for _ in 1..dims {
                     f.write_str(",")?;
                 }
                 Ok(())
