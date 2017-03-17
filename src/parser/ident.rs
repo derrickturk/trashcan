@@ -13,8 +13,9 @@ pub const IDENT_CONT_CHARS: &'static str =
      0123456789\
      _";
 
-pub const KEYWORDS: [&'static str; 36] = [
+pub const KEYWORDS: [&'static str; 37] = [
     "let",
+    "as",
     "print",
     "return",
     "for",

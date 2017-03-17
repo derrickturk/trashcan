@@ -507,6 +507,14 @@ macro_rules! make_ast_vistor {
                         self.visit_expr(expr, module, function);
                     },
 
+                    ExprKind::Cast(
+                        ref $($_mut)* expr,
+                        ref $($_mut)* ty,
+                    ) => {
+                        self.visit_expr(expr, module, function);
+                        self.visit_type(ty, module, & $($_mut)* expr.loc);
+                    },
+
                     ExprKind::VbExpr(ref $($_mut)* data) =>
                         self.visit_vbexpr(data, module, function, loc),
                 }

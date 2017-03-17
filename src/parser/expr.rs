@@ -16,6 +16,7 @@ use std::str;
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
     CondExpr(Expr, Expr),
+    Cast(Type),
 }
 
 // the "rest" (recursive part) of a "unitary" recursive expr
@@ -44,7 +45,10 @@ enum UnitaryRecExprRest {
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(pub expr<Expr>, complete!(map!(do_parse!(
     first: call!(logorexpr) >>
-     rest: opt!(call!(condexpr)) >>
+     rest: opt!(alt_complete!(
+               condexpr
+             | castexpr
+           )) >>
            (first, rest)),
    |(first, rest)| {
        match rest {
@@ -56,6 +60,11 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
                          if_expr: Box::new(ifexpr),
                          else_expr: Box::new(elseexpr),
                      },
+               loc: empty_loc!(),
+           },
+
+           Some(RecExprRest::Cast(ty)) => Expr {
+               data: ExprKind::Cast(Box::new(first), ty),
                loc: empty_loc!(),
            },
        }
@@ -135,6 +144,14 @@ named!(condexpr<RecExprRest>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
   elseexpr: call!(expr) >>
             (RecExprRest::CondExpr(ifexpr, elseexpr))
+)));
+
+named!(castexpr<RecExprRest>, complete!(do_parse!(
+        call!(nom::multispace) >>
+        tag!("as") >>
+        call!(nom::multispace) >>
+   ty:  typename >>
+        (RecExprRest::Cast(ty))
 )));
 
 // "unitary" exprs, possibly preceded by unary operators

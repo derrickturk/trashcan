@@ -166,6 +166,28 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 write!(out, ", {})", dim + 1)
             },
 
+            ExprKind::Cast(ref expr, ref ty) => {
+                let cast_op = match *ty {
+                    Type::UInt8 => "CByte",
+                    Type::Int16 => "CInt",
+                    Type::Int32 => "CLng",
+                    Type::IntPtr => "CLngPtr",
+                    Type::Float32 => "CSng",
+                    Type::Float64 => "CDbl",
+                    Type::String => "CStr",
+                    Type::Currency => "CCur",
+                    Type::Date => "CDate",
+                    Type::Variant => "CVar",
+                    ref ty => panic!("dumpster fire: bad (or untransformed) \
+                      cast to {} in codegen", ty)
+                };
+
+                write!(out, "{:in$}{}(", "", cast_op,
+                  in = (indent * INDENT) as usize)?;
+                expr.emit(out, symtab, ctxt, 0)?;
+                out.write_all(b")")
+            },
+
             ExprKind::VbExpr(ref bytes) => {
                 write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
                 out.write_all(bytes)

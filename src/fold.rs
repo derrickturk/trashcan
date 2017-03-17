@@ -439,6 +439,12 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
                 dim
             ),
 
+        ExprKind::Cast(expr, ty) => {
+            let expr = folder.fold_expr(*expr, module, function);
+            let ty = folder.fold_type(ty, module, &expr.loc);
+            ExprKind::Cast(Box::new(expr), ty)
+        },
+
         ExprKind::VbExpr(data) =>
             ExprKind::VbExpr(folder.fold_vbexpr(data, module, function, &loc)),
     };

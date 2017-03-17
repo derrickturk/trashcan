@@ -202,6 +202,9 @@ pub enum ExprKind {
     /// an extent expression e.g. first_index<0>(arr)
     ExtentExpr(Box<Expr>, ExtentKind, usize),
 
+    /// a cast `x as ty`
+    Cast(Box<Expr>, Type),
+
     /// pass-through literal VB expression (raw bytes)
     VbExpr(Vec<u8>),
 }

@@ -381,6 +381,20 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
+        ExprKind::Cast(ref expr, ref ty) => {
+            let expr_ty = type_of(expr, symtab, ctxt)?;
+            if may_cast(&expr_ty, ty) {
+                Ok(ty.clone())
+            } else {
+                Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("cannot cast expression of type {} \
+                      to type {}", expr_ty, ty)),
+                    loc: expr.loc.clone(),
+                })
+            }
+        },
+
         // could be anything
         ExprKind::VbExpr(_) => Ok(Type::Variant),
     }
@@ -516,6 +530,75 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
             Type::Int32 => true,
             _ => false,
         },
+
+        Type::Deferred(ref path) => panic!("dumpster fire: \
+            attempt to coerce-check deferred type {}", path),
+
+        Type::Void => false,
+
+        // TODO: handle currency, date, etc
+        _ => panic!("dumpster fire: we haven't figured out the rules for \
+          this type yet."),
+    }
+}
+
+pub fn may_cast(from: &Type, to: &Type) -> bool {
+    if let Type::Deferred(ref path) = *to {
+        panic!("dumpster fire: attempt to coerce-check deferred type {}", path);
+    }
+
+    match *from {
+        // as 1 or 0
+        Type::Bool => to.might_be_numeric() || *to == Type::Bool,
+
+        Type::UInt8
+      | Type::Int16
+      | Type::Int32
+      | Type::IntPtr
+      | Type::Float32
+      | Type::Float64 => to.might_be_numeric(),
+
+        Type::String => to.might_be_string() || to.might_be_numeric(),
+
+        Type::Variant => match *to {
+            // can't assign to statically-dimensioned array
+            Type::Array(_, ArrayBounds::Static(_)) => false,
+            Type::Void => false,
+            _ => true,
+        },
+
+        Type::Obj => match *to {
+            Type::Obj
+          | Type::Variant
+          | Type::Object(_) => true,
+            _ => false,
+        },
+
+        // for now, don't allow cast array-to-array (even if exact type!)
+        Type::Array(ref basety, _) => match *to {
+            Type::Variant => {
+                match **basety {
+                    // can't put structs into Arrays inside Variants :/
+                    Type::Struct(_) => false,
+                    _ => true,
+                }
+            },
+
+            _ => false,
+        },
+
+        // TODO: thread the symbol table through here
+        //   and check actual subtyping info
+        Type::Object(_) => match *to {
+            Type::Obj
+          | Type::Variant
+          | Type::Object(_) => true,
+            _ => false,
+        },
+
+        Type::Struct(_) => false,
+
+        Type::Enum(_) => to.might_be_numeric(),
 
         Type::Deferred(ref path) => panic!("dumpster fire: \
             attempt to coerce-check deferred type {}", path),
