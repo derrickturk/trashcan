@@ -15,6 +15,22 @@ fn ratio_average(xs: &ratio[]) -> f64 {
     return total_num / (total_denom != 0.0 ? total_denom : 1.0);
 }
 
+fn glorious_allocs() {
+    let xs: i32[10];
+    for i: i32 = first_index<0>(xs) : last_index<0>(xs) {
+        xs[i] = i * 2;
+    }
+
+    let ys: i32[];
+    ys <- alloc[along xs];
+
+    let zs: f64[10,10,10];
+    let zzs: f64[,,];
+
+    zzs <- alloc[20,20,20];
+    zzs <- realloc[along zs];
+}
+
 fn whatever(o: obj) {
     if o !== nullptr && o.x > 17 {
         print "whatever";

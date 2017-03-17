@@ -257,20 +257,44 @@ named!(dim_extent<(Option<Expr>, Expr)>, complete!(do_parse!(
 named!(alloc_extents<AllocExtents>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('[') >>
-   extents: separated_nonempty_list!(ws!(char!(',')), dim_extent) >>
+   extents: alt_complete!(
+                separated_nonempty_list!(ws!(char!(',')), dim_extent) => {
+                    |extents| AllocExtents::Range(extents)
+                }
+
+              | preceded!(
+                  terminated!(tag!("along"), call!(nom::multispace)),
+                  expr) => {
+                      |e| AllocExtents::Along(e)
+                  }
+            ) >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
-            (AllocExtents::Range(extents))
+            (extents)
 )));
 
 named!(realloc_extents<ReAllocExtents>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('[') >>
-   predims: many0!(ws!(char!(','))) >>
-    extent: dim_extent >>
+  extents:  alt_complete!(
+                do_parse!(
+                   predims: many0!(ws!(char!(','))) >>
+                    extent: dim_extent >>
+                            (predims, extent)
+                ) => {
+                    |(predims, extent): (Vec<_>, _)|
+                        ReAllocExtents::Range(predims.len(), extent)
+                }
+
+              | preceded!(
+                  terminated!(tag!("along"), call!(nom::multispace)),
+                  expr) => {
+                      |e| ReAllocExtents::Along(e)
+                  }
+            ) >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
-            (ReAllocExtents::Range(predims.len(), extent))
+            (extents)
 )));
 
 named!(dealloc<Stmt>, complete!(do_parse!(

@@ -18,14 +18,21 @@ pub fn merge_dumpsters(dumpsters: Vec<Dumpster>) -> Dumpster {
 /// equivalents
 pub fn short_circuit_logicals(dumpster: Dumpster, symtab: &mut SymbolTable)
   -> Dumpster {
-    let mut f = ShortCircuitLogicalsFolder::build(symtab);
+    let mut f = ShortCircuitLogicalsFolder::new(symtab);
     f.fold_dumpster(dumpster)
 }
 
 /// replace for-each on arrays with equivalent range loops
 pub fn array_loop_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
   -> Dumpster {
-    let mut f = ArrayLoopRewriteFolder::build(symtab);
+    let mut f = ArrayLoopRewriteFolder::new(symtab);
+    f.fold_dumpster(dumpster)
+}
+
+/// rewrite alloc-along exprs to equivalent range exprs
+pub fn alloc_along_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
+  -> Dumpster {
+    let mut f = AllocAlongRewriteFolder::new(symtab);
     f.fold_dumpster(dumpster)
 }
 
@@ -35,7 +42,7 @@ struct ShortCircuitLogicalsFolder<'a> {
 }
 
 impl<'a> ShortCircuitLogicalsFolder<'a> {
-    fn build(symtab: &'a mut SymbolTable) -> Self {
+    fn new(symtab: &'a mut SymbolTable) -> Self {
         ShortCircuitLogicalsFolder {
             symtab: symtab,
             before_stmt_stack: Vec::new(),
@@ -296,7 +303,7 @@ struct ArrayLoopRewriteFolder<'a> {
 }
 
 impl<'a> ArrayLoopRewriteFolder<'a> {
-    fn build(symtab: &'a mut SymbolTable) -> Self {
+    fn new(symtab: &'a mut SymbolTable) -> Self {
         ArrayLoopRewriteFolder {
             symtab: symtab,
             before_stmt_stack: Vec::new(),
@@ -678,3 +685,104 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
     }
 }
 
+struct AllocAlongRewriteFolder<'a> {
+    symtab: &'a mut SymbolTable,
+}
+
+impl<'a> AllocAlongRewriteFolder<'a> {
+    fn new(symtab: &'a mut SymbolTable) -> Self {
+        AllocAlongRewriteFolder {
+            symtab: symtab,
+        }
+    }
+}
+
+impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
+    fn fold_stmt(&mut self, Stmt { data, loc }: Stmt, module: &Ident,
+      function: &Ident) -> Stmt {
+        let data = match data {
+            StmtKind::Alloc(expr, extents) => {
+                match extents {
+                    AllocExtents::Along(other) => {
+                        let other_ty = type_of(&other, self.symtab,
+                          &ExprCtxt(module.clone(), Some(function.clone())))
+                          .expect("dumpster fire: \
+                                  untypeable condexpr in alloc rewriter");
+
+                        if let Type::Array(_, ref bounds) = other_ty {
+                            let bounds_exprs = (0..bounds.dims()).map(|dim| (
+                                Some(Expr {
+                                    data: ExprKind::ExtentExpr(
+                                              Box::new(other.clone()),
+                                              ExtentKind::First,
+                                              dim),
+                                    loc: other.loc.clone(),
+                                }),
+
+                                Expr {
+                                    data: ExprKind::ExtentExpr(
+                                              Box::new(other.clone()),
+                                              ExtentKind::Last,
+                                              dim),
+                                    loc: other.loc.clone(),
+                                }
+                            )).collect();
+
+                            StmtKind::Alloc(expr,
+                              AllocExtents::Range(bounds_exprs))
+                        } else {
+                            panic!("dumpster fire: \
+                                   non-array in alloc rewriter");
+                        }
+                    },
+
+                    extents => StmtKind::Alloc(expr, extents),
+                }
+            },
+
+            StmtKind::ReAlloc(expr, extents) => {
+                match extents {
+                    ReAllocExtents::Along(other) => {
+                        let other_ty = type_of(&other, self.symtab,
+                          &ExprCtxt(module.clone(), Some(function.clone())))
+                          .expect("dumpster fire: \
+                                  untypeable condexpr in realloc rewriter");
+
+                        if let Type::Array(_, ref bounds) = other_ty {
+                            let preserved = bounds.dims() - 1;
+                            let bounds_exprs = (
+                                Some(Expr {
+                                    data: ExprKind::ExtentExpr(
+                                              Box::new(other.clone()),
+                                              ExtentKind::First,
+                                              preserved),
+                                    loc: other.loc.clone(),
+                                }),
+
+                                Expr {
+                                    data: ExprKind::ExtentExpr(
+                                              Box::new(other.clone()),
+                                              ExtentKind::Last,
+                                              preserved),
+                                    loc: other.loc.clone(),
+                                }
+                            );
+
+                            StmtKind::ReAlloc(expr,
+                              ReAllocExtents::Range(preserved, bounds_exprs))
+                        } else {
+                            panic!("dumpster fire: \
+                                   non-array in realloc rewriter");
+                        }
+                    },
+
+                    extents => StmtKind::ReAlloc(expr, extents),
+                }
+            },
+            data => data
+        };
+
+        fold::noop_fold_stmt(self, Stmt { data: data, loc: loc },
+          module, function)
+    }
+}
