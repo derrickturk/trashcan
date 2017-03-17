@@ -701,84 +701,92 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
     fn fold_stmt(&mut self, Stmt { data, loc }: Stmt, module: &Ident,
       function: &Ident) -> Stmt {
         let data = match data {
-            StmtKind::Alloc(expr, extents) => {
-                match extents {
-                    AllocExtents::Along(other) => {
-                        let other_ty = type_of(&other, self.symtab,
-                          &ExprCtxt(module.clone(), Some(function.clone())))
-                          .expect("dumpster fire: \
-                                  untypeable condexpr in alloc rewriter");
 
-                        if let Type::Array(_, ref bounds) = other_ty {
-                            let bounds_exprs = (0..bounds.dims()).map(|dim| (
-                                Some(Expr {
-                                    data: ExprKind::ExtentExpr(
-                                              Box::new(other.clone()),
-                                              ExtentKind::First,
-                                              dim),
-                                    loc: other.loc.clone(),
-                                }),
+            StmtKind::Alloc(expr, mut extents) => {
+                if extents.len() == 1 {
+                    let howmany = match extents[0] {
+                        AllocExtent::Along(_) => {
+                            let expr_ty = type_of(&expr, self.symtab,
+                              &ExprCtxt(module.clone(), Some(function.clone())))
+                              .expect("dumpster fire: \
+                                      untypeable condexpr in realloc rewriter");
 
-                                Expr {
-                                    data: ExprKind::ExtentExpr(
-                                              Box::new(other.clone()),
-                                              ExtentKind::Last,
-                                              dim),
-                                    loc: other.loc.clone(),
-                                }
-                            )).collect();
+                            if let Type::Array(_, ref bounds) = expr_ty {
+                                Some(bounds.dims() - 1)
+                            } else {
+                                panic!("dumpster fire: \
+                                       non-array in realloc rewriter");
+                            }
+                        },
 
-                            StmtKind::Alloc(expr,
-                              AllocExtents::Range(bounds_exprs))
-                        } else {
-                            panic!("dumpster fire: \
-                                   non-array in alloc rewriter");
+                        _ => None,
+                    };
+                    
+                    if let Some(howmany) = howmany {
+                        for _ in 0..howmany {
+                            let extent = extents[0].clone();
+                            extents.push(extent);
                         }
+                    }
+                }
+
+                let extents = extents.into_iter().enumerate()
+                    .map(|(i, extent)| {
+                        match extent {
+                            AllocExtent::Along(other) =>
+                                AllocExtent::Range(
+                                    Some(Expr {
+                                        data: ExprKind::ExtentExpr(
+                                                  Box::new(other.clone()),
+                                                  ExtentKind::First,
+                                                  i),
+                                        loc: other.loc.clone(),
+                                    }),
+
+                                    Expr {
+                                        data: ExprKind::ExtentExpr(
+                                                  Box::new(other.clone()),
+                                                  ExtentKind::First,
+                                                  i),
+                                        loc: other.loc.clone(),
+                                    },
+                                ),
+
+                            extent => extent,
+                        }
+                }).collect();
+
+                StmtKind::Alloc(expr, extents)
+            },
+
+            StmtKind::ReAlloc(expr, preserved, extent) => {
+                match extent {
+                    AllocExtent::Along(other) => {
+                        let extent = AllocExtent::Range(
+                            Some(Expr {
+                                data: ExprKind::ExtentExpr(
+                                          Box::new(other.clone()),
+                                          ExtentKind::First,
+                                          preserved),
+                                loc: other.loc.clone(),
+                            }),
+
+                            Expr {
+                                data: ExprKind::ExtentExpr(
+                                          Box::new(other.clone()),
+                                          ExtentKind::Last,
+                                          preserved),
+                                loc: other.loc.clone(),
+                            }
+                        );
+
+                        StmtKind::ReAlloc(expr, preserved, extent)
                     },
 
-                    extents => StmtKind::Alloc(expr, extents),
+                    extent => StmtKind::ReAlloc(expr, preserved, extent),
                 }
             },
 
-            StmtKind::ReAlloc(expr, extents) => {
-                match extents {
-                    ReAllocExtents::Along(other) => {
-                        let other_ty = type_of(&other, self.symtab,
-                          &ExprCtxt(module.clone(), Some(function.clone())))
-                          .expect("dumpster fire: \
-                                  untypeable condexpr in realloc rewriter");
-
-                        if let Type::Array(_, ref bounds) = other_ty {
-                            let preserved = bounds.dims() - 1;
-                            let bounds_exprs = (
-                                Some(Expr {
-                                    data: ExprKind::ExtentExpr(
-                                              Box::new(other.clone()),
-                                              ExtentKind::First,
-                                              preserved),
-                                    loc: other.loc.clone(),
-                                }),
-
-                                Expr {
-                                    data: ExprKind::ExtentExpr(
-                                              Box::new(other.clone()),
-                                              ExtentKind::Last,
-                                              preserved),
-                                    loc: other.loc.clone(),
-                                }
-                            );
-
-                            StmtKind::ReAlloc(expr,
-                              ReAllocExtents::Range(preserved, bounds_exprs))
-                        } else {
-                            panic!("dumpster fire: \
-                                   non-array in realloc rewriter");
-                        }
-                    },
-
-                    extents => StmtKind::ReAlloc(expr, extents),
-                }
-            },
             data => data
         };
 

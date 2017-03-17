@@ -628,6 +628,16 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
         }
         self.walk_stmt(stmt, m, f);
     }
+
+    fn visit_allocextent(&mut self, extent: &AllocExtent, m: &Ident,
+      f: &Ident, loc: &SrcLoc) {
+        let ctxt = ExprCtxt(m.clone(), Some(f.clone()));
+        if let Err(e) = typecheck_allocextent(extent, self.symtab, &ctxt, loc) {
+            self.errors.push(e);
+        }
+        self.walk_allocextent(extent, m, f, loc);
+    }
+
 }
 
 fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
@@ -981,50 +991,64 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
         StmtKind::Alloc(ref expr, ref extents) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    let extent_dims = match *extents {
-                        AllocExtents::Along(ref expr) => {
-                            match type_of(expr, symtab, &ctxt)? {
-                                Type::Array(_, ref bounds) => bounds.dims(),
+                    let extent_dims = extents.len();
 
-                                ty => return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(format!("along expression of non-array \
-                                      type {}", ty)),
-                                    loc: stmt.loc.clone(),
-                                }),
-                            }
-                        },
+                    if extent_dims == 1 {
+                        match extents[0] {
+                            AllocExtent::Along(ref other) => {
+                                let other_ty = type_of(other, symtab, &ctxt)?;
+                                match other_ty {
+                                    Type::Array(_, ref bounds) => {
+                                        if bounds.dims() < dims {
+                                            return Err(AnalysisError {
+                                                kind: AnalysisErrorKind::TypeError,
+                                                regarding: Some(format!(
+                                                  "along expression does not \
+                                                  have enough dimensions ({}) \
+                                                  for alloc expression extents \
+                                                  ({})", bounds.dims(), dims)),
+                                                loc: stmt.loc.clone(),
+                                            });
+                                        }
+                                    },
 
-                        AllocExtents::Range(ref bounds) => {
-                            for &(ref lb, ref ub) in bounds {
-                                if let Some(ref lb) = *lb {
-                                    let extent_ty = type_of(lb, symtab, ctxt)?;
-                                    if !may_coerce(&extent_ty, &Type::Int32) {
-                                        return Err(AnalysisError {
-                                            kind: AnalysisErrorKind::TypeError,
-                                            regarding: Some(String::from(
-                                              "array extent bound not \
-                                                coercible to i32")),
-                                            loc: stmt.loc.clone(),
-                                        });
+                                    // handled by allocextent visitor
+                                    _ => { },
+                                }
+                            },
+
+                            AllocExtent::Range(_, _) => { },
+                        }
+                    } else {
+                        for (dim, extent) in extents.iter().enumerate() {
+                            match *extent {
+                                AllocExtent::Along(ref other) => {
+                                    let other_ty = type_of(other, symtab, &ctxt)?;
+                                    match other_ty {
+                                        Type::Array(_, ref bounds) => {
+                                            if bounds.dims() <= dim {
+                                                return Err(AnalysisError {
+                                                    kind: AnalysisErrorKind::TypeError,
+                                                    regarding: Some(format!(
+                                                      "along expression does not \
+                                                      have enough dimensions ({}) \
+                                                      for dimension {} of alloc \
+                                                      expression extents",
+                                                      bounds.dims(), dim)),
+                                                    loc: stmt.loc.clone(),
+                                                });
+                                            }
+                                        },
+
+                                        // handled by allocextent visitor
+                                        _ => { },
                                     }
-                                }
+                                },
 
-                                let extent_ty = type_of(ub, symtab, ctxt)?;
-                                if !may_coerce(&extent_ty, &Type::Int32) {
-                                    return Err(AnalysisError {
-                                        kind: AnalysisErrorKind::TypeError,
-                                        regarding: Some(String::from(
-                                          "array extent bound not coercible \
-                                          to i32")),
-                                        loc: stmt.loc.clone(),
-                                    });
-                                }
+                                AllocExtent::Range(_, _) => { },
                             }
-
-                            bounds.len()
-                        },
-                    };
+                        }
+                    }
 
                     if dims != extent_dims {
                         return Err(AnalysisError {
@@ -1057,61 +1081,42 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        StmtKind::ReAlloc(ref expr, ref extents) => {
+        StmtKind::ReAlloc(ref expr, preserved, ref extent) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    let extent_dims = match *extents {
-                        ReAllocExtents::Along(ref expr) => {
-                            match type_of(expr, symtab, &ctxt)? {
-                                Type::Array(_, ref bounds) => bounds.dims(),
+                    match *extent {
+                        AllocExtent::Along(ref expr) => {
+                            let expr_ty = type_of(expr, symtab, &ctxt)?;
+                            match expr_ty {
+                                Type::Array(_, ref bounds) => {
+                                    let dims = bounds.dims();
+                                    if dims < preserved + 1 {
+                                        return Err(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(format!("along \
+                                              expression of type {} does not \
+                                              have enough dimensions in \
+                                              realloc", expr_ty)),
+                                            loc: stmt.loc.clone(),
+                                        });
+                                    }
+                                },
 
-                                ty => return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(format!("along expression of non-array \
-                                      type {}", ty)),
-                                    loc: stmt.loc.clone(),
-                                }),
+                                // checked in allocextent visitor
+                                ty => { },
                             }
                         },
 
-                        ReAllocExtents::Range(
-                            ref pre_dims,
-                            (ref lb, ref ub)
-                        ) => {
-                            if let Some(ref lb) = *lb {
-                                let extent_ty = type_of(lb, symtab, ctxt)?;
-                                if !may_coerce(&extent_ty, &Type::Int32) {
-                                    return Err(AnalysisError {
-                                        kind: AnalysisErrorKind::TypeError,
-                                        regarding: Some(String::from(
-                                          "array extent bound not \
-                                            coercible to i32")),
-                                        loc: stmt.loc.clone(),
-                                    });
-                                }
-                            }
-
-                            let extent_ty = type_of(ub, symtab, ctxt)?;
-                            if !may_coerce(&extent_ty, &Type::Int32) {
-                                return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(String::from(
-                                      "array extent bound not coercible \
-                                      to i32")),
-                                    loc: stmt.loc.clone(),
-                                });
-                            }
-
-                            pre_dims + 1
-                        },
+                        // checked in allocextent visitor
+                        AllocExtent::Range(ref lb, ref ub) => { },
                     };
 
-                    if dims != extent_dims {
+                    if dims != preserved + 1 {
                         return Err(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
                             regarding: Some(format!("extents dimensions ({}) \
                               do not match array dimensions ({}) in realloc",
-                              extent_dims, dims)),
+                              preserved + 1, dims)),
                             loc: stmt.loc.clone(),
                         });
                     }
@@ -1178,4 +1183,50 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
     }
 
     Ok(())
+}
+
+fn typecheck_allocextent(extent: &AllocExtent, symtab: &SymbolTable,
+  ctxt: &ExprCtxt, loc: &SrcLoc) -> AnalysisResult<()> {
+    match *extent {
+        AllocExtent::Along(ref expr) => {
+            match type_of(expr, symtab, &ctxt)? {
+                Type::Array(_, ref bounds) => Ok(()),
+
+                ty => Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("along expression of non-array \
+                      type {}", ty)),
+                    loc: loc.clone(),
+                }),
+            }
+        },
+
+        AllocExtent::Range(ref lb, ref ub) => {
+            if let Some(ref lb) = *lb {
+                let extent_ty = type_of(lb, symtab, ctxt)?;
+                if !may_coerce(&extent_ty, &Type::Int32) {
+                    return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from(
+                          "array extent bound not \
+                            coercible to i32")),
+                        loc: loc.clone(),
+                    });
+                }
+            }
+
+            let extent_ty = type_of(ub, symtab, ctxt)?;
+            if !may_coerce(&extent_ty, &Type::Int32) {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(String::from(
+                      "array extent bound not coercible \
+                      to i32")),
+                    loc: loc.clone(),
+                });
+            }
+
+            Ok(())
+        },
+    }
 }

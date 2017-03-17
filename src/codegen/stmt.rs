@@ -116,11 +116,12 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 out.write_all(b"\n")
             },
 
-            StmtKind::ReAlloc(ref expr, ref extents) => {
+            StmtKind::ReAlloc(ref expr, preserved, ref extents) => {
                 write!(out, "{:in$}ReDim Preserve ", "",
                   in = (indent * INDENT) as usize)?;
                 expr.emit(out, symtab, ExprPos::Expr, 0)?;
-                emit_realloc_extents(out, expr, extents, symtab, 0)?;
+                emit_realloc_extents(out, expr, (preserved, extents),
+                  symtab, 0)?;
                 out.write_all(b"\n")
             },
 
@@ -270,19 +271,19 @@ fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
 }
 
 fn emit_alloc_extents<W: Write>(out: &mut W,
-  extents: &AllocExtents, symtab: &SymbolTable, indent: u32)
+  extents: &Vec<AllocExtent>, symtab: &SymbolTable, indent: u32)
   -> io::Result<()> {
-    let extents = match *extents {
-        AllocExtents::Range(ref bounds) => bounds,
-        AllocExtents::Along(_) =>
-            panic!("dumpster fire: raw along expr in codegen"),
-    };
-
     write!(out, "{:in$}(", "", in = (indent * INDENT) as usize)?;
-    for (i, &(ref lb, ref ub)) in extents.iter().enumerate() {
+    for (i, extent) in extents.iter().enumerate() {
         if i != 0 {
             out.write_all(b", ")?;
         }
+
+        let (lb, ub) = match *extent {
+            AllocExtent::Range(ref lb, ref ub) => (lb, ub),
+            AllocExtent::Along(_) =>
+                panic!("dumpster fire: raw along expr in codegen"),
+        };
 
         match *lb {
             None => {
@@ -310,11 +311,11 @@ fn emit_alloc_extents<W: Write>(out: &mut W,
 }
 
 fn emit_realloc_extents<W: Write>(out: &mut W, array_expr: &Expr,
-  extents: &ReAllocExtents, symtab: &SymbolTable, indent: u32)
+  extents: (usize, &AllocExtent), symtab: &SymbolTable, indent: u32)
   -> io::Result<()> {
-    let (ref preserved, &(ref lb, ref ub)) = match *extents {
-        ReAllocExtents::Range(preserved, ref bounds) => (preserved, bounds),
-        ReAllocExtents::Along(_) =>
+    let (preserved, lb, ub) = match extents {
+        (preserved, &AllocExtent::Range(ref lb, ref ub)) => (preserved, lb, ub),
+        (_, &AllocExtent::Along(_)) =>
             panic!("dumpster fire: raw along expr in codegen"),
     };
 

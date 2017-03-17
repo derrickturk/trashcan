@@ -110,10 +110,11 @@ pub enum StmtKind {
     },
 
     /// array allocation
-    Alloc(Expr, AllocExtents),
+    Alloc(Expr, Vec<AllocExtent>),
 
     /// array re-allocation (can only re-allocate along outermost dimension)
-    ReAlloc(Expr, ReAllocExtents),
+    ReAlloc(Expr, usize, AllocExtent),
+                  // # of preserved dimensions (typechecker will verify)
 
     /// array de-allocation
     DeAlloc(Expr),
@@ -144,18 +145,10 @@ pub enum ForSpec {
 
 /// allocation extents for an array alloc statement
 #[derive(Clone, Debug)]
-pub enum AllocExtents {
+pub enum AllocExtent {
     Along(Expr),
-    Range(Vec<(Option<Expr>, Expr)>),
+    Range(Option<Expr>, Expr),
          // (0 ... Expr - 1) if None, otherwise Expr...Expr
-}
-
-/// re-allocation extent (last dimension only) for an array realloc statement
-#[derive(Clone, Debug)]
-pub enum ReAllocExtents {
-    Along(Expr),
-    Range(usize, (Option<Expr>, Expr)),
-          // # of preserved dimensions (typechecker will verify)
 }
 
 /// Expressions

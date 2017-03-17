@@ -31,6 +31,22 @@ fn glorious_allocs() {
     zzs <- realloc[,,along zs];
 }
 
+fn more_glorious_allocs() {
+    let bigguy4u: f64[1,1,1,1,1,1,1];
+    let smallguy: f64[2,2,2,2,2];
+    let tinyguy: i32[50];
+
+    let cross: i32[,,];
+    cross <- alloc[along bigguy4u, 10, along smallguy];
+    cross <- alloc[along bigguy4u, 10, along smallguy];
+    // cross <- alloc[along bigguy4u, along tinyguy, along smallguy];
+
+    let thing: bool[,];
+    // thing <- alloc[along tinyguy];
+    thing <- alloc[5,5];
+    thing <- realloc[,along smallguy];
+}
+
 fn whatever(o: obj) {
     if o !== nullptr && o.x > 17 {
         print "whatever";
