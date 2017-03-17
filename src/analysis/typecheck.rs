@@ -1161,16 +1161,18 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        StmtKind::Print(ref expr) => {
-            match type_of(expr, symtab, ctxt)? {
-                Type::Void => return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("void function invocation \
-                      in print statement")),
-                    loc: stmt.loc.clone(),
-                }),
+        StmtKind::Print(ref exprs) => {
+            for expr in exprs {
+                match type_of(expr, symtab, ctxt)? {
+                    Type::Void => return Err(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("void function invocation \
+                          in print statement")),
+                        loc: stmt.loc.clone(),
+                    }),
 
-                _ => { },
+                    _ => { },
+                }
             }
         },
     }

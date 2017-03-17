@@ -64,6 +64,11 @@ pub trait ASTFolder {
         noop_fold_stmt(self, stmt, module, function)
     }
 
+    fn fold_expr_list(&mut self, exprs: Vec<Expr>, module: &Ident,
+      function: &Ident) -> Vec<Expr> {
+        noop_fold_expr_list(self, exprs, module, function)
+    }
+
     fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
       -> Expr {
         noop_fold_expr(self, expr, module, function)
@@ -316,14 +321,20 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
         StmtKind::DeAlloc(expr) =>
             StmtKind::DeAlloc(folder.fold_expr(expr, module, function)),
 
-        StmtKind::Print(expr) =>
-            StmtKind::Print(folder.fold_expr(expr, module, function)),
+        StmtKind::Print(exprs) =>
+            StmtKind::Print(folder.fold_expr_list(exprs, module, function)),
     };
 
     Stmt {
         data: data,
         loc: loc,
     }
+}
+
+pub fn noop_fold_expr_list<F: ASTFolder + ?Sized>(folder: &mut F,
+  exprs: Vec<Expr>, module: &Ident, function: &Ident) -> Vec<Expr> {
+    exprs.into_iter().map(|expr| folder.fold_expr(expr, module, function))
+        .collect()
 }
 
 // TODO: maybe each pattern should have its own visit function
@@ -350,10 +361,7 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
             ExprKind::Call(
               folder.fold_path(path,
                 NameCtxt::Function(module, Access::Private), &loc),
-                // TODO: fold_args?
-                args.into_iter()
-                  .map(|a| folder.fold_expr(a, module, function))
-                  .collect()
+                folder.fold_expr_list(args, module, function)
             ),
 
         ExprKind::Member(expr, ident) =>
@@ -367,9 +375,8 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
                 Box::new(folder.fold_expr(*expr, module, function)),
                 folder.fold_ident(ident,
                   NameCtxt::Member(module, None, Access::Private), &loc),
-                args.into_iter()
-                  .map(|a| folder.fold_expr(a, module, function))
-                  .collect()),
+                folder.fold_expr_list(args, module, function)
+            ),
 
         ExprKind::UnOpApp(expr, op) =>
             ExprKind::UnOpApp(

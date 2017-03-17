@@ -119,7 +119,7 @@ pub enum StmtKind {
     DeAlloc(Expr),
 
     /// `print` statement (i.e. Debug.Print)
-    Print(Expr),
+    Print(Vec<Expr>),
 }
 
 /* TODO: maybe use for-each by-ref to signify local

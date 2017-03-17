@@ -383,8 +383,11 @@ macro_rules! make_ast_vistor {
                         self.visit_expr(expr, module, function);
                     },
 
-                    StmtKind::Print(ref $($_mut)* expr) =>
-                        self.visit_expr(expr, module, function),
+                    StmtKind::Print(ref $($_mut)* exprs) => {
+                        for expr in exprs {
+                            self.visit_expr(expr, module, function);
+                        }
+                    }
                 }
             }
 

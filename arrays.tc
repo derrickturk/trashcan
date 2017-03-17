@@ -28,7 +28,7 @@ fn glorious_allocs() {
     let zzs: f64[,,];
 
     zzs <- alloc[20,20,20];
-    zzs <- realloc[along zs];
+    zzs <- realloc[,,along zs];
 }
 
 fn whatever(o: obj) {

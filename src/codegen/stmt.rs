@@ -131,10 +131,17 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 out.write_all(b"\n")
             },
 
-            StmtKind::Print(ref expr) => {
+            StmtKind::Print(ref exprs) => {
                 write!(out, "{:in$}Debug.Print ", "",
                   in = (indent * INDENT) as usize)?;
-                expr.emit(out, symtab, ExprPos::Expr, 0)?;
+                for (i, expr) in exprs.iter().enumerate() {
+                    if i != 0 {
+                        // TODO: is this what we want or & & &
+                        //   probably punt until we have "as str"
+                        out.write_all(b"; ");
+                    }
+                    expr.emit(out, symtab, ExprPos::Expr, 0)?;
+                }
                 out.write_all(b"\n")
             },
 

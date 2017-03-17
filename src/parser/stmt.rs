@@ -309,14 +309,15 @@ named!(dealloc<Stmt>, complete!(do_parse!(
 )));
 
 named!(print<Stmt>, complete!(do_parse!(
-    opt!(call!(nom::multispace)) >>
-    tag!("print") >>
- e: preceded!(call!(nom::multispace), expr) >>
-    terminator >>
-    (Stmt {
-        data: StmtKind::Print(e),
-        loc: empty_loc!(),
-    })
+        opt!(call!(nom::multispace)) >>
+        tag!("print") >>
+        call!(nom::multispace) >>
+ exprs: separated_list!(ws!(char!(',')), expr) >>
+        terminator >>
+        (Stmt {
+            data: StmtKind::Print(exprs),
+            loc: empty_loc!(),
+        })
 )));
 
 named!(terminator<char>, complete!(preceded!(
