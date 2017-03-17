@@ -5,3 +5,7 @@ authors = ["derrickturk <dwt@terminusdatascience.com>"]
 
 [dependencies]
 nom = "^2.1"
+
+[[bin]]
+doc = false
+name = "tcc"
