@@ -356,6 +356,25 @@ macro_rules! make_ast_vistor {
                         }
                     },
 
+                    StmtKind::ForAlong {
+                        ref $($_mut)* vars,
+                        ref $($_mut)* along,
+                        ref $($_mut)* body,
+                    } => {
+                        for var in vars {
+                            self.visit_ident(var,
+                              NameCtxt::DefValue(module, Some(function),
+                                &Type::Int32),
+                              loc);
+                        }
+
+                        self.visit_expr(along, module, function);
+
+                        for stmt in body {
+                            self.visit_stmt(stmt, module, function);
+                        }
+                    },
+
                     StmtKind::Alloc(
                         ref $($_mut)* expr,
                         ref $($_mut)* extents

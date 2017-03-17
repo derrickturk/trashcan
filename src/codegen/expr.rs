@@ -140,7 +140,7 @@ impl<'a> Emit<ExprPos> for Expr {
             },
 
             ExprKind::CondExpr { .. } => {
-                panic!("dumpster fire: un-transformed CondExpr in codegen");
+                panic!("dumpster fire: raw CondExpr in codegen");
             },
 
             ExprKind::ExtentExpr(ref expr, kind, dim) => {

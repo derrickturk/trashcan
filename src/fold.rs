@@ -306,6 +306,17 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 body: folder.fold_stmt_list(body, module, function),
             },
 
+        StmtKind::ForAlong { vars, along, body } =>
+            StmtKind::ForAlong {
+                vars: vars.into_iter().map(|var|
+                    folder.fold_ident(var,
+                      NameCtxt::DefValue(module, Some(function), &Type::Int32),
+                      &loc)
+                ).collect(),
+                along: folder.fold_expr(along, module, function),
+                body: folder.fold_stmt_list(body, module, function),
+            },
+
         StmtKind::Alloc(expr, extents) =>
             StmtKind::Alloc(
                 folder.fold_expr(expr, module, function),

@@ -45,6 +45,14 @@ fn more_glorious_allocs() {
     // thing <- alloc[along tinyguy];
     thing <- alloc[5,5];
     thing <- realloc[,along smallguy];
+
+    for i along tinyguy {
+        print i;
+    }
+
+    for i, j, k along cross {
+        print i, j, k;
+    }
 }
 
 fn whatever(o: obj) {

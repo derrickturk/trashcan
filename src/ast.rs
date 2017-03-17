@@ -102,10 +102,17 @@ pub enum StmtKind {
         body: Vec<Stmt>,
     },
 
-    /// while loop
+    /// for-in or for-range loop
     ForLoop {
         var: (Ident, Type, ParamMode),
         spec: ForSpec,
+        body: Vec<Stmt>,
+    },
+
+    /// for-along loop
+    ForAlong {
+        vars: Vec<Ident>,
+        along: Expr,
         body: Vec<Stmt>,
     },
 

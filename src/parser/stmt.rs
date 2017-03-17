@@ -16,6 +16,7 @@ named!(pub stmt<Stmt>, alt_complete!(
   | ifstmt
   | whileloop
   | forloop
+  | foralong
   | assignment
   | terminated!(expr, terminator) => { |e: Expr| {
         let loc = e.loc.clone();
@@ -207,6 +208,30 @@ named!(for_each<Expr>, complete!(do_parse!(
         call!(nom::multispace) >>
      e: expr >>
         (e)
+)));
+
+named!(foralong<Stmt>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+            tag!("for") >>
+            call!(nom::multispace) >>
+      vars: separated_list!(ws!(char!(',')), ident) >>
+            call!(nom::multispace) >>
+            tag!("along") >>
+            call!(nom::multispace) >>
+     along: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!('{') >>
+      body: many0!(stmt) >>
+            opt!(call!(nom::multispace)) >>
+            char!('}') >>
+            (Stmt {
+                data: StmtKind::ForAlong {
+                    vars: vars,
+                    along: along,
+                    body: body,
+                },
+                loc: empty_loc!(),
+            })
 )));
 
 // a note on the syntax:

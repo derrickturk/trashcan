@@ -418,6 +418,8 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     }
                 },
 
+                // TODO: maybe allow variants here (checked at runtime)?
+
                 _ => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(format!("cannot get extents for \
@@ -988,6 +990,32 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
             return Ok(());
         },
 
+        StmtKind::ForAlong { ref vars, ref along, .. } => {
+            let along_ty = type_of(along, symtab, ctxt)?;
+            let dims = match along_ty {
+                Type::Array(_, ref bounds) => bounds.dims(),
+
+                // TODO: maybe allow variants (checked at runtime)?
+
+                _ => return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("for-along loop over non-array \
+                      expression of type {}", along_ty)),
+                    loc: stmt.loc.clone(),
+                })
+            };
+
+            if vars.len() != dims {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!("for-along loop iteration \
+                      variable count ({}) does not match iterated array \
+                      dimension ({})", vars.len(), dims)),
+                    loc: stmt.loc.clone(),
+                });
+            };
+        },
+
         StmtKind::Alloc(ref expr, ref extents) => {
             match type_of(expr, symtab, ctxt)? {
                 Type::Array(_, ArrayBounds::Dynamic(dims)) => {
@@ -1187,6 +1215,8 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
 fn typecheck_allocextent(extent: &AllocExtent, symtab: &SymbolTable,
   ctxt: &ExprCtxt, loc: &SrcLoc) -> AnalysisResult<()> {
+    // TODO: maybe allow variants (checked at runtime)?
+
     match *extent {
         AllocExtent::Along(ref expr) => {
             match type_of(expr, symtab, &ctxt)? {

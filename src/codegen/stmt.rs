@@ -235,7 +235,11 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                   in = (indent * INDENT) as usize)?;
                 var.0.emit(out, symtab, (), 0)?;
                 out.write_all(b"\n")
-            }
+            },
+
+            StmtKind::ForAlong { .. } => {
+                panic!("dumpster fire: raw ForAlong in codegen");
+            },
         }
     }
 }
