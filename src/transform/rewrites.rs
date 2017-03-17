@@ -14,6 +14,12 @@ pub fn merge_dumpsters(dumpsters: Vec<Dumpster>) -> Dumpster {
     }
 }
 
+/// replace casts with other expressions where necessary
+pub fn cast_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable) -> Dumpster {
+    let mut f = CastRewriteFolder::new(symtab);
+    f.fold_dumpster(dumpster)
+}
+
 /// replace logical-op expressions (and conditions) with short-circuiting
 /// equivalents
 pub fn short_circuit_logicals(dumpster: Dumpster, symtab: &mut SymbolTable)
@@ -40,6 +46,85 @@ pub fn alloc_along_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
   -> Dumpster {
     let mut f = AllocAlongRewriteFolder::new(symtab);
     f.fold_dumpster(dumpster)
+}
+
+struct CastRewriteFolder<'a> {
+    // we'll need this for object-type gensyms
+    symtab: &'a mut SymbolTable,
+    before_stmt_stack: Vec<Vec<Stmt>>,
+}
+
+impl<'a> CastRewriteFolder<'a> {
+    fn new(symtab: &'a mut SymbolTable) -> Self {
+        CastRewriteFolder {
+            symtab: symtab,
+            before_stmt_stack: Vec::new(),
+        }
+    }
+}
+
+impl<'a> ASTFolder for CastRewriteFolder<'a> {
+    fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
+    -> Expr {
+        let Expr { data, loc } =
+            fold::noop_fold_expr(self, expr, module, function);
+
+        let data = match data {
+            ExprKind::Cast(expr, ty) => {
+                let expr_ty = type_of(&expr, self.symtab,
+                  &ExprCtxt(module.clone(), Some(function.clone())))
+                  .expect("dumpster fire: untypeable expression \
+                          in cast rewriter");
+
+                // no-op cast: just lift out the expression
+                if expr_ty == ty {
+                    return *expr;
+                }
+
+                // no special implementations when casting to variant
+                //   (we're just boxing)
+                if ty == Type::Variant {
+                    return Expr {
+                        data: ExprKind::Cast(expr, ty),
+                        loc: loc,
+                    };
+                }
+
+                let loc = expr.loc.clone();
+
+                match expr_ty {
+                    Type::Bool => ExprKind::CondExpr {
+                        cond: expr,
+                        if_expr: Box::new(Expr {
+                            data: ExprKind::Lit(Literal::num_of_type(&ty, 1)
+                              .expect("dumpster fire: bad numeric type \
+                                in cast rewriter")),
+                            loc: loc.clone(),
+                        }),
+                        else_expr: Box::new(Expr {
+                            data: ExprKind::Lit(Literal::num_of_type(&ty, 0)
+                              .expect("dumpster fire: bad numeric type \
+                                in cast rewriter")),
+                            loc: loc,
+                        })
+                    },
+
+                    Type::Obj | Type::Object(_) => {
+                        panic!("TODO: object dynamic casts")
+                    },
+
+                    _ => ExprKind::Cast(expr, ty),
+                }
+            },
+
+            data => data,
+        };
+
+        Expr {
+            data: data,
+            loc: loc,
+        }
+    }
 }
 
 struct ShortCircuitLogicalsFolder<'a> {

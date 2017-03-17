@@ -580,4 +580,24 @@ impl Literal {
             Literal::Date(_) => Type::Date,
         }
     }
+
+    pub fn num_of_type<T>(ty: &Type, val: T) -> Option<Self>
+      where T: Into<i64> + Into<f64> {
+        match *ty {
+            Type::UInt8 =>
+                Some(Literal::UInt8(<T as Into<i64>>::into(val) as u8)),
+            Type::Int16 =>
+                Some(Literal::Int16(<T as Into<i64>>::into(val) as i16)),
+            Type::Int32 =>
+                Some(Literal::Int32(<T as Into<i64>>::into(val) as i32)),
+            Type::IntPtr =>
+                Some(Literal::IntPtr(<T as Into<i64>>::into(val))),
+            Type::Float32 =>
+                Some(Literal::Float32(<T as Into<f64>>::into(val) as f32)),
+            Type::Float64 =>
+                Some(Literal::Float64(<T as Into<f64>>::into(val))),
+
+            _ => None,
+        }
+    }
 }

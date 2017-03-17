@@ -66,6 +66,8 @@ fn main() {
     // post-processing / semantics-preserving passes
     //   (these need symbols and access to typing)
     //   (they also may emit new symbols etc)
+    // order matters here!
+    let dumpster = transform::cast_rewrite(dumpster, &mut symtab);
     let dumpster = transform::short_circuit_logicals(dumpster, &mut symtab);
     let dumpster = transform::array_loop_rewrite(dumpster, &mut symtab);
     let dumpster = transform::along_loop_rewrite(dumpster);
