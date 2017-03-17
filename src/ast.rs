@@ -558,3 +558,23 @@ pub enum Literal {
     Date(f64),
     // later: array literals & struct literals & ...
 }
+
+impl Literal {
+    pub fn ty(&self) -> Type {
+        match *self {
+            Literal::NullPtr => Type::Obj,
+            Literal::NullVar => Type::Variant,
+            Literal::EmptyVar => Type::Variant,
+            Literal::Bool(_) => Type::Bool,
+            Literal::UInt8(_) => Type::UInt8,
+            Literal::Int16(_) => Type::Int16,
+            Literal::Int32(_) => Type::Int32,
+            Literal::IntPtr(_) => Type::IntPtr,
+            Literal::Float32(_) => Type::Float32,
+            Literal::Float64(_) => Type::Float64,
+            Literal::String(_) => Type::String,
+            Literal::Currency(_) => Type::Currency,
+            Literal::Date(_) => Type::Date,
+        }
+    }
+}

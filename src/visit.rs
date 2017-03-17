@@ -80,6 +80,11 @@ macro_rules! make_ast_vistor {
                 self.walk_funparam(param, module, function)
             }
 
+            fn visit_optparam(&mut self, param: & $($_mut)* (FunParam, Literal),
+              module: &Ident, function: &Ident) {
+                self.walk_optparam(param, module, function)
+            }
+
             fn visit_structdef(&mut self, def: & $($_mut)* StructDef,
               module: &Ident) {
                 self.walk_structdef(def, module)
@@ -197,10 +202,8 @@ macro_rules! make_ast_vistor {
                     self.visit_funparam(p, module, name);
                 }
 
-                for & $($_mut)* (ref $($_mut)* p, ref $($_mut)* default)
-                  in optparams {
-                    self.visit_funparam(p, module, name);
-                    self.visit_literal(default, module, name, loc);
+                for op in optparams {
+                    self.visit_optparam(op, module, name);
                 }
 
                 self.visit_type(ret, module, loc);
@@ -222,6 +225,13 @@ macro_rules! make_ast_vistor {
                 self.visit_ident(name,
                   NameCtxt::DefParam(module, function, ty, *mode), loc);
                 self.visit_type(ty, module, loc);
+            }
+
+            fn walk_optparam(&mut self, param: & $($_mut)* (FunParam, Literal),
+              module: &Ident, function: &Ident) {
+                let (ref $($_mut)* param, ref $($_mut)* default) = *param;
+                self.visit_funparam(param, module, function);
+                self.visit_literal(default, module, function, &param.loc);
             }
 
             fn walk_structdef(&mut self, def: & $($_mut)* StructDef,

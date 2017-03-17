@@ -29,21 +29,7 @@ pub fn typecheck(dumpster: &Dumpster, symtab: &SymbolTable)
 pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
   -> AnalysisResult<Type> {
     match expr.data {
-        ExprKind::Lit(ref lit) => match *lit {
-            Literal::NullPtr => Ok(Type::Obj),
-            Literal::NullVar => Ok(Type::Variant),
-            Literal::EmptyVar => Ok(Type::Variant),
-            Literal::Bool(_) => Ok(Type::Bool),
-            Literal::UInt8(_) => Ok(Type::UInt8),
-            Literal::Int16(_) => Ok(Type::Int16),
-            Literal::Int32(_) => Ok(Type::Int32),
-            Literal::IntPtr(_) => Ok(Type::IntPtr),
-            Literal::Float32(_) => Ok(Type::Float32),
-            Literal::Float64(_) => Ok(Type::Float64),
-            Literal::String(_) => Ok(Type::String),
-            Literal::Currency(_) => Ok(Type::Currency),
-            Literal::Date(_) => Ok(Type::Date),
-        },
+        ExprKind::Lit(ref lit) => Ok(lit.ty()),
 
         // qualified::name (must denote a module item)
         ExprKind::Name(ref path) => {
@@ -106,11 +92,27 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                   slipped past lookup typecheck"),
             };
 
-            if args.len() != fun.params.len() {
+            if args.len() < fun.params.len() {
                 return Err(AnalysisError {
                     kind: AnalysisErrorKind::FnCallError,
                     regarding: Some(format!("{} requires {} arguments; \
                       {} were provided", path, fun.params.len(), args.len())),
+                    loc: expr.loc.clone(),
+                })
+            }
+
+            if args.len() > fun.params.len() + fun.optparams.len() {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} requires {} arguments{}; \
+                      {} were provided", path,
+                      fun.params.len(),
+                      if fun.optparams.is_empty() {
+                          String::from("")
+                      } else {
+                          format!(" (+ {} optional)", fun.optparams.len())
+                      },
+                      args.len())),
                     loc: expr.loc.clone(),
                 })
             }
@@ -621,6 +623,51 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
         }
 
         self.walk_funparam(p, m, f);
+    }
+
+    fn visit_optparam(&mut self, p: &(FunParam, Literal),
+      m: &Ident, f: &Ident) {
+        // run defaults to typecheck param, literal
+        self.walk_optparam(p, m, f);
+
+        let (ref p, ref default) = *p;
+
+        if !p.ty.is_scalar() {
+            self.errors.push(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(format!("non-scalar type {} cannot be used \
+                  as an optional parameter", p.ty)),
+                loc: p.loc.clone(),
+            });
+        }
+
+        let lit_ty = default.ty();
+
+        match p.mode {
+            ParamMode::ByRef =>
+                if p.ty != lit_ty {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!(
+                          "optional parameter {} has type &{}; \
+                            default of type {} provided",
+                          p.name, p.ty, lit_ty)),
+                        loc: p.loc.clone(),
+                    });
+                },
+
+            ParamMode::ByVal =>
+                if !may_coerce(&lit_ty, &p.ty) {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!(
+                          "optional parameter {} has type {}; \
+                            default of type {} provided",
+                          p.name, p.ty, lit_ty)),
+                        loc: p.loc.clone(),
+                    });
+                },
+        }
     }
 
     fn visit_stmt(&mut self, stmt: &Stmt, m: &Ident, f: &Ident) {
