@@ -1,9 +1,8 @@
 //! trashcan's sub-parsers for operators
 
-use nom::{self, IResult, ErrorKind};
+use nom;
 
 use ast::*;
-use super::*;
 
 named!(pub assign_op<AssignOp>, complete!(preceded!(
     opt!(call!(nom::multispace)),

@@ -1,7 +1,7 @@
 //! trashcan's parser and affiliated types
 
 use std::str;
-use nom::{self, IResult, ErrorKind};
+use nom;
 
 use ast::*;
 
@@ -41,17 +41,14 @@ macro_rules! expect_parse {
 }
 
 mod item;
-use self::item::*;
-mod stmt;
-use self::stmt::*;
-mod expr;
-use self::expr::*;
 mod ident;
-use self::ident::*;
+mod stmt;
+mod expr;
 mod op;
-use self::op::*;
 mod lit;
-use self::lit::*;
+
+use self::item::*;
+use self::ident::*;
 
 pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     let mut in_line_comment = false;

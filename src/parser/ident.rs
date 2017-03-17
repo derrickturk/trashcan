@@ -1,9 +1,11 @@
 //! trashcan's sub-parsers for identifiers, paths, and typenames
 
+use std::str;
+
 use nom::{self, IResult, ErrorKind};
 
 use ast::*;
-use super::*;
+use super::CustomErrors;
 
 pub const IDENT_CONT_CHARS: &'static str =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ\

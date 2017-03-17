@@ -5,8 +5,6 @@ use std::io::Write;
 
 use ast::*;
 use super::*;
-use super::bits::*;
-use super::ty::*;
 
 use analysis;
 use analysis::ExprCtxt;

@@ -6,7 +6,6 @@ use std::io::Write;
 use ast::*;
 use analysis::ExprCtxt;
 use super::*;
-use super::bits::*;
 use super::ty::*;
 
 impl<'a> Emit<&'a Module> for NormalItem {

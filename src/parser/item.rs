@@ -1,6 +1,6 @@
 //! trashcan's sub-parsers for items
 
-use nom::{self, IResult, ErrorKind};
+use nom;
 
 use ast::*;
 use super::ident::*;

@@ -1,9 +1,8 @@
 //! trashcan's sub-parsers for expressions
 
-use nom::{self, IResult, ErrorKind};
+use nom;
 
 use ast::*;
-use super::*;
 use super::op::*;
 use super::lit::*;
 use super::ident::*;

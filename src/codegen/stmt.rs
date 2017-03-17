@@ -10,9 +10,6 @@ use analysis::ExprCtxt;
 use super::*;
 use super::expr::*;
 use super::ty::*;
-use super::bits::*;
-
-#[macro_use] use super::super::parser;
 
 impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,

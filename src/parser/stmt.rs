@@ -1,10 +1,11 @@
 //! trashcan's sub-parsers for statements
 
-use nom::{self, IResult, ErrorKind};
+use nom;
 
 use ast::*;
-use super::*;
 use super::expr::*;
+use super::op::*;
+use super::ident::*;
 
 named!(pub stmt<Stmt>, alt_complete!(
     decl

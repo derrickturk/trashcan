@@ -1,9 +1,11 @@
 //! trashcan's sub-parsers for operators
 
+use std::str;
+
 use nom::{self, IResult, ErrorKind};
 
 use ast::*;
-use super::*;
+use super::CustomErrors;
 
 named!(pub literal<Literal>, alt_complete!(
     literal_null
