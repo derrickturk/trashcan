@@ -224,6 +224,41 @@ impl ASTFolder for ForLoopVarGensymFolder {
                 }
             },
 
+            StmtKind::ForAlong { vars, along, mut body } => {
+                let mut new_vars = vec![];
+                for v in vars {
+                    let g = gensym(Some(v.clone()));
+
+                    body = {
+                        let mut sub = ScopedSubstitutionFolder {
+                            orig: v.clone(),
+                            replace: g.clone(),
+                            module: Some(module.clone()),
+                            function: Some(function.clone()),
+                            defns: false, // I think
+                            values: true,
+                            fns: false,
+                            types: false,
+                            members: false,
+                            modules: false,
+                        };
+
+                        sub.fold_stmt_list(body, module, function)
+                    };
+
+                    new_vars.push(g);
+                }
+
+                Stmt {
+                    data: StmtKind::ForAlong {
+                        vars: new_vars,
+                        along: along,
+                        body: body,
+                    },
+                    loc: stmt.loc,
+                }
+            },
+
             _ => stmt,
         }
     }
