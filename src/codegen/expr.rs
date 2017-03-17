@@ -8,6 +8,7 @@ use super::*;
 use super::bits::*;
 use super::ty::*;
 
+use analysis;
 use analysis::ExprCtxt;
 
 #[derive(Copy, Clone, Debug)]
@@ -109,8 +110,14 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                     },
 
                     UnOp::AddressOf => {
-                        // TODO: this will change for fn or object types
-                        out.write_all(b"VarPtr(")?;
+                        let expr_ty = analysis::type_of(expr, symtab, ctxt.1)
+                            .expect("dumpster fire: untypeable expression \
+                                    in codegen");
+                        match expr_ty {
+                            Type::Obj | Type::Object(_) =>
+                                out.write_all(b"ObjPtr(")?,
+                            _ => out.write_all(b"VarPtr(")?,
+                        };
                         expr.emit(out, symtab, ctxt, 0)?;
                         out.write_all(b")")?;
                     },

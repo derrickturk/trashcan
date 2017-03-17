@@ -135,4 +135,11 @@ fn use_dude() {
     }
 }
 
+fn ehh() {
+    let xs: obj[10];
+    for o: &obj in xs {
+        print &o;
+    }
+}
+
 }
