@@ -37,12 +37,30 @@ impl<'a> Emit<&'a Module> for FunDef {
         self.name.emit(out, symtab, (), 0)?;
 
         out.write_all(b"(")?;
+
+        // regular params
         for (i, p) in self.params.iter().enumerate() {
             if i != 0 {
                 out.write_all(b", ")?;
             }
             p.emit(out, symtab, (), 0)?;
         }
+
+        // optional params
+        if !self.params.is_empty() && !self.optparams.is_empty() {
+            out.write_all(b", ")?;
+        }
+
+        for (i, &(ref p, ref default)) in self.optparams.iter().enumerate() {
+            if i != 0 {
+                out.write_all(b", ")?;
+            }
+            out.write_all(b"Optional ")?;
+            p.emit(out, symtab, (), 0)?;
+            out.write_all(b" = ")?;
+            default.emit(out, symtab, (), 0)?;
+        }
+
         out.write_all(b")")?;
 
         match self.ret {
