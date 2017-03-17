@@ -1005,11 +1005,11 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                 })
             };
 
-            if vars.len() != dims {
+            if vars.len() > dims {
                 return Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
                     regarding: Some(format!("for-along loop iteration \
-                      variable count ({}) does not match iterated array \
+                      variable count ({}) exceeds iterated array \
                       dimension ({})", vars.len(), dims)),
                     loc: stmt.loc.clone(),
                 });
