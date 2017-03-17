@@ -1038,6 +1038,9 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                                                 loc: stmt.loc.clone(),
                                             });
                                         }
+
+                                        // we have a single big-enough array
+                                        return Ok(());
                                     },
 
                                     // handled by allocextent visitor
