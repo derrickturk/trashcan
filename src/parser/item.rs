@@ -3,6 +3,7 @@
 use nom;
 
 use ast::*;
+use super::SrcLoc;
 use super::ident::*;
 use super::stmt::*;
 use super::lit::*;
@@ -43,7 +44,7 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
                 optparams: optparams.unwrap_or(vec![]),
                 ret: ret.unwrap_or(Type::Void),
                 body: body,
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -62,7 +63,7 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                     Some(_) => ParamMode::ByRef,
                     None => ParamMode::ByVal,
                 },
-                loc: empty_loc!()
+                loc: SrcLoc::empty()
             })
 )));
 
@@ -85,7 +86,7 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
                         Some(_) => ParamMode::ByRef,
                         None => ParamMode::ByVal,
                     },
-                    loc: empty_loc!()
+                    loc: SrcLoc::empty()
                 },
                 default
             )
@@ -108,7 +109,7 @@ named!(pub structdef<StructDef>, complete!(do_parse!(
                 name: name,
                 access: access,
                 members: members,
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -120,7 +121,7 @@ named!(pub structmem<StructMem>, complete!(do_parse!(
             (StructMem {
                 name: name,
                 ty: ty,
-                loc: empty_loc!()
+                loc: SrcLoc::empty()
             })
 )));
 

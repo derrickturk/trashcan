@@ -3,6 +3,7 @@
 use nom;
 
 use ast::*;
+use super::SrcLoc;
 use super::op::*;
 use super::lit::*;
 use super::ident::*;
@@ -60,12 +61,12 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
                          if_expr: Box::new(ifexpr),
                          else_expr: Box::new(elseexpr),
                      },
-               loc: empty_loc!(),
+               loc: SrcLoc::empty(),
            },
 
            Some(RecExprRest::Cast(ty)) => Expr {
                data: ExprKind::Cast(Box::new(first), ty),
-               loc: empty_loc!(),
+               loc: SrcLoc::empty(),
            },
        }
 })));
@@ -76,7 +77,7 @@ fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
     rest.into_iter().fold(first, |sofar, (op, e)| {
         Expr {
             data: ExprKind::BinOpApp(Box::new(sofar), Box::new(e), op),
-            loc: empty_loc!(),
+            loc: SrcLoc::empty(),
         }
     })
 }
@@ -160,7 +161,7 @@ named!(unitary_op_expr<Expr>, alt_complete!(
     unitary_expr
   | tuple!(un_op, unitary_op_expr) => { |(op, e)| Expr {
         data: ExprKind::UnOpApp(Box::new(e), op),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     }}
 ));
 
@@ -169,17 +170,17 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
         match rest {
             UnitaryRecExprRest::Indexed(indices) => Expr {
                 data: ExprKind::Index(Box::new(sofar), indices),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             },
 
             UnitaryRecExprRest::Member(i) => Expr {
                 data: ExprKind::Member(Box::new(sofar), i),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             },
 
             UnitaryRecExprRest::MemberInvoke(i, args) => Expr {
                 data: ExprKind::MemberInvoke(Box::new(sofar), i, args),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             },
         }
     })
@@ -206,19 +207,19 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
 
   | path => { |p| Expr {
         data: ExprKind::Name(p),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     }}
 
   | literal => { |lit| Expr {
         data: ExprKind::Lit(lit),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     }}
 
   | grouped
 
   | vbexpr => { |e| Expr {
       data: ExprKind::VbExpr(e),
-      loc: empty_loc!(),
+      loc: SrcLoc::empty(),
     }}
 ));
 
@@ -230,7 +231,7 @@ named!(fncall<Expr>, complete!(do_parse!(
           char!(')') >>
           (Expr {
               data: ExprKind::Call(name, args),
-              loc: empty_loc!(),
+              loc: SrcLoc::empty(),
           })
 )));
 
@@ -268,7 +269,7 @@ named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
     let dim = unsafe { str::from_utf8_unchecked(dim) };
     Ok(Expr {
         data: ExprKind::ExtentExpr(Box::new(arr), kind, dim.parse::<usize>()?),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     })
 })));
 

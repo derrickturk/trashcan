@@ -12,22 +12,20 @@ pub struct SrcLoc {
     pub len: u32,
 }
 
-pub enum CustomErrors {
-    KeywordAsIdent,
-    InvalidEscape,
-}
-
-// for now...
-#[macro_export]
-macro_rules! empty_loc {
-    () => {
-        $crate::parser::SrcLoc {
+impl SrcLoc {
+    pub fn empty() -> Self {
+        Self {
             file: String::new(),
             line: 0,
             start: 0,
             len: 0,
         }
     }
+}
+
+pub enum CustomErrors {
+    KeywordAsIdent,
+    InvalidEscape,
 }
 
 macro_rules! expect_parse {
@@ -154,7 +152,7 @@ named!(normal_module<Module>, complete!(do_parse!(
             (Module {
                 name: name,
                 data: ModuleKind::Normal(items),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 

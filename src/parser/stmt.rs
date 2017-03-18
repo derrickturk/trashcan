@@ -3,6 +3,7 @@
 use nom;
 
 use ast::*;
+use super::SrcLoc;
 use super::expr::*;
 use super::op::*;
 use super::ident::*;
@@ -36,7 +37,7 @@ named!(decl<Stmt>, complete!(do_parse!(
         terminator >>
         (Stmt {
             data: StmtKind::VarDecl(decls),
-            loc: empty_loc!()
+            loc: SrcLoc::empty()
         })
 )));
 
@@ -68,7 +69,7 @@ named!(assignment<Stmt>, complete!(do_parse!(
         terminator >>
         (Stmt {
             data: StmtKind::Assign(e1, op, e2),
-            loc: empty_loc!()
+            loc: SrcLoc::empty()
         })
 )));
 
@@ -79,7 +80,7 @@ named!(ret<Stmt>, complete!(do_parse!(
     terminator >>
     (Stmt {
         data: StmtKind::Return(e),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     })
 )));
 
@@ -102,7 +103,7 @@ named!(ifstmt<Stmt>, complete!(do_parse!(
                     elsifs: elsifs,
                     els: els,
                 },
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -147,7 +148,7 @@ named!(whileloop<Stmt>, complete!(do_parse!(
                     cond: cond,
                     body: body,
                 },
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -172,7 +173,7 @@ named!(forloop<Stmt>, complete!(do_parse!(
                     spec: spec,
                     body: body,
                 },
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -231,7 +232,7 @@ named!(foralong<Stmt>, complete!(do_parse!(
                     along: along,
                     body: body,
                 },
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -251,7 +252,7 @@ named!(alloc<Stmt>, complete!(do_parse!(
             terminator >>
             (Stmt {
                 data: StmtKind::Alloc(array, extents),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -265,7 +266,7 @@ named!(realloc<Stmt>, complete!(do_parse!(
             terminator >>
             (Stmt {
                 data: StmtKind::ReAlloc(array, extents.0, extents.1),
-                loc: empty_loc!(),
+                loc: SrcLoc::empty(),
             })
 )));
 
@@ -318,7 +319,7 @@ named!(dealloc<Stmt>, complete!(do_parse!(
     terminator >>
     (Stmt {
         data: StmtKind::DeAlloc(e),
-        loc: empty_loc!(),
+        loc: SrcLoc::empty(),
     })
 )));
 
@@ -330,7 +331,7 @@ named!(print<Stmt>, complete!(do_parse!(
         terminator >>
         (Stmt {
             data: StmtKind::Print(exprs),
-            loc: empty_loc!(),
+            loc: SrcLoc::empty(),
         })
 )));
 

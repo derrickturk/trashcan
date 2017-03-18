@@ -4,6 +4,7 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
+use parser::SrcLoc;
 use analysis;
 use analysis::SymbolTable;
 use analysis::ExprCtxt;
@@ -191,7 +192,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 let vardecl = Stmt {
                     data: StmtKind::VarDecl(
                               vec![(var.0.clone(), var.1.clone(), None)]),
-                    loc: empty_loc!(),
+                    loc: SrcLoc::empty(),
                 };
                 vardecl.emit(out, symtab, ctxt, indent)?;
 
@@ -255,12 +256,12 @@ fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
                 data: StmtKind::Assign(
                           Expr {
                               data: ExprKind::Name(Path(None, decl.0.clone())),
-                              loc: empty_loc!(),
+                              loc: SrcLoc::empty(),
                           },
                           AssignOp::Assign,
                           init.clone()
                       ),
-                      loc: empty_loc!(),
+                      loc: SrcLoc::empty(),
             };
             assign_stmt.emit(out, symtab, ctxt, indent)?;
         },

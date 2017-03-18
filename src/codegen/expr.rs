@@ -4,6 +4,7 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
+use parser::SrcLoc;
 use super::*;
 
 use analysis;
@@ -43,7 +44,7 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
             ExprKind::Call(ref path, ref args) => {
                 let pathexpr = Expr {
                     data: ExprKind::Name(path.clone()),
-                    loc: empty_loc!(),
+                    loc: SrcLoc::empty(),
                 };
                 pathexpr.emit(out, symtab, ctxt, indent)?;
 
