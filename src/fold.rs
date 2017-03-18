@@ -150,9 +150,9 @@ pub fn noop_fold_module<F: ASTFolder + ?Sized>(folder: &mut F,
     let loc = loc;
 
     Module {
-        name: name,
-        data: data,
-        loc: loc,
+        name,
+        data,
+        loc,
     }
 }
 
@@ -183,13 +183,13 @@ pub fn noop_fold_fundef<F: ASTFolder + ?Sized>(folder: &mut F,
     let body = folder.fold_stmt_list(body, module, &name);
 
     FunDef {
-        name: name,
-        params: params,
-        optparams: optparams,
-        access: access,
-        ret: ret,
-        body: body,
-        loc: loc,
+        name,
+        params,
+        optparams,
+        access,
+        ret,
+        body,
+        loc,
     }
 }
 
@@ -207,10 +207,10 @@ pub fn noop_fold_funparam<F: ASTFolder + ?Sized>(folder: &mut F,
     let ty = folder.fold_type(ty, module, &loc);
     // TODO: fold_mode?
     FunParam {
-        name: name,
-        ty: ty,
-        mode: mode,
-        loc: loc,
+        name,
+        ty,
+        mode,
+        loc,
     }
 }
 
@@ -235,10 +235,10 @@ pub fn noop_fold_structdef<F: ASTFolder + ?Sized>(folder: &mut F,
     let name = folder.fold_ident(name, NameCtxt::DefType(module), &loc);
     let members = folder.fold_structmem_list(members, module, &name);
     StructDef {
-        name: name,
-        access: access,
-        members: members,
-        loc: loc,
+        name,
+        access,
+        members,
+        loc,
     }
 }
 
@@ -254,9 +254,9 @@ pub fn noop_fold_structmem<F: ASTFolder + ?Sized>(folder: &mut F,
       NameCtxt::DefMember(module, st, &ty), &loc);
     let ty = folder.fold_type(ty, module, &loc);
     StructMem {
-        name: name,
-        ty: ty,
-        loc: loc,
+        name,
+        ty,
+        loc,
     }
 }
 
@@ -364,8 +364,8 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
     };
 
     Stmt {
-        data: data,
-        loc: loc,
+        data,
+        loc,
     }
 }
 
@@ -450,8 +450,8 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
     };
 
     Expr {
-        data: data,
-        loc: loc,
+        data,
+        loc,
     }
 }
 

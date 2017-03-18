@@ -24,7 +24,7 @@ named!(pub stmt<Stmt>, alt_complete!(
         let loc = e.loc.clone();
         Stmt {
           data: StmtKind::ExprStmt(e),
-          loc: loc,
+          loc,
         }
     }}
 ));
@@ -98,10 +98,10 @@ named!(ifstmt<Stmt>, complete!(do_parse!(
        els: opt!(els) >>
             (Stmt {
                 data: StmtKind::IfStmt {
-                    cond: cond,
-                    body: body,
-                    elsifs: elsifs,
-                    els: els,
+                    cond,
+                    body,
+                    elsifs,
+                    els,
                 },
                 loc: SrcLoc::empty(),
             })
@@ -145,8 +145,8 @@ named!(whileloop<Stmt>, complete!(do_parse!(
             char!('}') >>
             (Stmt {
                 data: StmtKind::WhileLoop {
-                    cond: cond,
-                    body: body,
+                    cond,
+                    body,
                 },
                 loc: SrcLoc::empty(),
             })
@@ -169,9 +169,9 @@ named!(forloop<Stmt>, complete!(do_parse!(
             char!('}') >>
             (Stmt {
                 data: StmtKind::ForLoop {
-                    var: var,
-                    spec: spec,
-                    body: body,
+                    var,
+                    spec,
+                    body,
                 },
                 loc: SrcLoc::empty(),
             })
@@ -228,9 +228,9 @@ named!(foralong<Stmt>, complete!(do_parse!(
             char!('}') >>
             (Stmt {
                 data: StmtKind::ForAlong {
-                    vars: vars,
-                    along: along,
-                    body: body,
+                    vars,
+                    along,
+                    body,
                 },
                 loc: SrcLoc::empty(),
             })

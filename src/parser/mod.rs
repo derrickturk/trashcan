@@ -21,6 +21,15 @@ impl SrcLoc {
             len: 0,
         }
     }
+
+    pub fn raw(start: u32, len: u32) -> Self {
+        Self {
+            file: String::new(),
+            line: 0,
+            start,
+            len,
+        }
+    }
 }
 
 pub enum CustomErrors {
@@ -150,7 +159,7 @@ named!(normal_module<Module>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('}') >>
             (Module {
-                name: name,
+                name,
                 data: ModuleKind::Normal(items),
                 loc: SrcLoc::empty(),
             })

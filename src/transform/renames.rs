@@ -137,11 +137,11 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
             module: module.cloned(),
             function: function.cloned(),
             defns: true,
-            values: values,
-            fns: fns,
-            types: types,
-            members: members,
-            modules: modules,
+            values,
+            fns,
+            types,
+            members,
+            modules,
         });
     }
 }
@@ -214,9 +214,9 @@ impl ASTFolder for ForLoopVarGensymFolder {
                 Stmt {
                     data: StmtKind::ForLoop {
                         var: (g, ty, mode),
-                        spec: spec,
+                        spec,
                         // TODO: I think this is right...
-                        body: body,
+                        body,
                     },
                     loc: stmt.loc,
                 }
@@ -250,8 +250,8 @@ impl ASTFolder for ForLoopVarGensymFolder {
                 Stmt {
                     data: StmtKind::ForAlong {
                         vars: new_vars,
-                        along: along,
-                        body: body,
+                        along,
+                        body,
                     },
                     loc: stmt.loc,
                 }
@@ -339,11 +339,11 @@ impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
             module: module.cloned(),
             function: function.cloned(),
             defns: true,
-            values: values,
-            fns: fns,
-            types: types,
-            members: members,
-            modules: modules,
+            values,
+            fns,
+            types,
+            members,
+            modules,
         });
     }
 }

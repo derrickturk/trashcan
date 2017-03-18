@@ -57,7 +57,7 @@ struct CastRewriteFolder<'a> {
 impl<'a> CastRewriteFolder<'a> {
     fn new(symtab: &'a mut SymbolTable) -> Self {
         CastRewriteFolder {
-            symtab: symtab,
+            symtab,
             before_stmt_stack: Vec::new(),
         }
     }
@@ -86,7 +86,7 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
                 if ty == Type::Variant {
                     return Expr {
                         data: ExprKind::Cast(expr, ty),
-                        loc: loc,
+                        loc,
                     };
                 }
 
@@ -105,7 +105,7 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
                             data: ExprKind::Lit(Literal::num_of_type(&ty, 0)
                               .expect("dumpster fire: bad numeric type \
                                 in cast rewriter")),
-                            loc: loc,
+                            loc,
                         })
                     },
 
@@ -121,8 +121,8 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
         };
 
         Expr {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 }
@@ -135,7 +135,7 @@ struct ShortCircuitLogicalsFolder<'a> {
 impl<'a> ShortCircuitLogicalsFolder<'a> {
     fn new(symtab: &'a mut SymbolTable) -> Self {
         ShortCircuitLogicalsFolder {
-            symtab: symtab,
+            symtab,
             before_stmt_stack: Vec::new(),
         }
     }
@@ -209,8 +209,8 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
         };
 
         Stmt {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 
@@ -382,8 +382,8 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
         };
 
         Expr {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 }
@@ -396,7 +396,7 @@ struct ArrayLoopRewriteFolder<'a> {
 impl<'a> ArrayLoopRewriteFolder<'a> {
     fn new(symtab: &'a mut SymbolTable) -> Self {
         ArrayLoopRewriteFolder {
-            symtab: symtab,
+            symtab,
             before_stmt_stack: Vec::new(),
         }
     }
@@ -498,8 +498,8 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                 data: StmtKind::ForLoop {
                     var: (g_iters.pop().unwrap(),
                       Type::Int32, ParamMode::ByVal),
-                    spec: spec,
-                    body: body,
+                    spec,
+                    body,
                 },
                 loc: loc.clone(),
             }];
@@ -527,9 +527,9 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         );
 
         StmtKind::ForLoop {
-            var: var,
-            spec: spec,
-            body: body,
+            var,
+            spec,
+            body,
         }
     }
 
@@ -569,7 +569,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                         StmtKind::ForLoop {
                             var: (var, ty, mode),
                             spec: ForSpec::Range(first, last, step),
-                            body: body,
+                            body,
                         },
 
                     ForSpec::Each(expr) => {
@@ -586,7 +586,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                             _ => StmtKind::ForLoop {
                                 var: (var, ty, mode),
                                 spec: ForSpec::Each(expr),
-                                body: body,
+                                body,
                             },
                         }
                     },
@@ -597,8 +597,8 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
         };
 
         Stmt {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 
@@ -770,8 +770,8 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
         };
 
         Expr {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 }
@@ -824,7 +824,7 @@ impl ASTFolder for AlongLoopRewriteFolder {
                                     },
                                     None
                                 ),
-                                body: body,
+                                body,
                             },
                             loc: loc.clone(),
                         }
@@ -838,8 +838,8 @@ impl ASTFolder for AlongLoopRewriteFolder {
         };
 
         Stmt {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 }
@@ -851,7 +851,7 @@ struct AllocAlongRewriteFolder<'a> {
 impl<'a> AllocAlongRewriteFolder<'a> {
     fn new(symtab: &'a mut SymbolTable) -> Self {
         AllocAlongRewriteFolder {
-            symtab: symtab,
+            symtab,
         }
     }
 }
@@ -949,7 +949,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
             data => data
         };
 
-        fold::noop_fold_stmt(self, Stmt { data: data, loc: loc },
+        fold::noop_fold_stmt(self, Stmt { data, loc },
           module, function)
     }
 }

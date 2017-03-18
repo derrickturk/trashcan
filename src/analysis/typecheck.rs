@@ -13,7 +13,7 @@ pub struct ExprCtxt(pub Ident, pub Option<Ident>);
 pub fn typecheck(dumpster: &Dumpster, symtab: &SymbolTable)
   -> AnalysisResult<()> {
     let mut v = TypecheckVisitor {
-        symtab: symtab,
+        symtab,
         errors: vec![],
     };
 

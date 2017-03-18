@@ -113,8 +113,8 @@ impl ASTFolder for ScopedExprSubstitutionFolder {
         };
 
         Expr {
-            data: data,
-            loc: loc,
+            data,
+            loc,
         }
     }
 }

@@ -294,7 +294,7 @@ struct TypeCollectingSymbolTableBuilder<'a> {
 impl<'a> TypeCollectingSymbolTableBuilder<'a> {
     fn build(symtab: &'a mut SymbolTable) -> Self {
         TypeCollectingSymbolTableBuilder {
-            symtab: symtab,
+            symtab,
             errors: Vec::new(),
         }
     }
@@ -379,7 +379,7 @@ struct ValueCollectingSymbolTableBuilder<'a> {
 impl<'a> ValueCollectingSymbolTableBuilder<'a> {
     fn build(symtab: &'a mut SymbolTable) -> Self {
         ValueCollectingSymbolTableBuilder {
-            symtab: symtab,
+            symtab,
             errors: Vec::new(),
         }
     }
@@ -489,7 +489,7 @@ struct DeferredResolver<'a> {
 impl<'a> DeferredResolver<'a> {
     fn from(symtab: &'a SymbolTable) -> Self {
         DeferredResolver {
-            symtab: symtab,
+            symtab,
             errors: Vec::new(),
         }
     }

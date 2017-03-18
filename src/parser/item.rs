@@ -38,12 +38,12 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('}') >>
             (FunDef {
-                name: name,
-                access: access,
-                params: params,
+                name,
+                access,
+                params,
                 optparams: optparams.unwrap_or(vec![]),
                 ret: ret.unwrap_or(Type::Void),
-                body: body,
+                body,
                 loc: SrcLoc::empty(),
             })
 )));
@@ -57,8 +57,8 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                 char!('&'))) >>
         ty: typename >>
             (FunParam {
-                name: name,
-                ty: ty,
+                name,
+                ty,
                 mode: match byref {
                     Some(_) => ParamMode::ByRef,
                     None => ParamMode::ByVal,
@@ -80,8 +80,8 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
    default: literal >>
             (
                 FunParam {
-                    name: name,
-                    ty: ty,
+                    name,
+                    ty,
                     mode: match byref {
                         Some(_) => ParamMode::ByRef,
                         None => ParamMode::ByVal,
@@ -106,9 +106,9 @@ named!(pub structdef<StructDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('}') >>
             (StructDef {
-                name: name,
-                access: access,
-                members: members,
+                name,
+                access,
+                members,
                 loc: SrcLoc::empty(),
             })
 )));
@@ -119,8 +119,8 @@ named!(pub structmem<StructMem>, complete!(do_parse!(
             char!(':') >>
         ty: typename >>
             (StructMem {
-                name: name,
-                ty: ty,
+                name,
+                ty,
                 loc: SrcLoc::empty()
             })
 )));
