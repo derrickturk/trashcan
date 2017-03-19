@@ -35,84 +35,6 @@ impl SrcLoc {
 pub enum CustomErrors {
     KeywordAsIdent,
     InvalidEscape,
-    InvalidTrailingContent,
-}
-
-// return type for now
-pub fn parse_dumpster(input: &[u8]) -> Result<Dumpster, nom::ErrorKind> {
-    let parser = Parser::new();
-    match parser.dumpster(input) {
-        (_, nom::IResult::Done(rest, dumpster)) => {
-            if rest.is_empty() {
-                Ok(dumpster)
-            } else {
-                Err(nom::ErrorKind::Custom(
-                        CustomErrors::InvalidTrailingContent as u32))
-            }
-        },
-
-        (_, nom::IResult::Error(e)) => Err(e),
-
-        _ => panic!("dumpster fire: nom Incomplete in top-level parser"),
-    }
-}
-
-fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
-    nom::IResult::Done(input, input.as_ptr() as usize)
-}
-
-struct Parser {
-    start: usize,
-    start_pos_stack: Vec<usize>,
-}
-
-impl Parser {
-    fn new() -> Self {
-        Parser {
-            start: 0,
-            start_pos_stack: Vec::new(),
-        }
-    }
-
-    // this is so dumb
-    // so so so dumb
-    // why did I use nom again
-
-    fn start<'a>(mut self, input: &'a [u8])
-      -> (Self, nom::IResult<&'a [u8], ()>) {
-        self.start = input.as_ptr() as usize;
-        (self, nom::IResult::Done(input, ()))
-    }
-
-    fn push_start_pos<'a>(mut self, input: &'a [u8])
-      -> (Self, nom::IResult<&'a [u8], ()>) {
-        self.start_pos_stack.push(input.as_ptr() as usize);
-        (self, nom::IResult::Done(input, ()))
-    }
-
-    fn pop_raw_loc<'a>(mut self, input: &'a [u8])
-      -> (Self, nom::IResult<&'a [u8], SrcLoc>) {
-        let start = self.start;
-        let cur_pos = input.as_ptr() as usize;
-        let begin_pos = self.start_pos_stack.pop()
-            .expect("dumpster fire: bad start pos stack pop");
-
-        (
-            self,
-            nom::IResult::Done(input, SrcLoc::raw(
-                    (begin_pos - start) as u32,
-                    (cur_pos - begin_pos) as u32))
-        )
-    }
-
-    method!(pub dumpster<Parser, Dumpster>, mut self, complete!(do_parse!(
-            call_m!(self.start) >>
-     mods : many1!(module) >>
-            opt!(call!(nom::multispace)) >>
-            (Dumpster {
-                modules: mods
-            })
-    )));
 }
 
 macro_rules! expect_parse {
@@ -213,6 +135,14 @@ pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     }
     res
 }
+
+named!(pub dumpster<Dumpster>, complete!(map!(
+    terminated!(
+        many1!(module),
+        opt!(complete!(call!(nom::multispace)))),
+    |mods| Dumpster {
+        modules: mods
+    })));
 
 named!(pub module<Module>, alt_complete!(
     normal_module
