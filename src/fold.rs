@@ -131,6 +131,10 @@ pub trait ASTFolder {
       _module: &Ident, _loc: &SrcLoc) -> ArrayBounds {
         bounds
     }
+
+    fn fold_srcloc(&mut self, srcloc: SrcLoc) -> SrcLoc {
+        srcloc
+    }
 }
 
 pub fn noop_fold_dumpster<F: ASTFolder + ?Sized>(folder: &mut F,
@@ -147,7 +151,7 @@ pub fn noop_fold_module<F: ASTFolder + ?Sized>(folder: &mut F,
         ModuleKind::Normal(items) =>
             ModuleKind::Normal(folder.fold_normal_item_list(items, &name)),
     };
-    let loc = loc;
+    let loc = folder.fold_srcloc(loc);
 
     Module {
         name,
@@ -181,6 +185,7 @@ pub fn noop_fold_fundef<F: ASTFolder + ?Sized>(folder: &mut F,
     let optparams = folder.fold_optparam_list(optparams, module, &name);
     let ret = folder.fold_type(ret, module, &loc);
     let body = folder.fold_stmt_list(body, module, &name);
+    let loc = folder.fold_srcloc(loc);
 
     FunDef {
         name,
@@ -206,6 +211,7 @@ pub fn noop_fold_funparam<F: ASTFolder + ?Sized>(folder: &mut F,
       NameCtxt::DefParam(module, function, &ty, mode), &loc);
     let ty = folder.fold_type(ty, module, &loc);
     // TODO: fold_mode?
+    let loc = folder.fold_srcloc(loc);
     FunParam {
         name,
         ty,
@@ -234,6 +240,7 @@ pub fn noop_fold_structdef<F: ASTFolder + ?Sized>(folder: &mut F,
   -> StructDef {
     let name = folder.fold_ident(name, NameCtxt::DefType(module), &loc);
     let members = folder.fold_structmem_list(members, module, &name);
+    let loc = folder.fold_srcloc(loc);
     StructDef {
         name,
         access,
@@ -253,6 +260,7 @@ pub fn noop_fold_structmem<F: ASTFolder + ?Sized>(folder: &mut F,
     let name = folder.fold_ident(name,
       NameCtxt::DefMember(module, st, &ty), &loc);
     let ty = folder.fold_type(ty, module, &loc);
+    let loc = folder.fold_srcloc(loc);
     StructMem {
         name,
         ty,
@@ -363,6 +371,8 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
             StmtKind::Print(folder.fold_expr_list(exprs, module, function)),
     };
 
+    let loc = folder.fold_srcloc(loc);
+
     Stmt {
         data,
         loc,
@@ -448,6 +458,8 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
         ExprKind::VbExpr(data) =>
             ExprKind::VbExpr(folder.fold_vbexpr(data, module, function, &loc)),
     };
+
+    let loc = folder.fold_srcloc(loc);
 
     Expr {
         data,

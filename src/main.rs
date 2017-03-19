@@ -32,6 +32,9 @@ fn main() {
                     panic!("Invalid trailing content in {}",
                            f.to_string_lossy());
                 }
+
+                let dumpster = parser::rebase_srclocs(
+                    dumpster, strip.as_ptr() as usize);
                 dumpsters.push(dumpster);
             },
 

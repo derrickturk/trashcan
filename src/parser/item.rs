@@ -15,6 +15,7 @@ named!(pub normal_item<NormalItem>, alt_complete!(
 
 named!(pub fundef<FunDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
     access: opt_access >>
             tag!("fn") >>
             call!(nom::multispace) >>
@@ -37,6 +38,7 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
       body: many0!(stmt) >>
             opt!(call!(nom::multispace)) >>
             char!('}') >>
+   end_pos: call!(super::pos) >>
             (FunDef {
                 name,
                 access,
@@ -44,11 +46,13 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
                 optparams: optparams.unwrap_or(vec![]),
                 ret: ret.unwrap_or(Type::Void),
                 body,
-                loc: SrcLoc::empty(),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
 
 named!(pub fnparam<FunParam>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
       name: ident >>
             opt!(call!(nom::multispace)) >>
             char!(':') >>
@@ -56,6 +60,7 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                 opt!(nom::multispace),
                 char!('&'))) >>
         ty: typename >>
+   end_pos: call!(super::pos) >>
             (FunParam {
                 name,
                 ty,
@@ -63,11 +68,13 @@ named!(pub fnparam<FunParam>, complete!(do_parse!(
                     Some(_) => ParamMode::ByRef,
                     None => ParamMode::ByVal,
                 },
-                loc: SrcLoc::empty()
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
 
 named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
       name: ident >>
             opt!(call!(nom::multispace)) >>
             char!(':') >>
@@ -78,6 +85,7 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('=') >>
    default: literal >>
+   end_pos: call!(super::pos) >>
             (
                 FunParam {
                     name,
@@ -86,7 +94,7 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
                         Some(_) => ParamMode::ByRef,
                         None => ParamMode::ByVal,
                     },
-                    loc: SrcLoc::empty()
+                    loc: SrcLoc::raw(start_pos, end_pos - start_pos),
                 },
                 default
             )
@@ -94,6 +102,7 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
 
 named!(pub structdef<StructDef>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
     access: opt_access >>
             tag!("struct") >>
             call!(nom::multispace) >>
@@ -105,23 +114,27 @@ named!(pub structdef<StructDef>, complete!(do_parse!(
             opt!(char!(',')) >>
             opt!(call!(nom::multispace)) >>
             char!('}') >>
+   end_pos: call!(super::pos) >>
             (StructDef {
                 name,
                 access,
                 members,
-                loc: SrcLoc::empty(),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
 
 named!(pub structmem<StructMem>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
       name: ident >>
             opt!(call!(nom::multispace)) >>
             char!(':') >>
         ty: typename >>
+   end_pos: call!(super::pos) >>
             (StructMem {
                 name,
                 ty,
-                loc: SrcLoc::empty()
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
 

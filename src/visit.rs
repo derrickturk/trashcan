@@ -148,6 +148,10 @@ macro_rules! make_ast_vistor {
                 // do nothing
             }
 
+            fn visit_srcloc(&mut self, _srcloc: & $($_mut)* SrcLoc) {
+                // do nothing
+            }
+
             // BELOW THIS LINE
             //   do not override; these functions provide tree traversal
 
@@ -173,6 +177,8 @@ macro_rules! make_ast_vistor {
                         }
                     },
                 }
+
+                self.visit_srcloc(loc);
             }
 
             fn walk_normal_item(&mut self, i: & $($_mut)* NormalItem,
@@ -211,6 +217,8 @@ macro_rules! make_ast_vistor {
                 for stmt in body {
                     self.visit_stmt(stmt, module, name);
                 }
+
+                self.visit_srcloc(loc);
             }
 
             fn walk_funparam(&mut self, param: & $($_mut)* FunParam,
@@ -225,6 +233,7 @@ macro_rules! make_ast_vistor {
                 self.visit_ident(name,
                   NameCtxt::DefParam(module, function, ty, *mode), loc);
                 self.visit_type(ty, module, loc);
+                self.visit_srcloc(loc);
             }
 
             fn walk_optparam(&mut self, param: & $($_mut)* (FunParam, Literal),
@@ -247,6 +256,8 @@ macro_rules! make_ast_vistor {
                 for m in members {
                     self.visit_structmem(m, module, name);
                 }
+
+                self.visit_srcloc(loc);
             }
 
             fn walk_structmem(&mut self, m: & $($_mut)* StructMem,
@@ -260,6 +271,7 @@ macro_rules! make_ast_vistor {
                 self.visit_ident(name,
                   NameCtxt::DefMember(module, st, ty), loc);
                 self.visit_type(ty, module, loc);
+                self.visit_srcloc(loc);
             }
 
             // TODO: maybe each pattern should have its own visit function
@@ -416,6 +428,8 @@ macro_rules! make_ast_vistor {
                         }
                     }
                 }
+
+                self.visit_srcloc(loc);
             }
 
             // TODO: maybe each pattern should have its own visit function
@@ -518,6 +532,8 @@ macro_rules! make_ast_vistor {
                     ExprKind::VbExpr(ref $($_mut)* data) =>
                         self.visit_vbexpr(data, module, function, loc),
                 }
+
+                self.visit_srcloc(loc);
             }
 
             fn walk_forspec(&mut self, spec: & $($_mut)* ForSpec,

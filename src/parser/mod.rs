@@ -4,34 +4,6 @@ use nom;
 
 use ast::*;
 
-#[derive(Clone, Debug)]
-pub struct SrcLoc {
-    pub file: String,
-    pub line: u32,
-    pub start: usize,
-    pub len: usize,
-}
-
-impl SrcLoc {
-    pub fn empty() -> Self {
-        Self {
-            file: String::new(),
-            line: 0,
-            start: 0,
-            len: 0,
-        }
-    }
-
-    pub fn raw(start: usize, len: usize) -> Self {
-        Self {
-            file: String::new(),
-            line: 0,
-            start,
-            len,
-        }
-    }
-}
-
 pub enum CustomErrors {
     KeywordAsIdent,
     InvalidEscape,
@@ -52,9 +24,12 @@ mod stmt;
 mod expr;
 mod op;
 mod lit;
+mod srcloc;
 
 use self::item::*;
 use self::ident::*;
+// TODO: for now (pending error conversion)
+pub use self::srcloc::*;
 
 pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     let mut in_line_comment = false;
