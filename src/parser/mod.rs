@@ -8,8 +8,8 @@ use ast::*;
 pub struct SrcLoc {
     pub file: String,
     pub line: u32,
-    pub start: u32,
-    pub len: u32,
+    pub start: usize,
+    pub len: usize,
 }
 
 impl SrcLoc {
@@ -22,7 +22,7 @@ impl SrcLoc {
         }
     }
 
-    pub fn raw(start: u32, len: u32) -> Self {
+    pub fn raw(start: usize, len: usize) -> Self {
         Self {
             file: String::new(),
             line: 0,
@@ -136,6 +136,10 @@ pub fn strip_comments(input: &[u8]) -> Vec<u8> {
     res
 }
 
+fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
+    nom::IResult::Done(input, input.as_ptr() as usize)
+}
+
 named!(pub dumpster<Dumpster>, complete!(map!(
     terminated!(
         many1!(module),
@@ -150,18 +154,20 @@ named!(pub module<Module>, alt_complete!(
 
 named!(normal_module<Module>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
+ start_pos: call!(pos) >>
             tag!("mod") >>
             call!(nom::multispace) >>
       name: ident >>
             opt!(call!(nom::multispace)) >>
             char!('{') >>
-    items:  many0!(normal_item) >>
+     items: many0!(normal_item) >>
             opt!(call!(nom::multispace)) >>
             char!('}') >>
+   end_pos: call!(pos) >>
             (Module {
                 name,
                 data: ModuleKind::Normal(items),
-                loc: SrcLoc::empty(),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
 
