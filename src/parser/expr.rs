@@ -16,15 +16,15 @@ use std::str;
 
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
-    CondExpr(Expr, Expr),
-    Cast(Type),
+    CondExpr(Expr, Expr, usize),
+    Cast(Type, usize),
 }
 
 // the "rest" (recursive part) of a "unitary" recursive expr
 enum UnitaryRecExprRest {
-    Indexed(Vec<Expr>),
-    Member(Ident),
-    MemberInvoke(Ident, Vec<Expr>),
+    Indexed(Vec<Expr>, usize),
+    Member(Ident, usize),
+    MemberInvoke(Ident, Vec<Expr>, usize),
     // FunCall(Vec<Expr>),
 }
 
@@ -51,22 +51,28 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
              | castexpr
            )) >>
            (first, rest)),
-   |(first, rest)| {
+   |(first, rest): (Expr, Option<RecExprRest>)| {
        match rest {
            None => first,
 
-           Some(RecExprRest::CondExpr(ifexpr, elseexpr)) => Expr {
-               data: ExprKind::CondExpr {
-                         cond: Box::new(first),
-                         if_expr: Box::new(ifexpr),
-                         else_expr: Box::new(elseexpr),
-                     },
-               loc: SrcLoc::empty(),
+           Some(RecExprRest::CondExpr(ifexpr, elseexpr, len)) => {
+               let loc = SrcLoc::raw(first.loc.start, first.loc.len + len);
+               Expr {
+                   data: ExprKind::CondExpr {
+                             cond: Box::new(first),
+                             if_expr: Box::new(ifexpr),
+                             else_expr: Box::new(elseexpr),
+                         },
+                   loc,
+               }
            },
 
-           Some(RecExprRest::Cast(ty)) => Expr {
-               data: ExprKind::Cast(Box::new(first), ty),
-               loc: SrcLoc::empty(),
+           Some(RecExprRest::Cast(ty, len)) => {
+               let loc = SrcLoc::raw(first.loc.start, first.loc.len + len);
+               Expr {
+                   data: ExprKind::Cast(Box::new(first), ty),
+                   loc,
+               }
            },
        }
 })));
@@ -75,9 +81,16 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
 
 fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
     rest.into_iter().fold(first, |sofar, (op, e)| {
+        let loc = SrcLoc::raw(
+            sofar.loc.start,
+            sofar.loc.len +
+              (e.loc.start - sofar.loc.len - sofar.loc.start) +
+              e.loc.len
+        );
+
         Expr {
             data: ExprKind::BinOpApp(Box::new(sofar), Box::new(e), op),
-            loc: SrcLoc::empty(),
+            loc,
         }
     })
 }
@@ -137,6 +150,7 @@ named!(logorexpr<Expr>, complete!(do_parse!(
 )));
 
 named!(condexpr<RecExprRest>, complete!(do_parse!(
+ start_pos: call!(super::pos) >>
             opt!(call!(nom::multispace)) >>
             char!('?') >>
     ifexpr: call!(expr) >>
@@ -144,43 +158,62 @@ named!(condexpr<RecExprRest>, complete!(do_parse!(
             char!(':') >>
             opt!(call!(nom::multispace)) >>
   elseexpr: call!(expr) >>
-            (RecExprRest::CondExpr(ifexpr, elseexpr))
+   end_pos: call!(super::pos) >>
+            (RecExprRest::CondExpr(ifexpr, elseexpr, end_pos - start_pos))
 )));
 
 named!(castexpr<RecExprRest>, complete!(do_parse!(
-        call!(nom::multispace) >>
-        tag!("as") >>
-        call!(nom::multispace) >>
-   ty:  typename >>
-        (RecExprRest::Cast(ty))
+ start_pos: call!(super::pos) >>
+            call!(nom::multispace) >>
+            tag!("as") >>
+            call!(nom::multispace) >>
+       ty:  typename >>
+   end_pos: call!(super::pos) >>
+            (RecExprRest::Cast(ty, end_pos - start_pos))
 )));
 
 // "unitary" exprs, possibly preceded by unary operators
 // this alt_complete is arguably backwards
 named!(unitary_op_expr<Expr>, alt_complete!(
     unitary_expr
-  | tuple!(un_op, unitary_op_expr) => { |(op, e)| Expr {
-        data: ExprKind::UnOpApp(Box::new(e), op),
-        loc: SrcLoc::empty(),
-    }}
+  | do_parse!(
+                opt!(call!(nom::multispace)) >>
+     start_pos: call!(super::pos) >>
+            op: un_op >>
+             e: unitary_op_expr >>
+       end_pos: call!(super::pos) >>
+                (Expr {
+                    data: ExprKind::UnOpApp(Box::new(e), op),
+                    loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+                })
+    )
 ));
 
 fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
     rest.into_iter().fold(first, |sofar, rest| {
         match rest {
-            UnitaryRecExprRest::Indexed(indices) => Expr {
-                data: ExprKind::Index(Box::new(sofar), indices),
-                loc: SrcLoc::empty(),
+            UnitaryRecExprRest::Indexed(indices, len) => {
+                let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
+                Expr {
+                    data: ExprKind::Index(Box::new(sofar), indices),
+                    loc,
+                }
             },
 
-            UnitaryRecExprRest::Member(i) => Expr {
-                data: ExprKind::Member(Box::new(sofar), i),
-                loc: SrcLoc::empty(),
+            UnitaryRecExprRest::Member(i, len) => {
+                let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
+                Expr {
+                    data: ExprKind::Member(Box::new(sofar), i),
+                    loc,
+                }
             },
 
-            UnitaryRecExprRest::MemberInvoke(i, args) => Expr {
-                data: ExprKind::MemberInvoke(Box::new(sofar), i, args),
-                loc: SrcLoc::empty(),
+            UnitaryRecExprRest::MemberInvoke(i, args, len) => {
+                let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
+                Expr {
+                    data: ExprKind::MemberInvoke(Box::new(sofar), i, args),
+                    loc,
+                }
             },
         }
     })
@@ -202,52 +235,69 @@ named!(unitary_expr<Expr>, complete!(do_parse!(
 named!(nonrec_unitary_expr<Expr>, alt_complete!(
     // if we ever allow indirect fncalls this will become left-recursive
     fncall
-
   | extent_expr // n.b. this MUST be above path
-
-  | path => { |p| Expr {
-        data: ExprKind::Name(p),
-        loc: SrcLoc::empty(),
-    }}
-
-  | literal => { |lit| Expr {
-        data: ExprKind::Lit(lit),
-        loc: SrcLoc::empty(),
-    }}
-
+  | pathexpr
+  | litexpr
   | grouped
-
-  | vbexpr => { |e| Expr {
-      data: ExprKind::VbExpr(e),
-      loc: SrcLoc::empty(),
-    }}
+  | vbexpr
 ));
 
 named!(fncall<Expr>, complete!(do_parse!(
-    name: call!(path) >>
-          opt!(call!(nom::multispace)) >>
-          char!('(') >>
-    args: separated_list!(ws!(char!(',')), expr) >>
-          char!(')') >>
-          (Expr {
-              data: ExprKind::Call(name, args),
-              loc: SrcLoc::empty(),
-          })
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
+      name: call!(path) >>
+            opt!(call!(nom::multispace)) >>
+            char!('(') >>
+      args: separated_list!(ws!(char!(',')), expr) >>
+            char!(')') >>
+   end_pos: call!(super::pos) >>
+            (Expr {
+                data: ExprKind::Call(name, args),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+            })
+)));
+
+named!(pathexpr<Expr>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
+         p: path >>
+   end_pos: call!(super::pos) >>
+            (Expr {
+                data: ExprKind::Name(p),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+            })
+)));
+
+named!(litexpr<Expr>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
+       lit: literal >>
+   end_pos: call!(super::pos) >>
+            (Expr {
+                data: ExprKind::Lit(lit),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+            })
 )));
 
 // an expr grouped in parentheses, to force precedence
 named!(grouped<Expr>, complete!(do_parse!(
-       opt!(call!(nom::multispace)) >>
-       char!('(') >>
-    e: expr >>
-       opt!(call!(nom::multispace)) >>
-       char!(')') >>
-       (e)
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
+            char!('(') >>
+         e: expr >>
+            opt!(call!(nom::multispace)) >>
+            char!(')') >>
+   end_pos: call!(super::pos) >>
+            (Expr {
+                data: e.data,
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos)
+            })
 )));
 
 // an extents expression e.g. first_index<0>(arr)
 named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
             opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
       kind: alt_complete!(
                 tag!("first_index") => { |_| ExtentKind::First }
               | tag!("last_index") => { |_| ExtentKind::Last }
@@ -263,51 +313,63 @@ named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
        arr: expr >>
             opt!(call!(nom::multispace)) >>
             char!(')') >>
-            (arr, kind, dim)
-), |(arr, kind, dim): (Expr, ExtentKind, &[u8])|
+   end_pos: call!(super::pos) >>
+            (arr, kind, dim, start_pos, end_pos)
+), |(arr, kind, dim, start_pos, end_pos):
+    (Expr, ExtentKind, &[u8], usize, usize)|
             -> Result<Expr, <usize as str::FromStr>::Err> {
     let dim = unsafe { str::from_utf8_unchecked(dim) };
     Ok(Expr {
         data: ExprKind::ExtentExpr(Box::new(arr), kind, dim.parse::<usize>()?),
-        loc: SrcLoc::empty(),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 })));
 
 // a passthrough VB expression
-// TODO: this needs work to pass through location,
-//   and handle escaping ` inside vb stmts
-named!(vbexpr<Vec<u8>>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('`') >>
-    vb: is_not!("`") >>
-        char!('`') >>
-        (vb.iter().cloned().collect())
+// TODO: this needs work to handle escaping ` inside vb stmts
+named!(vbexpr<Expr>, complete!(do_parse!(
+            opt!(call!(nom::multispace)) >>
+ start_pos: call!(super::pos) >>
+            char!('`') >>
+        vb: is_not!("`") >>
+            char!('`') >>
+   end_pos: call!(super::pos) >>
+            (Expr {
+                data: ExprKind::VbExpr(Vec::from(vb)),
+                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+            })
 )));
 
 // various possible recursive "rests" of unitary exprs
 
 named!(indexed<UnitaryRecExprRest>, complete!(do_parse!(
+ start_pos: call!(super::pos) >>
             opt!(call!(nom::multispace)) >>
             char!('[') >>
    indices: separated_nonempty_list!(ws!(char!(',')), expr) >>
             opt!(call!(nom::multispace)) >>
             char!(']') >>
-            (UnitaryRecExprRest::Indexed(indices))
+   end_pos: call!(super::pos) >>
+            (UnitaryRecExprRest::Indexed(indices, end_pos - start_pos))
 )));
 
 named!(member<UnitaryRecExprRest>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('.') >>
- name:  call!(ident) >>
-        (UnitaryRecExprRest::Member(name))
+ start_pos: call!(super::pos) >>
+            opt!(call!(nom::multispace)) >>
+            char!('.') >>
+      name: call!(ident) >>
+   end_pos: call!(super::pos) >>
+            (UnitaryRecExprRest::Member(name, end_pos - start_pos))
 )));
 
 named!(memberinvoke<UnitaryRecExprRest>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('.') >>
- name:  call!(ident) >>
-        char!('(') >>
-  args: separated_list!(ws!(char!(',')), expr) >>
-        char!(')') >>
-        (UnitaryRecExprRest::MemberInvoke(name, args))
+ start_pos: call!(super::pos) >>
+            opt!(call!(nom::multispace)) >>
+            char!('.') >>
+     name:  call!(ident) >>
+            char!('(') >>
+      args: separated_list!(ws!(char!(',')), expr) >>
+            char!(')') >>
+   end_pos: call!(super::pos) >>
+            (UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))
 )));
