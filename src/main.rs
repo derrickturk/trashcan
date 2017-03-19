@@ -26,24 +26,9 @@ fn main() {
         let _ = file.read_to_end(&mut contents).expect(
             &format!("Unable to read {}.", f.to_string_lossy()));
         let strip = parser::strip_comments(&contents);
-        match parser::dumpster(&strip) {
-            nom::IResult::Done(rest, dumpster) => {
-                if !rest.is_empty() {
-                    panic!("Invalid trailing content in {}",
-                           f.to_string_lossy());
-                }
-                dumpsters.push(dumpster);
-            },
 
-            nom::IResult::Error(err) => {
-                println!("{}", String::from_utf8_lossy(&strip));
-                panic!("Parse error: {:?}", err);
-            },
-
-            res => {
-                panic!("Something weird: {:?}", res);
-            },
-        }
+        dumpsters.push(parser::parse_dumpster(&strip)
+          .expect("parse error"));
     }
 
     // pre-processing / rename passes

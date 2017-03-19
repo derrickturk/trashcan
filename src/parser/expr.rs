@@ -1,6 +1,7 @@
 //! trashcan's sub-parsers for expressions
 
 use nom;
+use nom::Offset;
 
 use ast::*;
 use super::SrcLoc;
@@ -224,14 +225,16 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
 ));
 
 named!(fncall<Expr>, complete!(do_parse!(
+   start: call!(super::pos) >>
     name: call!(path) >>
           opt!(call!(nom::multispace)) >>
           char!('(') >>
     args: separated_list!(ws!(char!(',')), expr) >>
           char!(')') >>
+     end: call!(super::pos) >>
           (Expr {
               data: ExprKind::Call(name, args),
-              loc: SrcLoc::empty(),
+              loc: SrcLoc::raw(start as u32, (end - start) as u32),
           })
 )));
 
