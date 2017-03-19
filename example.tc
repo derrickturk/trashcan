@@ -158,6 +158,6 @@ mod other_mod {
 }
 
 // conflicting name
-mod other_mod {
+mod defbool {
     pub fn dummy() { }
 }

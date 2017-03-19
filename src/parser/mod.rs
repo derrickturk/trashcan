@@ -7,6 +7,7 @@ use ast::*;
 pub enum CustomErrors {
     KeywordAsIdent,
     InvalidEscape,
+    InvalidTrailingContent,
 }
 
 macro_rules! expect_parse {
@@ -31,88 +32,32 @@ use self::ident::*;
 // TODO: for now (pending error conversion)
 pub use self::srcloc::*;
 
-pub fn strip_comments(input: &[u8]) -> Vec<u8> {
-    let mut in_line_comment = false;
-    let mut in_block_comment = false;
-    let mut in_quote = false;
-
-    let mut res = vec![];
-    let mut bytes = input.iter().cloned();
-    while let Some(c) = bytes.next() {
-        if in_line_comment {
-            if c == b'\n' {
-                in_line_comment = false;
-                res.push(b'\n');
-            }
-            continue;
-        }
-
-        if in_block_comment {
-            if c == b'*' {
-                match bytes.next() {
-                    Some(b'/') => {
-                        in_block_comment = false;
-                        res.push(b' '); // replace block comment by space
-                    },
-                    Some(b'\n') => {
-                        res.push(b'\n');
-                    },
-                    None => {
-                        return res;
-                    },
-                    _ => {}
-                }
-            } else if c == b'\n' {
-                res.push(b'\n');
-            }
-            continue;
-        }
-
-        if in_quote {
-            if c == b'\\' {
-                match bytes.next() {
-                    Some(c) => {
-                        res.push(b'\\');
-                        res.push(c);
-                    },
-                    None => {
-                        return res;
-                    }
-                }
-                continue;
-            } else if c == b'"' {
-                in_quote = false;
-            }
-            res.push(c);
-        } else if c == b'/' {
-            match bytes.next() {
-                Some(b'/') => {
-                    in_line_comment = true;
-                },
-                Some(b'*') => {
-                    in_block_comment = true;
-                },
-                Some(c) => {
-                    res.push(b'/');
-                    res.push(c);
-                }
-                None => {
-                    return res;
-                }
-            }
-        } else {
-            if c == b'"' {
-                in_quote = true;
-            }
-
-            res.push(c);
-        }
-    }
-    res
+struct MappedSource {
+    // processed source for parser
+    src: Vec<u8>,
+    // inclusive
+    gaps: Vec<(usize, usize)>,
+    // line beginnings
+    lines: Vec<usize>,
 }
 
-fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
-    nom::IResult::Done(input, input.as_ptr() as usize)
+pub fn parse_dumpster(src: &[u8]) -> Result<Dumpster, nom::ErrorKind> {
+    let map = strip_comments(src);
+    match dumpster(&map.src) {
+        nom::IResult::Done(rest, dumpster) => {
+            if rest.len() == 0 {
+                Ok(rebase_srclocs(dumpster, map.src.as_ptr() as usize))
+            } else {
+                Err(nom::ErrorKind::Custom(
+                        CustomErrors::InvalidTrailingContent as u32))
+            }
+        },
+
+        nom::IResult::Error(e) => Err(e),
+
+        nom::IResult::Incomplete(_) => panic!("dumpster fire: \
+          nom::IResult::Incomplete leaked from parser"),
+    }
 }
 
 named!(pub dumpster<Dumpster>, complete!(map!(
@@ -145,6 +90,108 @@ named!(normal_module<Module>, complete!(do_parse!(
                 loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
+
+fn strip_comments(input: &[u8]) -> MappedSource {
+    let mut in_line_comment = false;
+    let mut in_block_comment = false;
+    let mut in_quote = false;
+
+    let mut res = MappedSource {
+        src: Vec::new(),
+        gaps: Vec::new(),
+        lines: vec![0],
+    };
+
+    let mut gap_begin = 0usize;
+
+    let mut bytes = input.iter().cloned().enumerate();
+
+    while let Some((pos, c)) = bytes.next() {
+        if in_line_comment {
+            if c == b'\n' {
+                in_line_comment = false;
+                res.src.push(b'\n');
+                res.gaps.push((gap_begin, pos));
+                res.lines.push(pos + 1);
+            }
+            continue;
+        }
+
+        if in_block_comment {
+            if c == b'*' {
+                match bytes.next() {
+                    Some((pos, b'/')) => {
+                        in_block_comment = false;
+                        // TODO: what the fuck does this mean for the gap count
+                        res.src.push(b' '); // replace block comment by space
+                        res.gaps.push((gap_begin, pos));
+                    },
+                    Some((pos, b'\n')) => {
+                        res.src.push(b'\n');
+                        res.lines.push(pos + 1);
+                    },
+                    None => {
+                        return res;
+                    },
+                    _ => {}
+                }
+            } else if c == b'\n' {
+                res.src.push(b'\n');
+                res.lines.push(pos + 1);
+            }
+            continue;
+        }
+
+        if in_quote {
+            if c == b'\\' {
+                match bytes.next() {
+                    Some((_, c)) => {
+                        res.src.push(b'\\');
+                        res.src.push(c);
+                    },
+                    None => {
+                        return res;
+                    }
+                }
+                continue;
+            } else if c == b'\n' {
+                res.lines.push(pos + 1);
+            } else if c == b'"' {
+                in_quote = false;
+            }
+            res.src.push(c);
+        } else if c == b'/' {
+            match bytes.next() {
+                Some((_, b'/')) => {
+                    in_line_comment = true;
+                    gap_begin = pos;
+                },
+                Some((_, b'*')) => {
+                    in_block_comment = true;
+                    gap_begin = pos;
+                },
+                Some((_, c)) => {
+                    res.src.push(b'/');
+                    res.src.push(c);
+                }
+                None => {
+                    return res;
+                }
+            }
+        } else {
+            if c == b'"' {
+                in_quote = true;
+            }
+
+            res.src.push(c);
+        }
+    }
+    res
+}
+
+fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
+    nom::IResult::Done(input, input.as_ptr() as usize)
+}
 
 #[cfg(test)]
 mod test {
