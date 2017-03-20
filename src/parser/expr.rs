@@ -249,6 +249,7 @@ named!(fncall<Expr>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
             char!('(') >>
       args: separated_list!(ws!(char!(',')), expr) >>
+            opt!(call!(nom::multispace)) >>
             char!(')') >>
    end_pos: call!(super::pos) >>
             (Expr {
@@ -369,6 +370,7 @@ named!(memberinvoke<UnitaryRecExprRest>, complete!(do_parse!(
      name:  call!(ident) >>
             char!('(') >>
       args: separated_list!(ws!(char!(',')), expr) >>
+            opt!(call!(nom::multispace)) >>
             char!(')') >>
    end_pos: call!(super::pos) >>
             (UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))

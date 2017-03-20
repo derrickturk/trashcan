@@ -32,7 +32,8 @@ use self::ident::*;
 // TODO: for now (pending error conversion)
 pub use self::srcloc::*;
 
-struct MappedSource {
+pub struct MappedSource {
+    file: String,
     // processed source for parser
     src: Vec<u8>,
     // inclusive
@@ -41,12 +42,50 @@ struct MappedSource {
     lines: Vec<usize>,
 }
 
-pub fn parse_dumpster(src: &[u8]) -> Result<Dumpster, nom::ErrorKind> {
-    let map = strip_comments(src);
+impl MappedSource {
+    fn base(&self) -> usize {
+        self.src.as_ptr() as usize
+    }
+
+    fn map_to_original(&self, mut pos: usize) -> usize {
+        for &(first, last) in &self.gaps {
+            if first <= pos {
+                // comment length would be last - first + 1
+                // but we replace each comment by ' ' or '\n'
+                pos += last - first + 1;
+            }
+        }
+        pos
+    }
+
+    // one-based line, char
+    fn pos_to_line_pos(&self, pos: usize) -> (u32, usize) {
+        self.lines.iter().cloned().take_while(|begin| *begin <= pos)
+            .fold((0, 0), |(line, _), line_begin| {
+                (line + 1, pos - line_begin + 1)
+            })
+    }
+
+    fn dump(&self) {
+        println!("--- SOURCE MAP DUMP: {} ---", self.file);
+
+        for &(ref begin, ref end) in &self.gaps {
+            println!("gap: {} to {}", begin, end);
+        }
+
+        for begin in &self.lines {
+            println!("line begin: {}", begin);
+        }
+    }
+}
+
+pub fn parse_dumpster(file: &str, src: &[u8]) ->
+  Result<Dumpster, nom::ErrorKind> {
+    let map = map_source(file, src);
     match dumpster(&map.src) {
         nom::IResult::Done(rest, dumpster) => {
             if rest.len() == 0 {
-                Ok(rebase_srclocs(dumpster, map.src.as_ptr() as usize))
+                Ok(rebase_srclocs(dumpster, &map))
             } else {
                 Err(nom::ErrorKind::Custom(
                         CustomErrors::InvalidTrailingContent as u32))
@@ -91,12 +130,13 @@ named!(normal_module<Module>, complete!(do_parse!(
             })
 )));
 
-fn strip_comments(input: &[u8]) -> MappedSource {
+fn map_source(file: &str, input: &[u8]) -> MappedSource {
     let mut in_line_comment = false;
     let mut in_block_comment = false;
     let mut in_quote = false;
 
     let mut res = MappedSource {
+        file: String::from(file),
         src: Vec::new(),
         gaps: Vec::new(),
         lines: vec![0],
@@ -111,7 +151,7 @@ fn strip_comments(input: &[u8]) -> MappedSource {
             if c == b'\n' {
                 in_line_comment = false;
                 res.src.push(b'\n');
-                res.gaps.push((gap_begin, pos));
+                res.gaps.push((gap_begin, pos - 1));
                 res.lines.push(pos + 1);
             }
             continue;
@@ -122,9 +162,8 @@ fn strip_comments(input: &[u8]) -> MappedSource {
                 match bytes.next() {
                     Some((pos, b'/')) => {
                         in_block_comment = false;
-                        // TODO: what the fuck does this mean for the gap count
                         res.src.push(b' '); // replace block comment by space
-                        res.gaps.push((gap_begin, pos));
+                        res.gaps.push((gap_begin, pos - 1));
                     },
                     Some((pos, b'\n')) => {
                         res.src.push(b'\n');
@@ -138,6 +177,8 @@ fn strip_comments(input: &[u8]) -> MappedSource {
             } else if c == b'\n' {
                 res.src.push(b'\n');
                 res.lines.push(pos + 1);
+                res.gaps.push((gap_begin, pos - 1));
+                gap_begin = pos + 1;
             }
             continue;
         }
@@ -181,6 +222,10 @@ fn strip_comments(input: &[u8]) -> MappedSource {
         } else {
             if c == b'"' {
                 in_quote = true;
+            }
+
+            if c == b'\n' {
+                res.lines.push(pos + 1);
             }
 
             res.src.push(c);

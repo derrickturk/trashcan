@@ -25,7 +25,7 @@ fn main() {
         let mut contents = vec![];
         let _ = file.read_to_end(&mut contents).expect(
             &format!("Unable to read {}.", f.to_string_lossy()));
-        dumpsters.push(parser::parse_dumpster(&contents)
+        dumpsters.push(parser::parse_dumpster(&f.to_string_lossy(), &contents)
                        .expect("parse error"));
     }
 
