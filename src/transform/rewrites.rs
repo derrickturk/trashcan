@@ -905,7 +905,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                                     Expr {
                                         data: ExprKind::ExtentExpr(
                                                   Box::new(other.clone()),
-                                                  ExtentKind::First,
+                                                  ExtentKind::Last,
                                                   i),
                                         loc: other.loc.clone(),
                                     },
