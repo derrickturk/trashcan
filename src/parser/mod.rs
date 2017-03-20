@@ -48,11 +48,9 @@ impl MappedSource {
     }
 
     fn map_to_original(&self, mut pos: usize) -> usize {
-        for &(first, last) in &self.gaps {
+        for &(first, skipped) in &self.gaps {
             if first <= pos {
-                // comment length would be last - first + 1
-                // but we replace each comment by ' ' or '\n'
-                pos += last - first + 1;
+                pos += skipped;
             }
         }
         pos
@@ -142,7 +140,8 @@ fn map_source(file: &str, input: &[u8]) -> MappedSource {
         lines: vec![0],
     };
 
-    let mut gap_begin = 0usize;
+    let mut gap_begin = 0;
+    let mut skipped = 0;
 
     let mut bytes = input.iter().cloned().enumerate();
 
@@ -151,34 +150,42 @@ fn map_source(file: &str, input: &[u8]) -> MappedSource {
             if c == b'\n' {
                 in_line_comment = false;
                 res.src.push(b'\n');
-                res.gaps.push((gap_begin, pos - 1));
                 res.lines.push(pos + 1);
+                res.gaps.push((gap_begin, skipped));
+            } else {
+                skipped += 1;
             }
             continue;
         }
 
         if in_block_comment {
             if c == b'*' {
+                skipped += 1;
                 match bytes.next() {
                     Some((pos, b'/')) => {
                         in_block_comment = false;
                         res.src.push(b' '); // replace block comment by space
-                        res.gaps.push((gap_begin, pos - 1));
+                        res.gaps.push((gap_begin, skipped));
                     },
+
                     Some((pos, b'\n')) => {
                         res.src.push(b'\n');
                         res.lines.push(pos + 1);
                     },
+
                     None => {
                         return res;
                     },
-                    _ => {}
+
+                    _ => {
+                        skipped += 1;
+                    }
                 }
             } else if c == b'\n' {
                 res.src.push(b'\n');
                 res.lines.push(pos + 1);
-                res.gaps.push((gap_begin, pos - 1));
-                gap_begin = pos + 1;
+            } else {
+                skipped += 1;
             }
             continue;
         }
@@ -206,10 +213,12 @@ fn map_source(file: &str, input: &[u8]) -> MappedSource {
                 Some((_, b'/')) => {
                     in_line_comment = true;
                     gap_begin = pos;
+                    skipped = 2;
                 },
                 Some((_, b'*')) => {
                     in_block_comment = true;
                     gap_begin = pos;
+                    skipped = 2;
                 },
                 Some((_, c)) => {
                     res.src.push(b'/');
