@@ -17,7 +17,6 @@ use std::str;
 // the "rest" (recursive part) of a recursive expr
 enum RecExprRest {
     CondExpr(Expr, Expr, usize),
-    Cast(Type, usize),
 }
 
 // the "rest" (recursive part) of a "unitary" recursive expr
@@ -25,6 +24,7 @@ enum UnitaryRecExprRest {
     Indexed(Vec<Expr>, usize),
     Member(Ident, usize),
     MemberInvoke(Ident, Vec<Expr>, usize),
+    Cast(Type, usize),
     // FunCall(Vec<Expr>),
 }
 
@@ -46,10 +46,7 @@ enum UnitaryRecExprRest {
 // pull a nonrecursive expr, and maybe a recursive rest
 named!(pub expr<Expr>, complete!(map!(do_parse!(
     first: call!(logorexpr) >>
-     rest: opt!(alt_complete!(
-               condexpr
-             | castexpr
-           )) >>
+     rest: opt!(condexpr) >>
            (first, rest)),
    |(first, rest): (Expr, Option<RecExprRest>)| {
        match rest {
@@ -63,14 +60,6 @@ named!(pub expr<Expr>, complete!(map!(do_parse!(
                              if_expr: Box::new(ifexpr),
                              else_expr: Box::new(elseexpr),
                          },
-                   loc,
-               }
-           },
-
-           Some(RecExprRest::Cast(ty, len)) => {
-               let loc = SrcLoc::raw(first.loc.start, first.loc.len + len);
-               Expr {
-                   data: ExprKind::Cast(Box::new(first), ty),
                    loc,
                }
            },
@@ -162,16 +151,6 @@ named!(condexpr<RecExprRest>, complete!(do_parse!(
             (RecExprRest::CondExpr(ifexpr, elseexpr, end_pos - start_pos))
 )));
 
-named!(castexpr<RecExprRest>, complete!(do_parse!(
- start_pos: call!(super::pos) >>
-            call!(nom::multispace) >>
-            tag!("as") >>
-            call!(nom::multispace) >>
-       ty:  typename >>
-   end_pos: call!(super::pos) >>
-            (RecExprRest::Cast(ty, end_pos - start_pos))
-)));
-
 // "unitary" exprs, possibly preceded by unary operators
 // this alt_complete is arguably backwards
 named!(unitary_op_expr<Expr>, alt_complete!(
@@ -215,6 +194,14 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
                     loc,
                 }
             },
+
+            UnitaryRecExprRest::Cast(ty, len) => {
+                let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
+                Expr {
+                    data: ExprKind::Cast(Box::new(sofar), ty),
+                    loc,
+                }
+            },
         }
     })
 }
@@ -227,6 +214,7 @@ named!(unitary_expr<Expr>, complete!(do_parse!(
                indexed
              | memberinvoke
              | member
+             | cast
            )) >>
            (fold_unitary_exprs(first, rest))
 )));
@@ -374,4 +362,14 @@ named!(memberinvoke<UnitaryRecExprRest>, complete!(do_parse!(
             char!(')') >>
    end_pos: call!(super::pos) >>
             (UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))
+)));
+
+named!(cast<UnitaryRecExprRest>, complete!(do_parse!(
+ start_pos: call!(super::pos) >>
+            call!(nom::multispace) >>
+            tag!("as") >>
+            call!(nom::multispace) >>
+       ty:  typename >>
+   end_pos: call!(super::pos) >>
+            (UnitaryRecExprRest::Cast(ty, end_pos - start_pos))
 )));

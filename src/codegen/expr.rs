@@ -139,6 +139,8 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                           in = (indent * INDENT) as usize)?;
                         op
                     },
+
+                    // TODO: emit integer division '\' for integral operands
                 };
 
                 lhs.emit(out, symtab, ctxt, 0)?;
