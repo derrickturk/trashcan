@@ -10,7 +10,7 @@ pub struct nothing {
     end: i32,
 }
 
-pub fn f(x: i32, y: &f64[] | z: bool = true) -> str {
+pub fn f(x: i32, y: &f64[]; z: bool = true) -> str {
     // WOW
     // use-before declare: we need to catch this
 

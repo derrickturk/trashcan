@@ -41,7 +41,7 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 out.write_all(b")")
             },
 
-            ExprKind::Call(ref path, ref args) => {
+            ExprKind::Call(ref path, ref args, ref optargs) => {
                 let pathexpr = Expr {
                     data: ExprKind::Name(path.clone()),
                     loc: SrcLoc::empty(),
@@ -55,6 +55,17 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
+                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
+                }
+
+                if !args.is_empty() && !optargs.is_empty() {
+                    out.write_all(b", ")?; 
+                }
+
+                for (i, &(ref name, ref arg)) in optargs.iter().enumerate() {
+                    if i != 0 { out.write_all(b", ")?; }
+                    name.emit(out, symtab, (), 0)?;
+                    out.write_all(b" := ")?;
                     arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
                 }
 

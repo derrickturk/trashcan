@@ -50,8 +50,11 @@ pub enum NameCtxt<'a> {
     Value(&'a Ident, Option<&'a Ident>, Access),
 
            // module  // we might know the type
-    Member(&'a Ident, Option<&'a Ident>, Access)
+    Member(&'a Ident, Option<&'a Ident>, Access),
                                          // access
+
+    // these should never be altered
+    OptArgName,
 }
 
 macro_rules! make_ast_vistor {
@@ -461,11 +464,20 @@ macro_rules! make_ast_vistor {
                         }
                     },
 
-                    ExprKind::Call(ref $($_mut)* path, ref $($_mut)* args) => {
+                    ExprKind::Call(
+                        ref $($_mut)* path,
+                        ref $($_mut)* args,
+                        ref $($_mut)* optargs
+                    ) => {
                         self.visit_path(path,
                           NameCtxt::Function(module, Access::Private), loc);
                         for a in args {
                             self.visit_expr(a, module, function);
+                        }
+                        for & $($_mut)* (ref $($_mut)* i, ref $($_mut)* e)
+                          in optargs {
+                            self.visit_ident(i, NameCtxt::OptArgName, &loc);
+                            self.visit_expr(e, module, function);
                         }
                     },
 
@@ -632,7 +644,12 @@ macro_rules! make_ast_vistor {
                           | NameCtxt::DefValue(_, _, _)
                           | NameCtxt::DefParam(_, _, _, _)
                           | NameCtxt::DefMember(_, _, _) =>
-                                panic!("dumpster fire: path as name definition"),
+                                panic!("dumpster fire: path as name \
+                                       definition"),
+
+                            NameCtxt::OptArgName =>
+                                panic!("dumpster fire: path as optional \
+                                       argument name"),
 
                             // TODO: do we want any notion of "inheriting"
                             //   access from the original lookup?

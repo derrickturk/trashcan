@@ -405,11 +405,15 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
                   .collect()
             ),
 
-        ExprKind::Call(path, args) =>
+        ExprKind::Call(path, args, optargs) =>
             ExprKind::Call(
               folder.fold_path(path,
                 NameCtxt::Function(module, Access::Private), &loc),
-                folder.fold_expr_list(args, module, function)
+              folder.fold_expr_list(args, module, function),
+              optargs.into_iter().map(|(i, e)| { (
+                  folder.fold_ident(i, NameCtxt::OptArgName, &loc),
+                  folder.fold_expr(e, module, function)
+              ) }).collect()
             ),
 
         ExprKind::Member(expr, ident) =>
@@ -555,6 +559,9 @@ fn ident_ctxt_from_path<'a>(p: &'a Path, ctxt: NameCtxt<'a>)
               | NameCtxt::DefParam(_, _, _, _)
               | NameCtxt::DefMember(_, _, _) =>
                     panic!("dumpster fire: path as name definition"),
+
+                NameCtxt::OptArgName =>
+                    panic!("dumpster fire: path as optional argument name"),
 
                 // TODO: do we want any notion of "inheriting"
                 //   access from the original lookup?

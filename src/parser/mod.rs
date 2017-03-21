@@ -250,6 +250,8 @@ fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::stmt::*;
+    use super::expr::*;
     use nom::{self, IResult, ErrorKind};
 
     #[test]
@@ -267,6 +269,14 @@ mod test {
         expect_parse!(b"some_array <- realloc[,,5:10];"; stmt => Stmt { .. });
 
         expect_parse!(b"dealloc some_array;"; stmt => Stmt { .. });
+    }
+
+    #[test]
+    fn test_optargs() {
+        expect_parse!(b"x = 17"; optarg => (Ident(_, _), Expr { .. }));
+        expect_parse!(b"f(1, 2, 3)"; fncall => Expr { .. });
+        expect_parse!(b"f(; x = 17)"; fncall => Expr { .. });
+        expect_parse!(b"f(1, 2, 3; x = 17)"; fncall => Expr { .. });
     }
 
     // TODO: ALL TEST ARE NOW BAD

@@ -25,9 +25,11 @@ named!(pub fundef<FunDef>, complete!(do_parse!(
     params: separated_list!(ws!(char!(',')), fnparam) >>
             opt!(call!(nom::multispace)) >>
  optparams: opt!(preceded!(
-                char!('|'), // TODO: this is kind of gross, but 
+                char!(';'), // TODO: this is kind of gross, but 
                             //   I do like setting apart the optionals visually,
                             //   since they MUST come at the end
+                            // also: avoid expr <-> optarg ambiguity hell
+                            //   when calling!
                 separated_nonempty_list!(ws!(char!(',')), optfnparam)
             )) >>
             opt!(call!(nom::multispace)) >>

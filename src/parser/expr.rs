@@ -230,7 +230,7 @@ named!(nonrec_unitary_expr<Expr>, alt_complete!(
   | vbexpr
 ));
 
-named!(fncall<Expr>, complete!(do_parse!(
+named!(pub fncall<Expr>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
  start_pos: call!(super::pos) >>
       name: call!(path) >>
@@ -238,13 +238,28 @@ named!(fncall<Expr>, complete!(do_parse!(
             char!('(') >>
       args: separated_list!(ws!(char!(',')), expr) >>
             opt!(call!(nom::multispace)) >>
+   optargs: opt!(preceded!(
+                char!(';'),
+                separated_nonempty_list!(ws!(char!(',')), optarg)
+            )) >>
+            opt!(call!(nom::multispace)) >>
             char!(')') >>
    end_pos: call!(super::pos) >>
             (Expr {
-                data: ExprKind::Call(name, args),
+                data: ExprKind::Call(name, args, optargs.unwrap_or(Vec::new())),
                 loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
+
+named!(pub optarg<(Ident, Expr)>, dbg_dmp!(complete!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+  name: ident >>
+        opt!(call!(nom::multispace)) >>
+        char!('=') >>
+        opt!(call!(nom::multispace)) >>
+   arg: expr >>
+        (name, arg)
+))));
 
 named!(pathexpr<Expr>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>

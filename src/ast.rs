@@ -177,8 +177,8 @@ pub enum ExprKind {
     /// An indexing expression `e1[e2]` or e1[e2;e3;...]
     Index(Box<Expr>, Vec<Expr>),
 
-    /// A function call `f(a1, a2, ...)`
-    Call(Path, Vec<Expr>),
+    /// A function call `f(a1, a2, ... [| x = e, ... ])`
+    Call(Path, Vec<Expr>, Vec<(Ident, Expr)>),
 
     /// A member invoke (expr).m
     Member(Box<Expr>, Ident),
