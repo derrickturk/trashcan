@@ -124,7 +124,8 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 Ok(())
             },
 
-            // TODO: be more clever with parens
+            ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
+                // no infix "IsNot" in VB6; convert to Not (... Is ...)
                 let op = match *op {
                     BinOp::NotIdentEq => {
                         write!(out, "{:in$}Not (", "",
