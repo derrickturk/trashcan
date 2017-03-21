@@ -157,6 +157,17 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 // TODO: we could typecheck and drop the ,1 in the 1-D array
                 //   case (it'd make the output slightly prettier)
 
+                let expr_ty = analysis::type_of(expr, symtab, ctxt.1)
+                    .expect("dumpster fire: untypeable expression \
+                            in codegen");
+
+                let emit_dim = match expr_ty {
+                    Type::Array(_, ref bounds) => bounds.dims() != 1,
+                    // TODO: maybe allow variants here (checked at runtime)?
+                    _ => panic!("dumpster fire: non-array expression \
+                      in extent expr"),
+                };
+
                 let builtin = match kind {
                     ExtentKind::First => "LBound",
                     ExtentKind::Last => "UBound",
@@ -166,7 +177,11 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                   in = (indent * INDENT) as usize)?;
                 expr.emit(out, symtab, ctxt, 0)?;
                 // 0-based to 1-based
-                write!(out, ", {})", dim + 1)
+                if emit_dim {
+                    write!(out, ", {})", dim + 1)
+                } else {
+                    out.write_all(b")")
+                }
             },
 
             ExprKind::Cast(ref expr, ref ty) => {
