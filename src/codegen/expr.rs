@@ -125,8 +125,6 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
             },
 
             // TODO: be more clever with parens
-            ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
-                // no infix "IsNot" in VB6; convert to Not (... Is ...)
                 let op = match *op {
                     BinOp::NotIdentEq => {
                         write!(out, "{:in$}Not (", "",
@@ -166,8 +164,6 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                           in = (indent * INDENT) as usize)?;
                         op
                     },
-
-                    // TODO: emit integer division '\' for integral operands
                 };
 
                 lhs.emit(out, symtab, ctxt, 0)?;
@@ -181,9 +177,6 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
             },
 
             ExprKind::ExtentExpr(ref expr, kind, dim) => {
-                // TODO: we could typecheck and drop the ,1 in the 1-D array
-                //   case (it'd make the output slightly prettier)
-
                 let expr_ty = analysis::type_of(expr, symtab, ctxt.1)
                     .expect("dumpster fire: untypeable expression \
                             in codegen");
