@@ -385,6 +385,18 @@ impl Type {
         }
     }
 
+    /// is this type definitely an integral type? (used to choose 
+    /// division operator)
+    pub fn is_integral(&self) -> bool {
+        match *self {
+            Type::UInt8
+          | Type::Int16
+          | Type::Int32
+          | Type::IntPtr => true,
+            _ => false,
+        }
+    }
+
     /// what does this type decay to when passed as a function
     /// argument; we only use this for array types so far
     pub fn decay(&self) -> Type {

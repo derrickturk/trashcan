@@ -134,6 +134,33 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                         BinOp::IdentEq
                     },
 
+                    // wacky special case: if we have a division, and both
+                    //   operands are definitely of integral type, we need
+                    //   to emit a '\' integer-divide op
+                    // TODO: should we handle this with an AST node and a
+                    //   rewriter?
+
+                    BinOp::Div => {
+                        write!(out, "{:in$}(", "",
+                          in = (indent * INDENT) as usize)?;
+
+                        let lhs_ty = analysis::type_of(lhs, symtab, ctxt.1)
+                            .expect("dumpster fire: untypeable expression \
+                                    in codegen");
+                        let rhs_ty = analysis::type_of(rhs, symtab, ctxt.1)
+                            .expect("dumpster fire: untypeable expression \
+                                    in codegen");
+
+                        if lhs_ty.is_integral() && rhs_ty.is_integral() {
+                            lhs.emit(out, symtab, ctxt, 0)?;
+                            out.write_all(b" \\ ")?;
+                            rhs.emit(out, symtab, ctxt, 0)?;
+                            return out.write_all(b")")
+                        } else {
+                            BinOp::Div // use normal-case code
+                        }
+                    },
+
                     op => {
                         write!(out, "{:in$}(", "",
                           in = (indent * INDENT) as usize)?;
