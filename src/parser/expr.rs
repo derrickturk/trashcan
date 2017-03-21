@@ -290,6 +290,7 @@ named!(extent_expr<Expr>, complete!(map_res!(do_parse!(
       kind: alt_complete!(
                 tag!("first_index") => { |_| ExtentKind::First }
               | tag!("last_index") => { |_| ExtentKind::Last }
+              | tag!("array_length") => { |_| ExtentKind::Length }
             ) >>
             opt!(call!(nom::multispace)) >>
             char!('<') >>

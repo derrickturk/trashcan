@@ -168,19 +168,45 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                       in extent expr"),
                 };
 
-                let builtin = match kind {
-                    ExtentKind::First => "LBound",
-                    ExtentKind::Last => "UBound",
-                };
+                write!(out, "{:in$}", "", in = (indent * INDENT) as usize)?;
 
-                write!(out, "{:in$}{}(", "", builtin,
-                  in = (indent * INDENT) as usize)?;
-                expr.emit(out, symtab, ctxt, 0)?;
-                // 0-based to 1-based
-                if emit_dim {
-                    write!(out, ", {})", dim + 1)
-                } else {
-                    out.write_all(b")")
+                match kind {
+                    ExtentKind::First => {
+                        out.write_all(b"LBound(")?;
+                        expr.emit(out, symtab, ctxt, 0)?;
+                        if emit_dim {
+                            write!(out, ", {})", dim + 1)
+                        } else {
+                            out.write_all(b")")
+                        }
+                    },
+
+                    ExtentKind::Last => {
+                        out.write_all(b"UBound(")?;
+                        expr.emit(out, symtab, ctxt, 0)?;
+                        if emit_dim {
+                            write!(out, ", {})", dim + 1)
+                        } else {
+                            out.write_all(b")")
+                        }
+                    },
+
+                    // TODO: would it be cleaner to handle this in a rewriter?
+                    ExtentKind::Length => {
+                        out.write_all(b"(UBound(")?;
+                        expr.emit(out, symtab, ctxt, 0)?;
+                        if emit_dim {
+                            write!(out, ", {}) - LBound(", dim + 1)?;
+                        } else {
+                            out.write_all(b") - LBound(")?;
+                        }
+                        expr.emit(out, symtab, ctxt, 0)?;
+                        if emit_dim {
+                            write!(out, ", {}) + 1)", dim + 1)
+                        } else {
+                            out.write_all(b") + 1)")
+                        }
+                    },
                 }
             },
 

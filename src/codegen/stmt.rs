@@ -327,7 +327,7 @@ fn emit_realloc_extents<'a, W: Write>(out: &mut W, array_expr: &Expr,
     for dim in 1..(preserved + 1) {
         out.write_all(b"LBound(")?;
         array_expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
-        write!(out, ", {}) to UBound(", dim)?;
+        write!(out, ", {}) To UBound(", dim)?;
         array_expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
         write!(out, ", {}), ", dim)?;
     }

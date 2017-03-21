@@ -226,6 +226,7 @@ impl Expr {
 pub enum ExtentKind {
     First,
     Last,
+    Length,
 }
 
 /// A struct type definition

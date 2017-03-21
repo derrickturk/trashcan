@@ -21,6 +21,8 @@ fn glorious_allocs() {
         xs[i] = i * 2;
     }
 
+    print array_length<0>(xs);
+
     let ys: i32[];
     ys <- alloc[along xs];
 
@@ -29,6 +31,8 @@ fn glorious_allocs() {
 
     zzs <- alloc[20,20,20];
     zzs <- realloc[,,along zs];
+
+    print array_length<2>(zzs);
 }
 
 fn more_glorious_allocs() {
