@@ -5,6 +5,8 @@ use super::*;
 use visit::ASTVisitor;
 use visit::NameCtxt;
 
+use std::collections::HashSet;
+
 /// Context in which expression typecheck takes place: module name, optional
 ///   function name
 pub struct ExprCtxt(pub Ident, pub Option<Ident>);
@@ -1415,28 +1417,28 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
         for (i, &(ref param, _)) in fun.optparams.iter().enumerate() {
             // argument was provided
             if i < optargs.len() {
-                let arg_type = type_of(&optargs[i], symtab, ctxt)?.decay();
+                let arg_ty = type_of(&optargs[i], symtab, ctxt)?.decay();
 
                 match param.mode {
                     ParamMode::ByRef =>
-                        if param.ty != arg_type {
+                        if param.ty != arg_ty {
                             return Err(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
                                 regarding: Some(format!(
                                   "parameter {} has type &{}; type {} \
                                     provided",
-                                  param.name, param.ty, arg_type)),
+                                  param.name, param.ty, arg_ty)),
                                 loc: optargs[i].loc.clone(),
                             })
                         },
                     ParamMode::ByVal =>
-                        if !may_coerce(&arg_type, &param.ty) {
+                        if !may_coerce(&arg_ty, &param.ty) {
                             return Err(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
                                 regarding: Some(format!(
                                   "parameter {} has type {}; type {} \
                                     provided",
-                                  param.name, param.ty, arg_type)),
+                                  param.name, param.ty, arg_ty)),
                                 loc: optargs[i].loc.clone(),
                             })
                         },
@@ -1444,8 +1446,65 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
             }
         }
     } else {
-        // TODO
-        panic!("dumpster fire: I don't know how to handle those yet!");
+        let mut seen = HashSet::new();
+
+        for &(ref argname, ref arg) in optargs {
+            let which = fun.optparams.iter().enumerate()
+                .find(|&(i, &(ref param, _))| {
+                    match param.name {
+                        Ident(ref name, None) => *name == argname.0,
+                        Ident(_, Some(ref prev)) => *prev == argname.0,
+                    }
+                });
+
+            match which {
+                Some((i, _)) => {
+                    if seen.contains(&i) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::DuplicateSymbol,
+                            regarding: Some(format!("optional argument {} to \
+                              {} was duplicated", argname, invoke_path)),
+                            loc: arg.loc.clone(),
+                        });
+                    }
+                    seen.insert(i);
+
+                    let param = &fun.optparams[i].0;
+                    let arg_ty = type_of(arg, symtab, ctxt)?.decay();
+                    match param.mode {
+                        ParamMode::ByRef =>
+                            if param.ty != arg_ty {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(format!(
+                                      "parameter {} has type &{}; type {} \
+                                        provided",
+                                      param.name, param.ty, arg_ty)),
+                                    loc: arg.loc.clone(),
+                                })
+                            },
+                        ParamMode::ByVal =>
+                            if !may_coerce(&arg_ty, &param.ty) {
+                                return Err(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(format!(
+                                      "parameter {} has type {}; type {} \
+                                        provided",
+                                      param.name, param.ty, arg_ty)),
+                                    loc: arg.loc.clone(),
+                                })
+                            },
+                    }
+                },
+
+                None => return Err(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} has no optional argument {}",
+                      invoke_path, argname)),
+                    loc: arg.loc.clone(),
+                }),
+            }
+        }
     }
 
     Ok(fun.ret.clone())
