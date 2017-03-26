@@ -1,6 +1,7 @@
 //! trashcan's sub-parsers for operators
 
 use std::str;
+use std::num::ParseIntError;
 
 use nom::{self, IResult, ErrorKind};
 
@@ -10,11 +11,11 @@ use super::CustomErrors;
 named!(pub literal<Literal>, alt_complete!(
     literal_null
   | literal_bool
+  | literal_currency
   | literal_float // try this before int
   | literal_int
   | literal_string
 //  TODO: "wacky" literal types
-//  | literal_currency
 //  | literal_date));
 ));
 
@@ -102,6 +103,25 @@ named!(literal_string<Literal>, map_res!(complete!(preceded!(
     String::from_utf8(bytes).map(Literal::String)
 }));
 
+// TODO: should we use f128 or something here?
+named!(literal_currency<Literal>, complete!(map_res!(do_parse!(
+        opt!(call!(nom::multispace)) >>
+ whole: call!(nom::digit) >>
+  frac: opt!(preceded!(
+            char!('.'),
+            call!(nom::digit)
+        )) >>
+        tag!("currency") >>
+        (whole, frac)
+), |(whole, frac): (&[u8], Option<&[u8]>)| -> Result<Literal, ParseIntError> {
+    let whole: i64 = unsafe { try!(str::from_utf8_unchecked(whole).parse()) };
+    let frac: i16 = frac.map(
+        |frac| unsafe { str::from_utf8_unchecked(frac).parse() })
+        .unwrap_or(Ok(0))?;
+    // TODO: bounds check?
+    Ok(make_currency(whole, frac))
+})));
+
 fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
     let mut s = Vec::new();
     let mut bytes_consumed = 0;
@@ -134,4 +154,10 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
     }
 
     IResult::Done(&input[bytes_consumed..], s)
+}
+
+fn make_currency(whole: i64, frac: i16) -> Literal {
+    let frac_digits = (frac as f32).log10().ceil() as i16;
+    let frac_scalar = f32::powf(10.0, (4 - frac_digits) as f32);
+    Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
 }

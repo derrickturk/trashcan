@@ -359,6 +359,7 @@ impl Type {
           | Type::IntPtr
           | Type::Float32
           | Type::Float64
+          | Type::Currency
           | Type::Variant => true,
             _ => false,
         }

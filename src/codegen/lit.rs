@@ -21,6 +21,7 @@ impl Emit<()> for Literal {
             Literal::IntPtr(n) => n.to_string(),
             Literal::Float32(n) => format!("{}!", n),
             Literal::Float64(n) => format!("{}#", n),
+            Literal::Currency(n) => format!("{}@", currency_string(n)),
             Literal::String(ref s) => vb_string(s),
             // TODO: handle wacky types
             _ => panic!("dumpster fire: don't know how to emit that yet"),
@@ -28,6 +29,13 @@ impl Emit<()> for Literal {
 
         write!(out, "{:in$}{}", "", as_str, in = (indent * INDENT) as usize)
     }
+}
+
+fn currency_string(currency: i64) -> String {
+    let frac = currency % 10000;
+    let whole = currency / 10000;
+    // TODO: this may be inadvisable for negative numbers
+    format!("{}.{:04}", whole, frac)
 }
 
 fn vb_string(s: &String) -> String {

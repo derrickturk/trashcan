@@ -435,6 +435,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
           | Type::IntPtr
           | Type::Float32
           | Type::Float64
+          | Type::Currency
           | Type::Variant => true,
             _ => false,
         },
@@ -445,6 +446,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
           | Type::IntPtr
           | Type::Float32
           | Type::Float64
+          | Type::Currency
           | Type::Variant => true,
             _ => false,
         },
@@ -454,6 +456,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
           | Type::IntPtr
           | Type::Float32
           | Type::Float64
+          | Type::Currency
           | Type::Variant => true,
             _ => false,
         },
@@ -464,6 +467,8 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
           | Type::Variant => true,
             _ => false,
         },
+
+        // TODO: allow currency to float coercion?
 
         Type::Float32 => match *to {
             Type::Float32
@@ -480,6 +485,12 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
         Type::String => match *to {
             Type::String
+          | Type::Variant => true,
+            _ => false,
+        },
+
+        Type::Currency => match *to {
+            Type::Currency
           | Type::Variant => true,
             _ => false,
         },
@@ -559,9 +570,16 @@ pub fn may_cast(from: &Type, to: &Type) -> bool {
       | Type::Int32
       | Type::IntPtr
       | Type::Float32
-      | Type::Float64 => to.might_be_numeric(),
+      | Type::Float64
+      | Type::Currency => to.might_be_numeric(),
 
         Type::String => to.might_be_string() || to.might_be_numeric(),
+
+        Type::Currency => match *to {
+            Type::Currency
+          | Type::Variant => true,
+            _ => false,
+        },
 
         Type::Variant => match *to {
             // can't assign to statically-dimensioned array

@@ -16,6 +16,11 @@ pub fn f(x: i32, y: &f64[]; z: bool = true) -> str {
 
     let f: str = "it's got the same name as the function!";
 
+    let money: currency = 12345.6789currency;
+    let more_money: currency = money * 10000;
+
+    print more_money;
+
     // need deferred type resolution...
     let s: nothing;
     s.x = 17;
