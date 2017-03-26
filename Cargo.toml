@@ -3,8 +3,9 @@ name = "trashcan"
 version = "0.1.0"
 authors = ["derrickturk <dwt@terminusdatascience.com>"]
 
-[dependencies]
-nom = "^2.1"
+[dependencies.nom]
+version = "^2.1"
+features = ["verbose-errors"]
 
 [[bin]]
 doc = false

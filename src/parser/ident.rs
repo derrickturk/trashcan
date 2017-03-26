@@ -2,7 +2,7 @@
 
 use std::str;
 
-use nom::{self, IResult, ErrorKind};
+use nom::{self, IResult, Err, ErrorKind};
 
 use ast::*;
 use super::CustomErrors;
@@ -85,8 +85,8 @@ pub fn ident(input: &[u8]) -> IResult<&[u8], Ident> {
     match res {
         IResult::Done(rest, Ident(name, _)) =>
             if KEYWORDS.contains(&name.as_str()) {
-                IResult::Error(
-                    ErrorKind::Custom(CustomErrors::KeywordAsIdent as u32))
+                IResult::Error(Err::Code(ErrorKind::Custom(
+                  CustomErrors::KeywordAsIdent as u32)))
             } else {
                 IResult::Done(rest, Ident(name, None))
             },

@@ -3,7 +3,7 @@
 use std::str;
 use std::num::ParseIntError;
 
-use nom::{self, IResult, ErrorKind};
+use nom::{self, IResult, Err, ErrorKind};
 
 use ast::*;
 use super::CustomErrors;
@@ -137,8 +137,9 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
                 Some(&b't') => s.push(b'\t'),
                 Some(&b'"') => s.push(b'"'),
                 // TODO: more escapes here
-                _ => return IResult::Error(
-                    ErrorKind::Custom(CustomErrors::InvalidEscape as u32))
+                _ => return IResult::Error(Err::Position(
+                    ErrorKind::Custom(CustomErrors::InvalidEscape as u32),
+                    bytes.as_slice()))
             }
             bytes_consumed += 2;
             continue;

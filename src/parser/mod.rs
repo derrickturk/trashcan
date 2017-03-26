@@ -4,10 +4,17 @@ use nom;
 
 use ast::*;
 
+// TODO: privatize this
 pub enum CustomErrors {
     KeywordAsIdent,
     InvalidEscape,
     InvalidTrailingContent,
+}
+
+#[derive(Clone, Debug)]
+pub struct ParseError {
+    regarding: String,
+    loc: SrcLoc,
 }
 
 macro_rules! expect_parse {
@@ -77,20 +84,32 @@ impl MappedSource {
     }
 }
 
-pub fn parse_dumpster(file: &str, src: &[u8]) ->
-  Result<Dumpster, nom::ErrorKind> {
+// TODO: oh no
+//   i've got to translate all errors here or surely die
+
+pub fn parse_dumpster(file: &str, src: &[u8]) -> Result<Dumpster, ParseError> {
     let map = map_source(file, src);
     match dumpster(&map.src) {
         nom::IResult::Done(rest, dumpster) => {
             if rest.len() == 0 {
                 Ok(rebase_srclocs(dumpster, &map))
             } else {
-                Err(nom::ErrorKind::Custom(
-                        CustomErrors::InvalidTrailingContent as u32))
+                let (line, start) = map.pos_to_line_pos(
+                    map.map_to_original(rest.as_ptr() as usize - map.base()));
+                Err(ParseError {
+                    regarding: format!("invalid trailing content"),
+                    // TODO: figure out where "the end" really was
+                    loc: SrcLoc {
+                        file: file.to_owned(),
+                        line: line,
+                        start: start,
+                        len: rest.len(),
+                    }
+                })
             }
         },
 
-        nom::IResult::Error(e) => Err(e),
+        nom::IResult::Error(e) => Err(translate_parser_error(e, &map)),
 
         nom::IResult::Incomplete(_) => panic!("dumpster fire: \
           nom::IResult::Incomplete leaked from parser"),
@@ -245,6 +264,13 @@ fn map_source(file: &str, input: &[u8]) -> MappedSource {
 
 fn pos(input: &[u8]) -> nom::IResult<&[u8], usize> {
     nom::IResult::Done(input, input.as_ptr() as usize)
+}
+
+fn translate_parser_error(err: nom::Err<&[u8]>, map: &MappedSource)
+  -> ParseError {
+    match err {
+        _ => panic!("dumpster fire: this part will be hard")
+    }
 }
 
 #[cfg(test)]
