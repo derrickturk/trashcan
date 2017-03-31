@@ -21,17 +21,17 @@ fn literal_bool(input: &[u8]) -> ParseResult<Literal> {
 
 fn literal_int(input: &[u8]) -> ParseResult<Literal> {
     let (input, _) = opt(input, multispace)?;
-    let (input, tag) = opt!(alt!(input,
-        keyword_immediate(input, b"u8")
-    ))?;
+    let (num, digits) = require!(digits(input));
 
-    let fu: ParseResult<Literal> = Ok((input, Ok(match tag.unwrap() {
+    let (input, tag) = require!(opt!(alt!(input,
+        keyword_immediate(input, b"u8")
+    )));
+
+    Ok((input, Ok(match tag {
         None => Literal::Int32(17),
         Some(b"u8") => Literal::UInt8(17),
         _ => panic!("reeeeeeeeeeeeeeeeeeeeeeeee")
-    })));
-
-    fu
+    })))
 }
 
 #[cfg(test)]

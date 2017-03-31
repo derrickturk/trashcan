@@ -16,6 +16,16 @@ macro_rules! cut {
 }
 
 #[macro_export]
+macro_rules! require {
+    ($e:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(e)) => return Ok((i, Err(e))),
+        }
+    }
+}
+
+#[macro_export]
 macro_rules! alt {
     ($input:expr, $alt:expr) => {
         match $alt? {
@@ -74,6 +84,19 @@ pub fn multispace(input: &[u8]) -> ParseResult<&[u8]> {
         match *b {
             b'\n' | b'\r' | b'\t' | b' ' => { },
             _ if i == 0 => return err!(input, ParseError::ExpectedWhiteSpace),
+            _ => return ok!(&input[i..], &input[..i]),
+        }
+    }
+    ok!(&[], input)
+}
+
+#[inline]
+pub fn digits(input: &[u8]) -> ParseResult<&[u8]> {
+    for (i, b) in input.iter().enumerate() {
+        match *b {
+            b'0' | b'1' | b'2' | b'3' | b'4'
+                | b'5' | b'6' | b'7' | b'8' | b'9' => { },
+            _ if i == 0 => return err!(input, ParseError::ExpectedDigit),
             _ => return ok!(&input[i..], &input[..i]),
         }
     }
