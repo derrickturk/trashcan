@@ -52,9 +52,13 @@ macro_rules! alt {
 #[macro_export]
 macro_rules! opt {
     ($maybe:expr) => {
-        match $maybe? {
-            (i, Ok(r)) => (i, Ok(Some(r))),
-            (i, Err(_)) => (i, Ok(None)),
+        {
+            // the compiler can't infer the type here unless we help it
+            let r: $crate::new_parser::ParseResult<Option<_>> = match $maybe? {
+                (i, Ok(r)) => Ok((i, Ok(Some(r)))),
+                (i, Err(_)) => Ok((i, Ok(None))),
+            };
+            r
         }
     }
 }
