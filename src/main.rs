@@ -4,8 +4,6 @@ use std::fs::File;
 use std::io;
 use std::io::Read;
 
-extern crate nom;
-
 extern crate trashcan;
 use trashcan::parser;
 use trashcan::analysis;
