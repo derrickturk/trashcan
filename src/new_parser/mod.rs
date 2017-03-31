@@ -24,9 +24,9 @@ macro_rules! expect_parse {
     ($e:expr => $p:pat) => {
         match $e {
             Ok((rest, Ok($p))) => { assert_eq!(rest.len(), 0) },
-            Ok((rest, Ok(r))) => { panic!("parse result: {:?}", r) },
-            Ok((rest, Err(e))) => { panic!("parse error: {:?}", e) },
-            Err((rest, e)) => { panic!("unrecoverable parse error: {:?}", e) },
+            Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },
+            Ok((_, Err(e))) => { panic!("parse error: {:?}", e) },
+            Err((_, e)) => { panic!("unrecoverable parse error: {:?}", e) },
         }
     }
 }
@@ -34,10 +34,10 @@ macro_rules! expect_parse {
 macro_rules! expect_parse_err {
     ($e:expr => $p:pat) => {
         match $e {
-            Ok((rest, Err($p))) => { },
-            Ok((rest, Ok(r))) => { panic!("parse result: {:?}", r) },
-            Ok((rest, Err(e))) => { panic!("parse error: {:?}", e) },
-            Err((rest, e)) => { panic!("unrecoverable parse error: {:?}", e) },
+            Ok((_, Err($p))) => { },
+            Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },
+            Ok((_, Err(e))) => { panic!("parse error: {:?}", e) },
+            Err((_, e)) => { panic!("unrecoverable parse error: {:?}", e) },
         }
     }
 }
@@ -45,10 +45,10 @@ macro_rules! expect_parse_err {
 macro_rules! expect_parse_cut {
     ($e:expr => $p:pat) => {
         match $e {
-            Err((rest, $p)) => { },
-            Ok((rest, Ok(r))) => { panic!("parse result: {:?}", r) },
-            Ok((rest, Err(e))) => { panic!("parse error: {:?}", e) },
-            Err((rest, e)) => { panic!("unrecoverable parse error: {:?}", e) },
+            Err((_, $p)) => { },
+            Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },
+            Ok((_, Err(e))) => { panic!("parse error: {:?}", e) },
+            Err((_, e)) => { panic!("unrecoverable parse error: {:?}", e) },
         }
     }
 }

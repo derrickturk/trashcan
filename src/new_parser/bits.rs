@@ -15,47 +15,46 @@ macro_rules! cut {
     ($i:expr, $err:expr) => { Err(($i, $err)) }
 }
 
-macro_rules! alt_one {
-    ($alt:expr) => {
-        if let (i, Ok(r)) = $alt? {
-            return Ok((i, Ok(r)))
-        }
-    };
-
-    ($alt:expr => $cl:expr) => {
-        if let (i, Ok(r)) = $alt? {
-            return Ok((i, Ok($cl(r))))
-        }
-    };
-}
-
-macro_rules! alt_inner {
-    ($alt:expr) => {
-        alt_one!($alt);
-    };
-
-    ($alt:expr => $cl:expr) => {
-        alt_one!($alt => $cl);
-    };
-
-    ($alt:expr ; $($rest:tt)*) => {
-        alt_one!($alt);
-        alt_inner!($($rest)*);
-    };
-
-    ($alt:expr => $cl:expr ; $($rest:tt)*) => {
-        alt_one!($alt => $cl);
-        alt_inner!($($rest)*);
-    };
-}
-
 #[macro_export]
 macro_rules! alt {
-    ($input:expr, $($alts:tt)*) => {
-        {
-            alt_inner!($($alts)*);
-            // TODO: when this module name changes...
-            Ok(($input, Err($crate::new_parser::ParseError::NoAltMatch)))
+    ($input:expr, $alt:expr) => {
+        match $alt? {
+            (i, Ok(r)) => Ok((i, Ok(r))),
+            (_, Err(_)) =>
+                Ok(($input, Err($crate::new_parser::ParseError::NoAltMatch))),
+        }
+    };
+
+    ($input:expr, $alt:expr => $cl:expr) => {
+        match $alt? {
+            (i, Ok(r)) => Ok((i, Ok($cl(r)))),
+            (_, Err(_)) =>
+                Ok(($input, Err($crate::new_parser::ParseError::NoAltMatch))),
+        }
+    };
+
+    ($input:expr, $alt:expr ; $($rest:tt)*) => {
+        match $alt? {
+            (i, Ok(r)) => Ok((i, Ok(r))),
+            (_, Err(_)) => alt!($input, $($rest)*),
+        }
+    };
+
+    ($input:expr, $alt:expr => $cl:expr ; $($rest:tt)*) => {
+        match $alt? {
+            (i, Ok(r)) => Ok((i, Ok($cl(r)))),
+            (_, Err(_)) => alt!($input, $($rest)*),
+        }
+    };
+}
+
+// for expressions (not functions)
+#[macro_export]
+macro_rules! opt {
+    ($maybe:expr) => {
+        match $maybe? {
+            (i, Ok(r)) => (i, Ok(Some(r))),
+            (i, Err(_)) => (i, Ok(None)),
         }
     }
 }
@@ -89,6 +88,12 @@ pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Option<R>>
 pub fn keyword<'a>(input: &'a [u8], kw: &'static [u8])
   -> ParseResult<'a, &'a [u8]> {
     let (input, _) = opt(input, multispace)?;
+    keyword_immediate(input, kw)
+}
+
+// no whitespace preceding
+pub fn keyword_immediate<'a>(input: &'a [u8], kw: &'static [u8])
+  -> ParseResult<'a, &'a [u8]> {
     if input.starts_with(kw) {
         ok!(&input[kw.len()..], &input[..kw.len()])
     } else {
