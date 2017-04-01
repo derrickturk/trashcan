@@ -97,6 +97,46 @@ fn literal_float(input: &[u8]) -> ParseResult<Literal> {
     }
 }
 
+fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+
+    let (i, whole) = require!(digits(i));
+
+    let (i, frac) = require!(opt!({
+        let input = i;
+        let (i, res) = byte(input, b'.')?;
+        match res {
+            Ok(_) => digits(i),
+            Err(e) => err!(input, e),
+        }
+    }));
+
+    let (i, _) = require!(keyword_immediate(i, b"currency"));
+
+    let whole = unsafe { str::from_utf8_unchecked(whole) }.parse::<i64>();
+    let frac = match frac {
+        None => Ok(0i16),
+        Some(frac) => {
+            unsafe { str::from_utf8_unchecked(frac) }.parse::<i16>()
+        },
+    };
+
+    let (whole, frac) = match (whole, frac) {
+        (Err(_), _) => return cut!(input, ParseError::InvalidLiteral),
+        (_, Err(_)) => return cut!(input, ParseError::InvalidLiteral),
+        (Ok(whole), Ok(frac)) => (whole, frac),
+    };
+
+    ok!(i, make_currency(whole, frac))
+}
+
+#[inline]
+fn make_currency(whole: i64, frac: i16) -> Literal {
+    let frac_digits = (frac as f32).log10().ceil() as i16;
+    let frac_scalar = f32::powf(10.0, (4 - frac_digits) as f32);
+    Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -143,5 +183,13 @@ mod test {
         expect_parse_cut!(literal_float(b"9999999999999999999999999999.0f32") =>
           ParseError::InvalidLiteral);
         */
+    }
+
+    #[test]
+    fn parse_currency() {
+        expect_parse!(literal_currency(b" 12345.67currency") =>
+          Literal::Currency(123456700i64));
+        expect_parse_cut!(
+            literal_currency(b"999.9999999999999999999999999999currency") => _);
     }
 }

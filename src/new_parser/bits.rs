@@ -26,6 +26,20 @@ macro_rules! require {
 }
 
 #[macro_export]
+macro_rules! chain {
+    ($input:expr, $parser:expr) => {
+        $parser
+    };
+
+    ($input:expr, $parser:expr => $rest:tt) => {
+        match $parser? {
+            (i, Ok(_)) => chain!($input, $rest),
+            (i, Err(e)) => err!($input, e),
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! alt {
     ($input:expr, $alt:expr) => {
         match $alt? {
