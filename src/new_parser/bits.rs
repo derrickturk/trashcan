@@ -79,6 +79,15 @@ pub fn loc(input: &[u8]) -> ParseResult<usize> {
 }
 
 #[inline]
+pub fn byte(input: &[u8], b: u8) -> ParseResult<u8> {
+    if !input.is_empty() && input[0] == b {
+        ok!(&input[1..], b)
+    } else {
+        err!(input, ParseError::ExpectedChar(b))
+    }
+}
+
+#[inline]
 pub fn multispace(input: &[u8]) -> ParseResult<&[u8]> {
     for (i, b) in input.iter().enumerate() {
         match *b {

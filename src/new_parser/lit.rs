@@ -28,6 +28,9 @@ fn literal_int(input: &[u8]) -> ParseResult<Literal> {
     let (i, num) = require!(digits(i));
     let (i, tag) = require!(opt!(alt!(i,
         keyword_immediate(i, b"u8")
+      ; keyword_immediate(i, b"i16")
+      ; keyword_immediate(i, b"i32")
+      ; keyword_immediate(i, b"isize")
     )));
 
     let num = unsafe { str::from_utf8_unchecked(num) };
@@ -38,6 +41,41 @@ fn literal_int(input: &[u8]) -> ParseResult<Literal> {
         Some(b"i32") => num.parse::<i32>().map(Literal::Int32),
         Some(b"isize") => num.parse::<i64>().map(Literal::IntPtr),
         _ => panic!("dumpster fire: bad tag in int literal"),
+    };
+
+    match parsed {
+        Ok(lit) => Ok((i, Ok(lit))),
+        // if we have numbers and a tag but fail the numeric parse,
+        //   that's an unrecoverable error
+        Err(_) => Err((input, ParseError::InvalidLiteral)),
+    }
+}
+
+fn literal_float(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, whole) = require!(digits(i));
+    // mandatory decimal point
+    let (i, _) = require!(byte(i, b'.'));
+    let (i, frac) = require!(opt(i, digits));
+    let (i, tag) = require!(opt!(alt!(i,
+        keyword_immediate(i, b"f32")
+      ; keyword_immediate(i, b"f64")
+    )));
+
+    let mut num = String::from(unsafe { str::from_utf8_unchecked(whole) });
+    match frac {
+        None => { },
+        Some(frac) => {
+            num.push_str(".");
+            num.push_str(unsafe { str::from_utf8_unchecked(frac) });
+        }
+    };
+
+    let parsed = match tag {
+        None => num.parse::<f64>().map(Literal::Float64),
+        Some(b"f32") => num.parse::<f32>().map(Literal::Float32),
+        Some(b"f64") => num.parse::<f64>().map(Literal::Float64),
+        _ => panic!("dumpster fire: bad tag in float literal"),
     };
 
     match parsed {
@@ -73,5 +111,16 @@ mod test {
         expect_parse_err!(literal_int(b"alskf") => ParseError::ExpectedDigit);
         expect_parse_cut!(literal_int(b"123456789u8") =>
           ParseError::InvalidLiteral);
+    }
+
+    #[test]
+    fn parse_floats() {
+        expect_parse!(literal_float(b"124.5") => Literal::Float64(124.5));
+        expect_parse!(literal_float(b"1234.56f32") => Literal::Float32(1234.56f32));
+        expect_parse_err!(literal_float(b"x.12") => ParseError::ExpectedDigit);
+        /*
+        expect_parse_cut!(literal_float(b"9999999999999999999999999999.0f32") =>
+          ParseError::InvalidLiteral);
+        */
     }
 }
