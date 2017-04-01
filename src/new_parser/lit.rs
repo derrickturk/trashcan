@@ -44,10 +44,10 @@ fn literal_int(input: &[u8]) -> ParseResult<Literal> {
     };
 
     match parsed {
-        Ok(lit) => Ok((i, Ok(lit))),
+        Ok(lit) => ok!(i, lit),
         // if we have numbers and a tag but fail the numeric parse,
         //   that's an unrecoverable error
-        Err(_) => Err((input, ParseError::InvalidLiteral)),
+        Err(_) => cut!(input, ParseError::InvalidLiteral),
     }
 }
 
@@ -79,10 +79,10 @@ fn literal_float(input: &[u8]) -> ParseResult<Literal> {
     };
 
     match parsed {
-        Ok(lit) => Ok((i, Ok(lit))),
+        Ok(lit) => ok!(i, lit),
         // if we have numbers and a tag but fail the numeric parse,
         //   that's an unrecoverable error
-        Err(_) => Err((input, ParseError::InvalidLiteral)),
+        Err(_) => cut!(input, ParseError::InvalidLiteral),
     }
 }
 
