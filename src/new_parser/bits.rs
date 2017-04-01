@@ -25,16 +25,30 @@ macro_rules! require {
     }
 }
 
+// works on closures/functions which are Fn(&[u8]) -> ParseResult<T>
 #[macro_export]
 macro_rules! chain {
     ($input:expr, $parser:expr) => {
-        $parser
+        $parser($input)
     };
 
-    ($input:expr, $parser:expr => $rest:tt) => {
-        match $parser? {
-            (i, Ok(_)) => chain!($input, $rest),
+    ($input:expr, $parser:expr => $($rest:tt)*) => {
+        match $parser($input)? {
+            (i, Ok(_)) => chain!(i, $($rest)*),
             (i, Err(e)) => err!($input, e),
+        }
+    };
+
+    // for internal use only
+    ($orig:expr; $input:expr, $parser:expr) => {
+        $parser($input)
+    };
+
+    // for internal use only
+    ($orig:expr; $input:expr, $parser:expr => $($rest:tt)*) => {
+        match $parser($input)? {
+            (i, Ok(_)) => chain!($orig; i, $($rest)*),
+            (i, Err(e)) => err!($orig, e),
         }
     };
 }

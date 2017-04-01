@@ -102,14 +102,12 @@ fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
 
     let (i, whole) = require!(digits(i));
 
-    let (i, frac) = require!(opt!({
-        let input = i;
-        let (i, res) = byte(input, b'.')?;
-        match res {
-            Ok(_) => digits(i),
-            Err(e) => err!(input, e),
-        }
-    }));
+    let (i, frac) = require!(opt!(chain!(i,
+        |i| byte(i, b'.') =>
+        digits
+    )));
+
+    println!("i, frac = {:?}, {:?}", i, frac);
 
     let (i, _) = require!(keyword_immediate(i, b"currency"));
 
