@@ -140,6 +140,7 @@ pub fn digits(input: &[u8]) -> ParseResult<&[u8]> {
     ok!(&[], input)
 }
 
+#[inline]
 pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Option<R>>
   where F: Fn(&'a [u8]) -> ParseResult<R> {
     let res = parser(input)?;
@@ -149,6 +150,7 @@ pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Option<R>>
     }
 }
 
+#[inline]
 pub fn keyword<'a>(input: &'a [u8], kw: &'static [u8])
   -> ParseResult<'a, &'a [u8]> {
     let (input, _) = opt(input, multispace)?;
@@ -156,6 +158,7 @@ pub fn keyword<'a>(input: &'a [u8], kw: &'static [u8])
 }
 
 // no whitespace preceding
+#[inline]
 pub fn keyword_immediate<'a>(input: &'a [u8], kw: &'static [u8])
   -> ParseResult<'a, &'a [u8]> {
     if input.starts_with(kw) {

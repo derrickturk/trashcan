@@ -128,11 +128,57 @@ fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
     ok!(i, make_currency(whole, frac))
 }
 
+fn literal_string(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'"'));
+    let (i, escaped) = require!(escaped_string(i));
+    let (i, _) = require!(byte(i, b'"'));
+
+    match String::from_utf8(escaped) {
+        Ok(s) => ok!(i, Literal::String(s)),
+        Err(_) => cut!(input, ParseError::InvalidLiteral)
+    }
+}
+
 #[inline]
 fn make_currency(whole: i64, frac: i16) -> Literal {
     let frac_digits = (frac as f32).log10().ceil() as i16;
     let frac_scalar = f32::powf(10.0, (4 - frac_digits) as f32);
     Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
+}
+
+fn escaped_string(input: &[u8]) -> ParseResult<Vec<u8>> {
+    let mut s = Vec::new();
+    let mut bytes_consumed = 0;
+    let mut bytes = input.iter();
+    while let Some(c) = bytes.next() {
+        if *c == b'"' {
+            break;
+        }
+
+        if *c == b'\\' {
+            match bytes.next() {
+                Some(&b'n') => s.push(b'\n'),
+                Some(&b't') => s.push(b'\t'),
+                Some(&b'"') => s.push(b'"'),
+                // TODO: more escapes here
+                _ => return cut!(&input[bytes_consumed..],
+                  ParseError::InvalidEscape)
+            }
+            bytes_consumed += 2;
+            continue;
+        }
+
+        // TODO: it'd be nice to allow rust style multiline strings
+        //   (or maybe C-style adjacent-literal concatenation)
+        // first option needs peek here; second just needs a change to the
+        // literal_string production
+
+        bytes_consumed += 1;
+        s.push(*c);
+    }
+
+    ok!(&input[bytes_consumed..], s)
 }
 
 #[cfg(test)]
@@ -189,5 +235,13 @@ mod test {
           Literal::Currency(123456700i64));
         expect_parse_cut!(
             literal_currency(b"999.9999999999999999999999999999currency") => _);
+    }
+
+    #[test]
+    fn parse_string() {
+        expect_parse!(literal_string(b"\"hello world\\nor whatever\"") =>
+          Literal::String(_));
+        expect_parse_err!(literal_string(b"\"unclosed") => _);
+        expect_parse_cut!(literal_string(b"   \"invalid \\x escape\"") => _);
     }
 }
