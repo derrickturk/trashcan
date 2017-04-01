@@ -12,10 +12,12 @@ pub fn literal(input: &[u8]) -> ParseResult<Literal> {
     alt!(input,
         literal_null(input)
       ; literal_bool(input)
-      // ; literal_currency(input)
+      ; literal_currency(input)
       ; literal_float(input)
       ; literal_int(input)
-      // ; literal_string(input)
+      ; literal_string(input)
+  //  TODO: "wacky" literal types
+  //  ; literal_date));
     )
 }
 
@@ -190,6 +192,9 @@ mod test {
         expect_parse!(literal(b"nullptr") => Literal::NullPtr);
         expect_parse!(literal(b"123.45") => Literal::Float64(123.45));
         expect_parse!(literal(b"\n123i16") => Literal::Int16(123i16));
+        expect_parse!(literal(b"\t123.45currency") =>
+          Literal::Currency(1234500i64));
+        expect_parse!(literal(b"\"hello\tworld\"") => Literal::String(_));
         expect_parse_err!(literal(b"alskf") => ParseError::NoAltMatch);
         expect_parse_cut!(literal(b"  123456789u8") =>
           ParseError::InvalidLiteral);
