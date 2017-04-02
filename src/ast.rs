@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+// TODO: fixme later
 use parser::SrcLoc;
 
 /// A trashcan "project" is of course referred to as a dumpster

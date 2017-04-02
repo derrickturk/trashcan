@@ -85,7 +85,7 @@ macro_rules! alt {
         match $alt? {
             (i, Ok(r)) => Ok((i, Ok(r))),
             (_, Err(_)) =>
-                Ok(($input, Err($crate::new_parser::ParseError::NoAltMatch))),
+                Ok(($input, Err($crate::parser::ParseError::NoAltMatch))),
         }
     };
 
@@ -93,7 +93,7 @@ macro_rules! alt {
         match $alt? {
             (i, Ok(r)) => Ok((i, Ok($cl(r)))),
             (_, Err(_)) =>
-                Ok(($input, Err($crate::new_parser::ParseError::NoAltMatch))),
+                Ok(($input, Err($crate::parser::ParseError::NoAltMatch))),
         }
     };
 
@@ -118,7 +118,7 @@ macro_rules! opt {
     ($maybe:expr) => {
         {
             // the compiler can't infer the type here unless we help it
-            let r: $crate::new_parser::ParseResult<Option<_>> = match $maybe? {
+            let r: $crate::parser::ParseResult<Option<_>> = match $maybe? {
                 (i, Ok(r)) => Ok((i, Ok(Some(r)))),
                 (i, Err(_)) => Ok((i, Ok(None))),
             };

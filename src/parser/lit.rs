@@ -1,128 +1,155 @@
-//! trashcan's sub-parsers for operators
+//! trashcan's sub-parsers for literals
 
 use std::str;
-use std::num::ParseIntError;
 
-use nom::{self, IResult, ErrorKind};
+use super::{ParseError, ParseResult};
+#[macro_use]
+use super::bits::*;
 
 use ast::*;
-use super::CustomErrors;
 
-named!(pub literal<Literal>, alt_complete!(
-    literal_null
-  | literal_bool
-  | literal_currency
-  | literal_float // try this before int
-  | literal_int
-  | literal_string
-//  TODO: "wacky" literal types
-//  | literal_date));
-));
-
-named!(literal_null<Literal>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt!(
-        tag!("nullptr") => { |_| Literal::NullPtr }
-      | tag!("nullvar") => { |_| Literal::NullVar }
-      | tag!("emptyvar") => { |_| Literal::EmptyVar }
+pub fn literal(input: &[u8]) -> ParseResult<Literal> {
+    alt!(input,
+        literal_null(input)
+      ; literal_bool(input)
+      ; literal_currency(input)
+      ; literal_float(input)
+      ; literal_int(input)
+      ; literal_string(input)
+  //  TODO: "wacky" literal types
+  //  ; literal_date));
     )
-)));
+}
 
-named!(literal_bool<Literal>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    alt!(
-        tag!("true") => { |_| Literal::Bool(true) }
-      | tag!("false") => { |_| Literal::Bool(false) }
+fn literal_null(input: &[u8]) -> ParseResult<Literal> {
+    alt!(input,
+        keyword(input, b"nullptr") => |_| Literal::NullPtr
+      ; keyword(input, b"nullvar") => |_| Literal::NullVar
+      ; keyword(input, b"emptyvar") => |_| Literal::EmptyVar
     )
-)));
+}
 
-// TODO: negative signs and other oddities
+fn literal_bool(input: &[u8]) -> ParseResult<Literal> {
+    alt!(input,
+        keyword(input, b"true") => |_| Literal::Bool(true)
+      ; keyword(input, b"false") => |_| Literal::Bool(false)
+    )
+}
 
-named!(literal_int<Literal>, complete!(map_res!(do_parse!(
-         opt!(call!(nom::multispace)) >>
-    num: call!(nom::digit) >>
-    tag: opt!(complete!(alt!(
-            tag!("u8")
-          | tag!("i16")
-          | tag!("i32")
-          | tag!("isize")
-         ))) >>
-    (num, tag)), |(num, tag): (&[u8], Option<&[u8]>)| {
-        let num = unsafe { str::from_utf8_unchecked(num) };
-        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
-        match tag {
-            Some("u8") => num.parse::<u8>().map(Literal::UInt8),
-            Some("i16") => num.parse::<i16>().map(Literal::Int16),
-            Some("i32") => num.parse::<i32>().map(Literal::Int32),
-            Some("isize") => num.parse::<i64>().map(Literal::IntPtr),
-            // default i32
-            None => num.parse::<i32>().map(Literal::Int32),
-            _ => panic!("dumpster fire: bad tag in int literal")
+fn literal_int(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, num) = require!(digits(i));
+    let (i, tag) = require!(opt!(alt!(i,
+        keyword_immediate(i, b"u8")
+      ; keyword_immediate(i, b"i16")
+      ; keyword_immediate(i, b"i32")
+      ; keyword_immediate(i, b"isize")
+    )));
+
+    let num = unsafe { str::from_utf8_unchecked(num) };
+    let parsed = match tag {
+        None => num.parse::<i32>().map(Literal::Int32),
+        Some(b"u8") => num.parse::<u8>().map(Literal::UInt8),
+        Some(b"i16") => num.parse::<i16>().map(Literal::Int16),
+        Some(b"i32") => num.parse::<i32>().map(Literal::Int32),
+        Some(b"isize") => num.parse::<i64>().map(Literal::IntPtr),
+        _ => panic!("dumpster fire: bad tag in int literal"),
+    };
+
+    match parsed {
+        Ok(lit) => ok!(i, lit),
+        // if we have numbers and a tag but fail the numeric parse,
+        //   that's an unrecoverable error
+        Err(_) => cut!(input, ParseError::InvalidLiteral),
+    }
+}
+
+fn literal_float(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, whole) = require!(digits(i));
+    // mandatory decimal point
+    let (i, _) = require!(byte(i, b'.'));
+    let (i, frac) = require!(opt(i, digits));
+    let (i, tag) = require!(opt!(alt!(i,
+        keyword_immediate(i, b"f32")
+      ; keyword_immediate(i, b"f64")
+    )));
+
+    let mut num = String::from(unsafe { str::from_utf8_unchecked(whole) });
+    match frac {
+        None => { },
+        Some(frac) => {
+            num.push_str(".");
+            num.push_str(unsafe { str::from_utf8_unchecked(frac) });
         }
-    })));
+    };
 
-named!(literal_float<Literal>, complete!(map_res!(do_parse!(
-         opt!(call!(nom::multispace)) >>
-  whole: call!(nom::digit) >>
-         char!('.') >> // mandatory decimal point
-   frac: opt!(complete!(call!(nom::digit))) >>
-    tag: opt!(complete!(alt!(
-            tag!("f32")
-          | tag!("f64")
-         ))) >>
-    (whole, frac, tag)), |(w, f, tag): (&[u8], Option<&[u8]>, Option<&[u8]>)| {
-        let num = unsafe {
-            let mut s = String::from(str::from_utf8_unchecked(w));
-            match f {
-                Some(frac) => {
-                    s.push_str(".");
-                    s.push_str(str::from_utf8_unchecked(frac));
-                }
-                None => {}
-            }
-            s
-        };
-        let tag = tag.map(|t| unsafe { str::from_utf8_unchecked(t) });
-        match tag {
-            Some("f32") => num.parse::<f32>().map(Literal::Float32),
-            Some("f64") => num.parse::<f64>().map(Literal::Float64),
-            // default f64
-            None => num.parse::<f64>().map(Literal::Float64),
-            _ => panic!("dumpster fire: bad tag in float literal")
-        }
-    })));
+    let parsed = match tag {
+        None => num.parse::<f64>().map(Literal::Float64),
+        Some(b"f32") => num.parse::<f32>().map(Literal::Float32),
+        Some(b"f64") => num.parse::<f64>().map(Literal::Float64),
+        _ => panic!("dumpster fire: bad tag in float literal"),
+    };
 
-named!(literal_string<Literal>, map_res!(complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    delimited!(
-        char!('"'),
-        escaped_string,
-        char!('"')
-    )
-)), |bytes| {
-    String::from_utf8(bytes).map(Literal::String)
-}));
+    match parsed {
+        Ok(lit) => ok!(i, lit),
+        // if we have numbers and a tag but fail the numeric parse,
+        //   that's an unrecoverable error
+        Err(_) => cut!(input, ParseError::InvalidLiteral),
+    }
+}
 
-// TODO: should we use f128 or something here?
-named!(literal_currency<Literal>, complete!(map_res!(do_parse!(
-        opt!(call!(nom::multispace)) >>
- whole: call!(nom::digit) >>
-  frac: opt!(preceded!(
-            char!('.'),
-            call!(nom::digit)
-        )) >>
-        tag!("currency") >>
-        (whole, frac)
-), |(whole, frac): (&[u8], Option<&[u8]>)| -> Result<Literal, ParseIntError> {
-    let whole: i64 = unsafe { try!(str::from_utf8_unchecked(whole).parse()) };
-    let frac: i16 = frac.map(
-        |frac| unsafe { str::from_utf8_unchecked(frac).parse() })
-        .unwrap_or(Ok(0))?;
-    // TODO: bounds check?
-    Ok(make_currency(whole, frac))
-})));
+fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
 
-fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
+    let (i, whole) = require!(digits(i));
+
+    let (i, frac) = require!(opt!(chain!(i,
+        |i| byte(i, b'.') =>
+        digits
+    )));
+
+    println!("i, frac = {:?}, {:?}", i, frac);
+
+    let (i, _) = require!(keyword_immediate(i, b"currency"));
+
+    let whole = unsafe { str::from_utf8_unchecked(whole) }.parse::<i64>();
+    let frac = match frac {
+        None => Ok(0i16),
+        Some(frac) => {
+            unsafe { str::from_utf8_unchecked(frac) }.parse::<i16>()
+        },
+    };
+
+    let (whole, frac) = match (whole, frac) {
+        (Err(_), _) => return cut!(input, ParseError::InvalidLiteral),
+        (_, Err(_)) => return cut!(input, ParseError::InvalidLiteral),
+        (Ok(whole), Ok(frac)) => (whole, frac),
+    };
+
+    ok!(i, make_currency(whole, frac))
+}
+
+fn literal_string(input: &[u8]) -> ParseResult<Literal> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'"'));
+    let (i, escaped) = require!(escaped_string(i));
+    let (i, _) = require!(byte(i, b'"'));
+
+    match String::from_utf8(escaped) {
+        Ok(s) => ok!(i, Literal::String(s)),
+        Err(_) => cut!(input, ParseError::InvalidLiteral)
+    }
+}
+
+#[inline]
+fn make_currency(whole: i64, frac: i16) -> Literal {
+    let frac_digits = (frac as f32).log10().ceil() as i16;
+    let frac_scalar = f32::powf(10.0, (4 - frac_digits) as f32);
+    Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
+}
+
+fn escaped_string(input: &[u8]) -> ParseResult<Vec<u8>> {
     let mut s = Vec::new();
     let mut bytes_consumed = 0;
     let mut bytes = input.iter();
@@ -137,8 +164,8 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
                 Some(&b't') => s.push(b'\t'),
                 Some(&b'"') => s.push(b'"'),
                 // TODO: more escapes here
-                _ => return IResult::Error(
-                    ErrorKind::Custom(CustomErrors::InvalidEscape as u32))
+                _ => return cut!(&input[bytes_consumed..],
+                  ParseError::InvalidEscape)
             }
             bytes_consumed += 2;
             continue;
@@ -153,11 +180,73 @@ fn escaped_string(input: &[u8]) -> nom::IResult<&[u8], Vec<u8>> {
         s.push(*c);
     }
 
-    IResult::Done(&input[bytes_consumed..], s)
+    ok!(&input[bytes_consumed..], s)
 }
 
-fn make_currency(whole: i64, frac: i16) -> Literal {
-    let frac_digits = (frac as f32).log10().ceil() as i16;
-    let frac_scalar = f32::powf(10.0, (4 - frac_digits) as f32);
-    Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse_literals() {
+        expect_parse!(literal(b"nullptr") => Literal::NullPtr);
+        expect_parse!(literal(b"123.45") => Literal::Float64(123.45));
+        expect_parse!(literal(b"\n123i16") => Literal::Int16(123i16));
+        expect_parse!(literal(b"\t123.45currency") =>
+          Literal::Currency(1234500i64));
+        expect_parse!(literal(b"\"hello\tworld\"") => Literal::String(_));
+        expect_parse_err!(literal(b"alskf") => ParseError::NoAltMatch);
+        expect_parse_cut!(literal(b"  123456789u8") =>
+          ParseError::InvalidLiteral);
+    }
+
+    #[test]
+    fn parse_nulls() {
+        expect_parse!(literal_null(b"nullptr") => Literal::NullPtr);
+        expect_parse!(literal_null(b" nullvar") => Literal::NullVar);
+        expect_parse!(literal_null(b"\nemptyvar") => Literal::EmptyVar);
+    }
+
+    #[test]
+    fn parse_bools() {
+        expect_parse!(literal_bool(b"   true") => Literal::Bool(true));
+        expect_parse!(literal_bool(b"false") => Literal::Bool(false));
+        expect_parse_err!(literal_bool(b"fake") => _);
+    }
+
+    #[test]
+    fn parse_ints() {
+        expect_parse!(literal_int(b"721") => Literal::Int32(721));
+        expect_parse!(literal_int(b"123u8") => Literal::UInt8(123u8));
+        expect_parse_err!(literal_int(b"alskf") => ParseError::ExpectedDigit);
+        expect_parse_cut!(literal_int(b"123456789u8") =>
+          ParseError::InvalidLiteral);
+    }
+
+    #[test]
+    fn parse_floats() {
+        expect_parse!(literal_float(b"124.5") => Literal::Float64(124.5));
+        expect_parse!(literal_float(b"1234.56f32") => Literal::Float32(1234.56f32));
+        expect_parse_err!(literal_float(b"x.12") => ParseError::ExpectedDigit);
+        /*
+        expect_parse_cut!(literal_float(b"9999999999999999999999999999.0f32") =>
+          ParseError::InvalidLiteral);
+        */
+    }
+
+    #[test]
+    fn parse_currency() {
+        expect_parse!(literal_currency(b" 12345.67currency") =>
+          Literal::Currency(123456700i64));
+        expect_parse_cut!(
+            literal_currency(b"999.9999999999999999999999999999currency") => _);
+    }
+
+    #[test]
+    fn parse_string() {
+        expect_parse!(literal_string(b"\"hello world\\nor whatever\"") =>
+          Literal::String(_));
+        expect_parse_err!(literal_string(b"\"unclosed") => _);
+        expect_parse_cut!(literal_string(b"   \"invalid \\x escape\"") => _);
+    }
 }
