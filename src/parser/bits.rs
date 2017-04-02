@@ -205,6 +205,21 @@ pub fn ascii_letters(input: &[u8]) -> ParseResult<&[u8]> {
 }
 
 #[inline]
+pub fn bytes_not(input: &[u8], not: u8) -> ParseResult<&[u8]> {
+    for (i, b) in input.iter().enumerate() {
+        if *b == not {
+            if i == 0 {
+                return err!(input, ParseError::ExpectedNotByte(not));
+            } else {
+                let (parsed, rest) = input.split_at(i);
+                return ok!(rest, parsed);
+            }
+        }
+    }
+    ok!(&input[input.len()..], input)
+}
+
+#[inline]
 pub fn bytes_in<'a>(input: &'a [u8], set: &[u8]) -> ParseResult<'a, &'a [u8]> {
     for (i, b) in input.iter().enumerate() {
         if !set.contains(b) {
