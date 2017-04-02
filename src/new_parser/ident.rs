@@ -129,12 +129,17 @@ named!(array_dynamic_bounds<ArrayBounds>, complete!(map!(
         |vec: Vec<_>| ArrayBounds::Dynamic(vec.len() + 1)
 )));
 
-named!(array_static_bounds<ArrayBounds>, complete!(map!(
-        separated_nonempty_list!(ws!(char!(',')), array_dim),
-        ArrayBounds::Static
-)));
-
 */
+
+fn array_static_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
+    let (i, bounds) = require!(delimited_at_least_one(input,
+      array_dim,
+      |i| chain!(i,
+          |i| opt(i, multispace) =>
+          |i| byte(i, b',')
+      )));
+    ok!(i, ArrayBounds::Static(bounds))
+}
 
 fn array_dim(input: &[u8]) -> ParseResult<(i32, i32)> {
     let (i, _) = opt(input, multispace)?;
@@ -185,6 +190,16 @@ mod test {
         expect_parse_err!(ident(b"  __abc_123") =>
           ParseError::ExpectedAsciiLetter);
         expect_parse_cut!(ident(b"  for") => ParseError::KeywordAsIdent);
+    }
+
+    #[test]
+    fn parse_array_bounds() {
+        expect_parse!(array_static_bounds(b"10") => _);
+        expect_parse!(array_static_bounds(b" 0:17") => _);
+        expect_parse!(array_static_bounds(b" 0:17,9") => _);
+        expect_parse!(array_static_bounds(b"10, 10, 10") => _);
+        expect_parse_cut!(array_static_bounds(b"17, 99:potato") =>
+          ParseError::ExpectedDigit);
     }
 
     #[test]

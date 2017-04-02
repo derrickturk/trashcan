@@ -226,9 +226,17 @@ pub fn keyword_immediate<'a>(input: &'a [u8], kw: &'static [u8])
 pub fn many<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Vec<R>>
   where F: Fn(&'a [u8]) -> ParseResult<R> {
     let mut results = Vec::new();
-    let i = input;
+    let mut i = input;
+    let mut res;
+
     loop {
-        let (i, res) = parser(i)?;
+        // odd, but necessary to not loop forever
+        match parser(i)? {
+            (new_i, new_res) => {
+                i = new_i;
+                res = new_res;
+            }
+        };
 
         match res {
             Ok(res) => results.push(res),
