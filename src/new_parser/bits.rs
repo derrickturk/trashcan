@@ -197,3 +197,34 @@ pub fn keyword_immediate<'a>(input: &'a [u8], kw: &'static [u8])
         err!(input, ParseError::ExpectedKeyword(kw))
     }
 }
+
+#[inline]
+pub fn many<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Vec<R>>
+  where F: Fn(&'a [u8]) -> ParseResult<R> {
+    let mut results = Vec::new();
+    let i = input;
+    loop {
+        let (i, res) = parser(i)?;
+
+        match res {
+            Ok(res) => results.push(res),
+            Err(_) => return ok!(i, results),
+        }
+
+        if i.is_empty() {
+            return ok!(i, results)
+        }
+    }
+}
+
+#[inline]
+pub fn at_least_one<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Vec<R>>
+  where F: Fn(&'a [u8]) -> ParseResult<R> {
+    let (i, res) = require!(parser(input));
+    let mut results = vec![res];
+
+    let (i, mut rest) = require!(many(i, parser));
+    results.append(&mut rest);
+
+    ok!(i, results)
+}
