@@ -7,6 +7,8 @@ pub enum ParseError {
     ExpectedChar(u8),
     ExpectedWhiteSpace,
     ExpectedDigit,
+    ExpectedAsciiLetter,
+    ExpectedInSet,
     ExpectedKeyword(&'static [u8]),
     NoAltMatch,
     LookAhead,
@@ -60,3 +62,4 @@ macro_rules! expect_parse_cut {
 mod bits;
 mod lit;
 mod op;
+mod ident;
