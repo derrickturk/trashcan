@@ -124,12 +124,17 @@ named!(array_spec<ArrayBounds>, complete!(do_parse!(
         (dims)
 )));
 
-named!(array_dynamic_bounds<ArrayBounds>, complete!(map!(
-        many0!(ws!(char!(','))),
-        |vec: Vec<_>| ArrayBounds::Dynamic(vec.len() + 1)
-)));
-
 */
+
+fn array_dynamic_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
+    let (i, commas) = require!(many(input,
+      |i| chain!(i,
+          |i| opt(i, multispace) =>
+          |i| byte(i, b',')
+      )));
+
+    ok!(i, ArrayBounds::Dynamic(commas.len() + 1))
+}
 
 fn array_static_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
     let (i, bounds) = require!(delimited_at_least_one(input,
@@ -200,6 +205,9 @@ mod test {
         expect_parse!(array_static_bounds(b"10, 10, 10") => _);
         expect_parse_cut!(array_static_bounds(b"17, 99:potato") =>
           ParseError::ExpectedDigit);
+
+        expect_parse!(array_dynamic_bounds(b"") => ArrayBounds::Dynamic(1));
+        expect_parse!(array_dynamic_bounds(b" , , ") => ArrayBounds::Dynamic(3));
     }
 
     #[test]
