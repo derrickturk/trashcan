@@ -64,6 +64,7 @@ mod bits;
 mod lit;
 mod op;
 mod ident;
+mod expr;
 mod srcloc;
 pub use self::srcloc::SrcLoc;
 

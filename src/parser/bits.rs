@@ -113,6 +113,7 @@ macro_rules! alt {
 }
 
 // for expressions (not functions)
+// TODO: I think this can go horribly wrong if an error bumps the input
 #[macro_export]
 macro_rules! opt {
     ($maybe:expr) => {
@@ -125,10 +126,12 @@ macro_rules! opt {
             r
         }
     }
+
+    // TODO: a form that lets you pass in the "fail-back-to" input?
 }
 
 #[inline]
-pub fn loc(input: &[u8]) -> ParseResult<usize> {
+pub fn pos(input: &[u8]) -> ParseResult<usize> {
     ok!(input, input.as_ptr() as usize)
 }
 
@@ -199,7 +202,7 @@ pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Option<R>>
   where F: Fn(&'a [u8]) -> ParseResult<R> {
     let res = parser(input)?;
     match res {
-        (i, Err(_)) => ok!(i, None),
+        (i, Err(_)) => ok!(input, None),
         (i, Ok(r)) => ok!(i, Some(r)),
     }
 }
