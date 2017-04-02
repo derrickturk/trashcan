@@ -35,7 +35,14 @@ macro_rules! require_or_cut {
             (i, Ok(r)) => (i, r),
             (i, Err(e)) => return cut!(i, e),
         }
-    }
+    };
+
+    ($e:expr => $err:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(_)) => return cut!(i, $err),
+        }
+    };
 
     // TODO: a form that lets you pass in the "fail-back-to" input?
 }
@@ -48,7 +55,14 @@ macro_rules! cut_if_err {
             Ok((i, Err(e))) => Err((i, e)),
             other => other,
         }
-    }
+    };
+
+    ($e:expr => $err:expr) => {
+        match $e {
+            Ok((i, Err(_))) => Err((i, $err)),
+            other => other,
+        }
+    };
 }
 
 // works on closures/functions which are Fn(&[u8]) -> ParseResult<T>
@@ -150,10 +164,13 @@ pub fn multispace(input: &[u8]) -> ParseResult<&[u8]> {
         match *b {
             b'\n' | b'\r' | b'\t' | b' ' => { },
             _ if i == 0 => return err!(input, ParseError::ExpectedWhiteSpace),
-            _ => return ok!(&input[i..], &input[..i]),
+            _ => {
+                let (parsed, rest) = input.split_at(i);
+                return ok!(rest, parsed);
+            }
         }
     }
-    ok!(&[], input)
+    ok!(&input[input.len()..], input)
 }
 
 #[inline]
@@ -163,10 +180,13 @@ pub fn digits(input: &[u8]) -> ParseResult<&[u8]> {
             b'0' | b'1' | b'2' | b'3' | b'4'
                 | b'5' | b'6' | b'7' | b'8' | b'9' => { },
             _ if i == 0 => return err!(input, ParseError::ExpectedDigit),
-            _ => return ok!(&input[i..], &input[..i]),
+            _ => {
+                let (parsed, rest) = input.split_at(i);
+                return ok!(rest, parsed);
+            }
         }
     }
-    ok!(&[], input)
+    ok!(&input[input.len()..], input)
 }
 
 #[inline]
@@ -176,11 +196,12 @@ pub fn ascii_letters(input: &[u8]) -> ParseResult<&[u8]> {
             if i == 0 {
                 return err!(input, ParseError::ExpectedAsciiLetter);
             } else {
-                return ok!(&input[i..], &input[..i]);
+                let (parsed, rest) = input.split_at(i);
+                return ok!(rest, parsed);
             }
         }
     }
-    ok!(&[], input)
+    ok!(&input[input.len()..], input)
 }
 
 #[inline]
@@ -190,11 +211,12 @@ pub fn bytes_in<'a>(input: &'a [u8], set: &[u8]) -> ParseResult<'a, &'a [u8]> {
             if i == 0 {
                 return err!(input, ParseError::ExpectedInSet);
             } else {
-                return ok!(&input[i..], &input[..i]);
+                let (parsed, rest) = input.split_at(i);
+                return ok!(rest, parsed);
             }
         }
     }
-    ok!(&[], input)
+    ok!(&input[input.len()..], input)
 }
 
 #[inline]

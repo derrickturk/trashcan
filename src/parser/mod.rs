@@ -10,6 +10,8 @@ pub enum ParseError {
     ExpectedAsciiLetter,
     ExpectedInSet,
     ExpectedKeyword(&'static [u8]),
+    ExpectedTypename,
+    ExpectedIdent,
     NoAltMatch,
     LookAhead,
     InvalidLiteral,

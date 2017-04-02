@@ -70,6 +70,7 @@ fn path_module(input: &[u8]) -> ParseResult<Ident> {
 }
 
 pub fn ident(input: &[u8]) -> ParseResult<Ident> {
+    let (i, loc) = require!(pos(input));
     let (i, _) = opt(input, multispace)?;
     let (i, first) = require!(ascii_letters(i));
     let (i, rest) = require!(opt!(bytes_in(i, IDENT_CONT_CHARS)));
