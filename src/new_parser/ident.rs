@@ -55,25 +55,19 @@ pub const KEYWORDS: [&'static str; 38] = [
     "obj",
 ];
 
-/*
-
 pub fn path(input: &[u8]) -> ParseResult<Path> {
-    let (i, _) = opt(input, multispace)?;
-    // let (i, module) = opt!(
+    let (i, module) = require!(opt(input, path_module));
+    let (i, item) = require!(ident(i));
+    ok!(i, Path(module, item))
 }
 
-named!(pub path<Path>, complete!(do_parse!(
-   module:  opt!(complete!(do_parse!(
-                module: ident >>
-                        opt!(call!(nom::multispace)) >>
-                        tag!("::") >>
-                        (module)
-            ))) >>
-      item: ident >>
-            (Path(module, item))
-)));
-
-*/
+#[inline]
+fn path_module(input: &[u8]) -> ParseResult<Ident> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, module) = require!(ident(i));
+    let (i, _) = require!(keyword(i, b"::"));
+    ok!(i, module)
+}
 
 pub fn ident(input: &[u8]) -> ParseResult<Ident> {
     let (i, _) = opt(input, multispace)?;
@@ -170,6 +164,16 @@ fn make_range(first: &[u8], end: Option<&[u8]>)
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn parse_paths() {
+        expect_parse!(path(b"  abc :: some_guy") =>
+          Path(Some(Ident(_, None)), Ident(_, None)));
+        expect_parse!(path(b"some_guy") =>
+          Path(None, Ident(_, None)));
+        expect_parse_err!(path(b"some:::wrong_thing") =>
+          ParseError::ExpectedAsciiLetter);
+    }
 
     #[test]
     fn parse_idents() {

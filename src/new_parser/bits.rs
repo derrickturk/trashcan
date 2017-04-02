@@ -23,6 +23,8 @@ macro_rules! require {
             (i, Err(e)) => return Ok((i, Err(e))),
         }
     }
+
+    // TODO: a form that lets you pass in the "fail-back-to" input?
 }
 
 // works on closures/functions which are Fn(&[u8]) -> ParseResult<T>
