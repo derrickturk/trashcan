@@ -86,10 +86,6 @@ pub fn ident(input: &[u8]) -> ParseResult<Ident> {
     }
 }
 
-fn hmmm(input: &[u8]) -> ParseResult<Vec<Ident>> {
-    delimited(input, ident, |i| byte(i, b','))
-}
-
 /*
 
 named!(pub typename<Type>, complete!(do_parse!(
@@ -138,18 +134,24 @@ named!(array_static_bounds<ArrayBounds>, complete!(map!(
         ArrayBounds::Static
 )));
 
-named!(array_dim<(i32, i32)>, map_res!(complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
- first: call!(nom::digit) >>
-        opt!(call!(nom::multispace)) >>
-   end: opt!(do_parse!(
-                char!(':') >>
-                opt!(call!(nom::multispace)) >>
-           end: call!(nom::digit) >>
-                (end)
-        )) >>
-        (first, end)
-)), |(first, end)| make_range(first, end)));
+*/
+
+fn array_dim(input: &[u8]) -> ParseResult<(i32, i32)> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, first) = require!(digits(i));
+
+    let (i, end) = require!(opt!(chain!(i,
+        |i| opt(i, multispace) =>
+        |i| byte(i, b':') =>
+        |i| opt(i, multispace) =>
+        |i| cut_if_err!(digits(i)) // we should cut! if we dont see a digit here
+    )));
+
+    match make_range(first, end) {
+        Ok(dim) => ok!(i, dim),
+        Err(_) => err!(input, ParseError::InvalidArrayDim),
+    }
+}
 
 fn make_range(first: &[u8], end: Option<&[u8]>)
   -> Result<(i32, i32), <i32 as str::FromStr>::Err> {
@@ -162,8 +164,6 @@ fn make_range(first: &[u8], end: Option<&[u8]>)
         }
     }
 }
-
-*/
 
 #[cfg(test)]
 mod test {
@@ -185,5 +185,15 @@ mod test {
         expect_parse_err!(ident(b"  __abc_123") =>
           ParseError::ExpectedAsciiLetter);
         expect_parse_cut!(ident(b"  for") => ParseError::KeywordAsIdent);
+    }
+
+    #[test]
+    fn parse_array_dim() {
+        expect_parse!(array_dim(b"123") => (0, 122));
+        expect_parse!(array_dim(b"17 : 32") => (17, 32));
+        expect_parse_err!(array_dim(b"  poatato:23") =>
+          ParseError::ExpectedDigit);
+        expect_parse_cut!(array_dim(b"  17:potato") =>
+          ParseError::ExpectedDigit);
     }
 }

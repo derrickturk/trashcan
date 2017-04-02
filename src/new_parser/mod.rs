@@ -15,6 +15,7 @@ pub enum ParseError {
     InvalidLiteral,
     InvalidEscape,
     KeywordAsIdent,
+    InvalidArrayDim,
     InvalidTrailingContent,
 }
 

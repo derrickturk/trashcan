@@ -20,11 +20,35 @@ macro_rules! require {
     ($e:expr) => {
         match $e? {
             (i, Ok(r)) => (i, r),
-            (i, Err(e)) => return Ok((i, Err(e))),
+            (i, Err(e)) => return err!(i, e),
         }
     }
 
     // TODO: a form that lets you pass in the "fail-back-to" input?
+}
+
+// like require, but cuts in case of error
+#[macro_export]
+macro_rules! require_or_cut {
+    ($e:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(e)) => return cut!(i, e),
+        }
+    }
+
+    // TODO: a form that lets you pass in the "fail-back-to" input?
+}
+
+// promote an error to a cut from a parsing-expression
+#[macro_export]
+macro_rules! cut_if_err {
+    ($e:expr) => {
+        match $e {
+            Ok((i, Err(e))) => Err((i, e)),
+            other => other,
+        }
+    }
 }
 
 // works on closures/functions which are Fn(&[u8]) -> ParseResult<T>
