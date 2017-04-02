@@ -86,33 +86,30 @@ pub fn ident(input: &[u8]) -> ParseResult<Ident> {
     }
 }
 
-/*
+pub fn typename(input: &[u8]) -> ParseResult<Type> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, base) = require!(alt!(i,
+        keyword_immediate(i, b"bool") => |_| Type::Bool
+      ; keyword_immediate(i, b"u8") => |_| Type::UInt8
+      ; keyword_immediate(i, b"i16") => |_| Type::Int16
+      ; keyword_immediate(i, b"i32") => |_| Type::Int32
+      ; keyword_immediate(i, b"isize") => |_| Type::IntPtr
+      ; keyword_immediate(i, b"f32") => |_| Type::Float32
+      ; keyword_immediate(i, b"f64") => |_| Type::Float64
+      ; keyword_immediate(i, b"str") => |_| Type::String
+      ; keyword_immediate(i, b"currency") => |_| Type::Currency
+      ; keyword_immediate(i, b"date") => |_| Type::Date
+      ; keyword_immediate(i, b"var") => |_| Type::Variant
+      ; keyword_immediate(i, b"obj") => |_| Type::Obj
+      ; path(i) => |p| Type::Deferred(p)
+    ));
 
-named!(pub typename<Type>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-  base: alt_complete!(
-            tag!("bool") => { |_| Type::Bool }
-          | tag!("u8") => { |_| Type::UInt8 }
-          | tag!("i16") => { |_| Type::Int16 }
-          | tag!("i32") => { |_| Type::Int32 }
-          | tag!("isize") => { |_| Type::IntPtr }
-          | tag!("f32") => { |_| Type::Float32 }
-          | tag!("f64") => { |_| Type::Float64 }
-          | tag!("str") => { |_| Type::String }
-          | tag!("currency") => { |_| Type::Currency }
-          | tag!("date") => { |_| Type::Date }
-          | tag!("var") => { |_| Type::Variant }
-          | tag!("obj") => { |_| Type::Obj }
-          | path => { |p| Type::Deferred(p) }
-        ) >>
-  spec: opt!(array_spec) >>
-        (match spec {
-            Some(spec) => Type::Array(Box::new(base), spec),
-            None => base
-        })
-)));
-
-*/
+    let (i, spec) = require!(opt(i, array_spec));
+    match spec {
+        None => ok!(i, base),
+        Some(spec) => ok!(i, Type::Array(Box::new(base), spec)),
+    }
+}
 
 fn array_spec(input: &[u8]) -> ParseResult<ArrayBounds> {
     let (i, _) = opt(input, multispace)?;
@@ -196,6 +193,24 @@ mod test {
         expect_parse_err!(ident(b"  __abc_123") =>
           ParseError::ExpectedAsciiLetter);
         expect_parse_cut!(ident(b"  for") => ParseError::KeywordAsIdent);
+    }
+
+    #[test]
+    fn parse_typenames() {
+        expect_parse!(typename(b"  i32") => Type::Int32);
+        expect_parse!(typename(b"some::ty") => Type::Deferred(_));
+        expect_parse!(typename(b"something") => Type::Deferred(_));
+        expect_parse!(typename(b"i32[]") =>
+          Type::Array(_, ArrayBounds::Dynamic(1)));
+        expect_parse!(typename(b"f64[1:10, 17:34]") =>
+          Type::Array(_, ArrayBounds::Static(_)));
+        expect_parse!(typename(b"something::else[,,,]") =>
+          Type::Array(_, ArrayBounds::Dynamic(_)));
+
+        expect_parse_err!(typename(b"__cant_be_ident") =>
+          ParseError::NoAltMatch);
+        expect_parse_cut!(typename(b"bad::array[bobby]") => _);
+        expect_parse_cut!(typename(b"some::for") => ParseError::KeywordAsIdent);
     }
 
     #[test]
