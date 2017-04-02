@@ -137,7 +137,7 @@ pub fn byte(input: &[u8], b: u8) -> ParseResult<u8> {
     if !input.is_empty() && input[0] == b {
         ok!(&input[1..], b)
     } else {
-        err!(input, ParseError::ExpectedChar(b))
+        err!(input, ParseError::ExpectedByte(b))
     }
 }
 

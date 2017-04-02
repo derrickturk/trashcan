@@ -4,7 +4,7 @@ use ast::*;
 
 #[derive(Copy, Clone, Debug)]
 pub enum ParseError {
-    ExpectedChar(u8),
+    ExpectedByte(u8),
     ExpectedWhiteSpace,
     ExpectedDigit,
     ExpectedAsciiLetter,

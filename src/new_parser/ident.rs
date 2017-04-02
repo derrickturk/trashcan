@@ -112,19 +112,20 @@ named!(pub typename<Type>, complete!(do_parse!(
         })
 )));
 
-named!(array_spec<ArrayBounds>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('[') >>
-  dims: alt_complete!(
-            array_static_bounds
-          | array_dynamic_bounds
-        ) >>
-        opt!(call!(nom::multispace)) >>
-        char!(']') >>
-        (dims)
-)));
-
 */
+
+fn array_spec(input: &[u8]) -> ParseResult<ArrayBounds> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'['));
+    // everything past here should cut: we know we're in an array bound
+    let (i, bounds) = require_or_cut!(alt!(i,
+        array_static_bounds(i)
+      ; array_dynamic_bounds(i)
+    ));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b']'));
+    ok!(i, bounds)
+}
 
 fn array_dynamic_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
     let (i, commas) = require!(many(input,
@@ -208,6 +209,15 @@ mod test {
 
         expect_parse!(array_dynamic_bounds(b"") => ArrayBounds::Dynamic(1));
         expect_parse!(array_dynamic_bounds(b" , , ") => ArrayBounds::Dynamic(3));
+
+        expect_parse!(array_spec(b"[10]") => ArrayBounds::Static(_));
+        expect_parse!(array_spec(b" [ 10, 17: 99 ]") => ArrayBounds::Static(_));
+        expect_parse!(array_spec(b" []") => ArrayBounds::Dynamic(1));
+        expect_parse!(array_spec(b" [ ,\t,\n,\n\n ]") =>
+          ArrayBounds::Dynamic(4));
+        expect_parse_err!(array_spec(b"bobby") =>
+          ParseError::ExpectedByte(b'['));
+        expect_parse_cut!(array_spec(b"[ big bad bobby ]") => _);
     }
 
     #[test]
