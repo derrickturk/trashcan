@@ -86,6 +86,10 @@ pub fn ident(input: &[u8]) -> ParseResult<Ident> {
     }
 }
 
+fn hmmm(input: &[u8]) -> ParseResult<Vec<Ident>> {
+    delimited(input, ident, |i| byte(i, b','))
+}
+
 /*
 
 named!(pub typename<Type>, complete!(do_parse!(

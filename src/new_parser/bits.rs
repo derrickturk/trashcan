@@ -228,3 +228,46 @@ pub fn at_least_one<'a, F, R>(input: &'a [u8], parser: F) -> ParseResult<Vec<R>>
 
     ok!(i, results)
 }
+
+#[inline]
+pub fn delimited<'a, F, R, D, _R>(input: &'a [u8], parser: F, delim_parser: D)
+  -> ParseResult<Vec<R>>
+  where F: Fn(&'a [u8]) -> ParseResult<R>,
+        D: Fn(&'a [u8]) -> ParseResult<_R> {
+    let (i, first) = require!(opt!(parser(input)));
+    let mut result = match first {
+        None => return ok!(input, Vec::new()),
+        Some(first) => vec![first],
+    };
+
+    let next_parser = |i| {
+        let (i, _) = require!(delim_parser(i));
+        let (i, res) = require!(parser(i));
+        ok!(i, res)
+    };
+
+    let (i, mut rest) = require!(many(i, next_parser));
+    result.append(&mut rest);
+
+    ok!(i, result)
+}
+
+#[inline]
+pub fn delimited_at_least_one<'a, F, R, D, _R>(input: &'a [u8], parser: F,
+  delim_parser: D) -> ParseResult<Vec<R>>
+  where F: Fn(&'a [u8]) -> ParseResult<R>,
+        D: Fn(&'a [u8]) -> ParseResult<_R> {
+    let (i, first) = require!(parser(input));
+    let mut result = vec![first];
+
+    let next_parser = |i| {
+        let (i, _) = require!(delim_parser(i));
+        let (i, res) = require!(parser(i));
+        ok!(i, res)
+    };
+
+    let (i, mut rest) = require!(many(i, next_parser));
+    result.append(&mut rest);
+
+    ok!(i, result)
+}
