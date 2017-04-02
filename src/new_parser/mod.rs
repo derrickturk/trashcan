@@ -64,3 +64,4 @@ mod bits;
 mod lit;
 mod op;
 mod ident;
+mod srcloc;
