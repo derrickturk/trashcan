@@ -298,7 +298,7 @@ fn alloc_extents(input: &[u8]) -> ParseResult<Vec<AllocExtent>> {
         |i| chain!(i,
             |i| opt(i, multispace) =>
             |i| byte(i, b','))
-    ));
+    ) => ParseError::ExpectedDimSpecifier);
     let (i, _) = require!(byte(i, b']'));
     ok!(i, extents)
 }
@@ -310,7 +310,8 @@ fn realloc_extents(input: &[u8]) -> ParseResult<(usize, AllocExtent)> {
         |i| chain!(i,
             |i| opt(i, multispace) =>
             |i| byte(i, b','))));
-    let (i, extent) = require!(dim_extent(i));
+    let (i, extent) = require!(dim_extent(i)
+      => ParseError::ExpectedDimSpecifier);
     let (i, _) = require!(byte(i, b']'));
     ok!(i, (predims.len(), extent))
 }
@@ -339,8 +340,8 @@ fn range_extent(input: &[u8]) -> ParseResult<AllocExtent> {
 
 fn along_extent(input: &[u8]) -> ParseResult<AllocExtent> {
     let (i, _) = require!(keyword(input, b"along"));
-    let (i, _) = require!(multispace(i));
-    let (i, e) = require!(expr(i));
+    let (i, _) = require_or_cut!(multispace(i));
+    let (i, e) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
     ok!(i, AllocExtent::Along(e))
 }
 
@@ -430,6 +431,24 @@ mod test {
             ..
         });
 
+        expect_parse!(stmt(b"xs <- alloc[1, 17:23,9,x:f(90)];") => Stmt {
+            data: StmtKind::Alloc(_, _),
+            ..
+        });
+
+        expect_parse!(stmt(b"xs <- realloc [1];") => Stmt {
+            data: StmtKind::ReAlloc(_, 0, _),
+            ..
+        });
+
+        expect_parse!(stmt(b"xs <- realloc [, , , x[1]:y[f.x(9)]];") => Stmt {
+            data: StmtKind::ReAlloc(_, 3, _),
+            ..
+        });
+
         expect_parse_cut!(stmt(b" print f(x[])") => ParseError::ExpectedExpr);
+
+        expect_parse_cut!(stmt(b"xs <- alloc[:::];") =>
+          ParseError::ExpectedDimSpecifier);
     }
 }
