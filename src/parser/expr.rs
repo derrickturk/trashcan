@@ -173,8 +173,8 @@ fn nonrec_unitary_expr(input: &[u8]) -> ParseResult<Expr> {
     alt!(input,
    //   fncall
         extent_expr(input)
-      ; pathexpr(input)
       ; litexpr(input)
+      ; pathexpr(input)
       ; grouped(input)
       ; vbexpr(input)
     )
@@ -284,7 +284,7 @@ fn grouped(input: &[u8]) -> ParseResult<Expr> {
     let (i, _) = require!(byte(i, b'('));
     let (i, e) = require!(expr(i));
     // TODO: should we cut on fail after here?
-    let (i, _) = opt(input, multispace)?;
+    let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b')'));
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
@@ -468,5 +468,13 @@ mod test {
             data: ExprKind::UnOpApp(_, UnOp::AddressOf),
             ..
         });
+
+        expect_parse!(expr(b"true && false") => Expr {
+            data: ExprKind::BinOpApp(_, _, BinOp::LogAnd),
+            ..
+        });
+
+        expect_parse!(expr(b"17.3 && (x - 5 / 99) ^ some::arr[3,2,1,x.f]") =>
+          Expr { data: ExprKind::BinOpApp(_, _, BinOp::LogAnd), .. });
     }
 }

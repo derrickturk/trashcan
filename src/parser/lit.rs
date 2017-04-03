@@ -109,8 +109,6 @@ fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
         digits
     )));
 
-    println!("i, frac = {:?}, {:?}", i, frac);
-
     let (i, _) = require!(keyword_immediate(i, b"currency"));
 
     let whole = unsafe { str::from_utf8_unchecked(whole) }.parse::<i64>();
