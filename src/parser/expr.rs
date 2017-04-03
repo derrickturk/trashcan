@@ -486,5 +486,25 @@ mod test {
             data: ExprKind::Name(Path(Some(Ident(_, None)), Ident(_, None))),
             ..
         });
+
+        expect_parse!(expr(b"module::array[17, some::other]") => Expr {
+            data: ExprKind::Index(_, _),
+            ..
+        });
+
+        expect_parse_cut!(expr(b"module::array[()]") =>
+          ParseError::ExpectedExpr);
+
+        expect_parse!(expr(b"module::o.f(12, x[17])") => Expr {
+            data: ExprKind::MemberInvoke(_, _, _),
+            ..
+        });
+
+        expect_parse_cut!(expr(b"module::o.17") => ParseError::ExpectedIdent);
+
+        expect_parse!(expr(b"& & & & & & x") => Expr {
+            data: ExprKind::UnOpApp(_, UnOp::AddressOf),
+            ..
+        });
     }
 }
