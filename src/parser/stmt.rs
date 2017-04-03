@@ -9,28 +9,35 @@ use super::expr::*;
 
 use ast::*;
 
-/*
+pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
+    alt!(input,
+//      decl(input)
+//    ; ret(input)
+        print(input)
+//    ; alloc(input)
+//    ; realloc(input)
+      ; dealloc(input)
+//    ; ifstmt(input)
+//    ; whileloop(input)
+//    ; forloop(input)
+//    ; foralong(input)
+//    ; assignment(input)
+      ; exprstmt(input)
+    )
+}
 
-named!(pub stmt<Stmt>, alt_complete!(
-    decl
-  | ret
-  | print
-  | alloc
-  | realloc
-  | dealloc
-  | ifstmt
-  | whileloop
-  | forloop
-  | foralong
-  | assignment
-  | terminated!(expr, terminator) => { |e: Expr| {
-        let loc = e.loc.clone();
-        Stmt {
-          data: StmtKind::ExprStmt(e),
-          loc,
-        }
-    }}
-));
+#[inline]
+pub fn exprstmt(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, e) = require!(expr(input));
+    let (i, _) = require_or_cut!(terminator(i));
+    let loc = e.loc.clone();
+    ok!(i, Stmt {
+        data: StmtKind::ExprStmt(e),
+        loc,
+    })
+}
+
+/*
 
 named!(decl<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -336,27 +343,33 @@ named!(along_extent<AllocExtent>, complete!(do_parse!(
     (AllocExtent::Along(e))
 )));
 
-named!(dealloc<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("dealloc") >>
-         e: preceded!(call!(nom::multispace), expr) >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::DeAlloc(e),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
 */
+
+fn dealloc(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"dealloc"));
+    let (i, _) = require!(multispace(i));
+    // cut on error after this point
+    let (i, e) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::DeAlloc(e),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
 fn print(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"print"));
+
+    // we can't cut if we don't see whitespace:
+    //   consider e.g. printf(1,2,3);
+    let (i, _) = require!(multispace(i));
+
     // cut on error after this point
-    let (i, _) = require_or_cut!(multispace(i));
     let (i, exprs) = require_or_cut!(delimited_at_least_one(i,
         expr,
         |i| chain!(i,
@@ -384,20 +397,24 @@ mod test {
 
     #[test]
     fn test_stmts() {
-        expect_parse!(print(b"print f(x);") => Stmt {
+        expect_parse!(stmt(b"print f(x);") => Stmt {
             data: StmtKind::Print(_),
             ..
         });
 
-        expect_parse!(print(b"\nprint f(x), x[17], \"bobby\";") => Stmt {
+        expect_parse!(stmt(b"\nprint f(x), x[17], \"bobby\";") => Stmt {
             data: StmtKind::Print(_),
             ..
         });
 
-        // n.b. stmt shouldn't cut; this would be an ExprStmt(Call(...))
-        expect_parse_cut!(print(b"printf(x)") =>
-          ParseError::ExpectedWhiteSpace);
+        expect_parse!(stmt(b"printf(x);") => Stmt {
+            data: StmtKind::ExprStmt(Expr {
+                data: ExprKind::Call(_, _, _),
+                ..
+            }),
+            ..
+        });
 
-        expect_parse_cut!(print(b" print f(x[])") => ParseError::ExpectedExpr);
+        expect_parse_cut!(stmt(b" print f(x[])") => ParseError::ExpectedExpr);
     }
 }
