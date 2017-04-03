@@ -22,7 +22,14 @@ macro_rules! require {
             (i, Ok(r)) => (i, r),
             (i, Err(e)) => return err!(i, e),
         }
-    }
+    };
+
+    ($e:expr => $err:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(_)) => return err!(i, $err),
+        }
+    };
 
     // TODO: a form that lets you pass in the "fail-back-to" input?
 }

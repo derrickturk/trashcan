@@ -171,9 +171,9 @@ fn unitary_expr(input: &[u8]) -> ParseResult<Expr> {
 #[inline]
 fn nonrec_unitary_expr(input: &[u8]) -> ParseResult<Expr> {
     alt!(input,
-   //   fncall
-        extent_expr(input)
-      ; litexpr(input)
+        litexpr(input) // because keywords can be literals
+      ; fncall(input)
+      ; extent_expr(input)
       ; pathexpr(input)
       ; grouped(input)
       ; vbexpr(input)
@@ -218,40 +218,57 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
     })
 }
 
-/*
+// a function call expression
+fn fncall(input: &[u8]) -> ParseResult<Expr> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
 
-named!(pub fncall<Expr>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-      name: call!(path) >>
-            opt!(call!(nom::multispace)) >>
-            char!('(') >>
-      args: separated_list!(ws!(char!(',')), expr) >>
-            opt!(call!(nom::multispace)) >>
-   optargs: opt!(preceded!(
-                char!(';'),
-                separated_nonempty_list!(ws!(char!(',')), optarg)
-            )) >>
-            opt!(call!(nom::multispace)) >>
-            char!(')') >>
-   end_pos: call!(super::pos) >>
-            (Expr {
-                data: ExprKind::Call(name, args, optargs.unwrap_or(Vec::new())),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
+    let (i, name) = require!(path(i));
+    let (i, _) = opt(i, multispace)?;
 
-named!(pub optarg<(Ident, Expr)>, dbg_dmp!(complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-  name: ident >>
-        opt!(call!(nom::multispace)) >>
-        char!('=') >>
-        opt!(call!(nom::multispace)) >>
-   arg: expr >>
-        (name, arg)
-))));
+    let (i, _) = require!(byte(i, b'('));
 
-*/
+    // cut on error after this point
+    let (i, args) = require_or_cut!(delimited(i,
+        expr,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b',')
+        )) => ParseError::ExpectedExpr);
+
+    let (i, _) = opt(i, multispace)?;
+
+    let (i, optargs) = require!(opt!(chain!(i,
+        |i| opt(i, multispace) =>
+        |i| byte(i, b';') =>
+        |i| cut_if_err!(delimited_at_least_one(i,
+            optarg,
+            |i| chain!(i,
+                |i| opt(i, multispace) =>
+                |i| byte(i, b',')))
+        ))));
+
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b')'));
+    let (i, end_pos) = require_or_cut!(pos(i));
+
+    ok!(i, Expr {
+        data: ExprKind::Call(name, args, optargs.unwrap_or(Vec::new())),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+// an optional function argument
+#[inline]
+fn optarg(input: &[u8]) -> ParseResult<(Ident, Expr)> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require!(byte(i, b'='));
+    let (i, _) = opt(i, multispace)?;
+    let (i, arg) = require!(expr(i) => ParseError::ExpectedExpr);
+    ok!(i, (name, arg))
+}
 
 // a path as an expression
 fn pathexpr(input: &[u8]) -> ParseResult<Expr> {
@@ -433,6 +450,31 @@ mod test {
     }
 
     #[test]
+    fn parse_fncalls() {
+        expect_parse!(fncall(b" f()") => Expr {
+            data: ExprKind::Call(Path(None, Ident(_, None)), _, _), ..});
+
+        expect_parse!(fncall(b"some :: g ( 1 , 2 , 3 )") => Expr {
+            data: ExprKind::Call(_, _, _),
+            ..
+        });
+
+        expect_parse!(fncall(b"some::g(; x = 17)") => Expr {
+            data: ExprKind::Call(_, _, _),
+            ..
+        });
+
+        expect_parse!(fncall(b"some::g(1,2,3 ; x = 17,y=9)") => Expr {
+            data: ExprKind::Call(_, _, _),
+            ..
+        });
+
+        expect_parse_cut!(fncall(b"f(<<>>)") => ParseError::ExpectedByte(b')'));
+        expect_parse_cut!(fncall(b"f(1,2,3;)") => ParseError::ExpectedIdent);
+        expect_parse_cut!(fncall(b"f(1,2,3;x=<>)") => ParseError::ExpectedExpr);
+    }
+
+    #[test]
     fn parse_exprs() {
         expect_parse!(expr(b" `some vb expression`") => Expr {
             data: ExprKind::VbExpr(_),
@@ -475,6 +517,11 @@ mod test {
         });
 
         expect_parse!(expr(b"17.3 && (x - 5 / 99) ^ some::arr[3,2,1,x.f]") =>
+          Expr { data: ExprKind::BinOpApp(_, _, BinOp::LogAnd), .. });
+
+        expect_parse!(expr(
+                b"17.3 && m::g(x - 5 / f(; x = 6), 3) \
+                  ^ some::arr[3,2,1,x.f]") =>
           Expr { data: ExprKind::BinOpApp(_, _, BinOp::LogAnd), .. });
     }
 }
