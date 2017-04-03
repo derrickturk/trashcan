@@ -31,8 +31,6 @@ enum UnitaryRecExprRest {
     // FunCall(Vec<Expr>),
 }
 
-/*
-
 // official table of intended operator precedence!
 //   shamelessly stolen from C
 // 1 : arrays[], fncalls(), (parens), weird(mbr).invokes
@@ -49,29 +47,27 @@ enum UnitaryRecExprRest {
 // 12: x ? y : z
 
 // pull a nonrecursive expr, and maybe a recursive rest
-named!(pub expr<Expr>, complete!(map!(do_parse!(
-    first: call!(logorexpr) >>
-     rest: opt!(condexpr) >>
-           (first, rest)),
-   |(first, rest): (Expr, Option<RecExprRest>)| {
-       match rest {
-           None => first,
-
-           Some(RecExprRest::CondExpr(ifexpr, elseexpr, len)) => {
-               let loc = SrcLoc::raw(first.loc.start, first.loc.len + len);
-               Expr {
-                   data: ExprKind::CondExpr {
-                             cond: Box::new(first),
-                             if_expr: Box::new(ifexpr),
-                             else_expr: Box::new(elseexpr),
-                         },
-                   loc,
-               }
-           },
-       }
-})));
-
-// non-unitary exprs, in decreasing precedence order...
+#[inline]
+pub fn expr(input: &[u8]) -> ParseResult<Expr> {
+    // let (i, first) = require!(logorexpr(input));
+    let (i, first) = require!(powexpr(input));
+    let (i, rest) = require!(opt(i, condexpr));
+    let e = match rest {
+        None => first,
+        Some(RecExprRest::CondExpr(ifexpr, elseexpr, len)) => {
+           let loc = SrcLoc::raw(first.loc.start, first.loc.len + len);
+           Expr {
+               data: ExprKind::CondExpr {
+                         cond: Box::new(first),
+                         if_expr: Box::new(ifexpr),
+                         else_expr: Box::new(elseexpr),
+                     },
+               loc,
+           }
+       },
+    };
+    ok!(i, e)
+}
 
 fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
     rest.into_iter().fold(first, |sofar, (op, e)| {
@@ -89,11 +85,19 @@ fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
     })
 }
 
-named!(powexpr<Expr>, complete!(do_parse!(
-    first: unitary_op_expr >>
-     rest: many0!(tuple!(pow_op, unitary_op_expr)) >>
-           (fold_bin_exprs(first, rest))
-)));
+// non-unitary exprs, in decreasing precedence order...
+
+pub fn powexpr(input: &[u8]) -> ParseResult<Expr> {
+    let (i, first) = require!(unitary_op_expr(input));
+    let (i, rest) = require!(many(i, |i| {
+        let (i, op) = require!(pow_op(i));
+        let (i, e) = require!(unitary_op_expr(i));
+        ok!(i, (op, e))
+    }));
+    ok!(i, fold_bin_exprs(first, rest))
+}
+
+/*
 
 named!(muldivexpr<Expr>, complete!(do_parse!(
     first: powexpr >>
@@ -143,35 +147,76 @@ named!(logorexpr<Expr>, complete!(do_parse!(
            (fold_bin_exprs(first, rest))
 )));
 
-named!(condexpr<RecExprRest>, complete!(do_parse!(
- start_pos: call!(super::pos) >>
-            opt!(call!(nom::multispace)) >>
-            char!('?') >>
-    ifexpr: call!(expr) >>
-            opt!(call!(nom::multispace)) >>
-            char!(':') >>
-            opt!(call!(nom::multispace)) >>
-  elseexpr: call!(expr) >>
-   end_pos: call!(super::pos) >>
-            (RecExprRest::CondExpr(ifexpr, elseexpr, end_pos - start_pos))
-)));
+*/
+
+// the rest (? xxx : yyy) of a conditional expr
+fn condexpr(input: &[u8]) -> ParseResult<RecExprRest> {
+    let (i, start_pos) = require!(pos(input));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require!(byte(i, b'?'));
+
+    // cut on error after ?
+    let (i, ifexpr) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b':'));
+
+    let (i, elseexpr) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, RecExprRest::CondExpr(ifexpr, elseexpr, end_pos - start_pos))
+}
 
 // "unitary" exprs, possibly preceded by unary operators
-// this alt_complete is arguably backwards
-named!(unitary_op_expr<Expr>, alt_complete!(
-    unitary_expr
-  | do_parse!(
-                opt!(call!(nom::multispace)) >>
-     start_pos: call!(super::pos) >>
-            op: un_op >>
-             e: unitary_op_expr >>
-       end_pos: call!(super::pos) >>
-                (Expr {
-                    data: ExprKind::UnOpApp(Box::new(e), op),
-                    loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-                })
+#[inline]
+fn unitary_op_expr(input: &[u8]) -> ParseResult<Expr> {
+    alt!(input,
+        unitary_expr(input)
+      ; unitary_op_expr1(input)
     )
-));
+}
+
+// "unitary" expr with exactly one unary op applied
+#[inline]
+fn unitary_op_expr1(input: &[u8]) -> ParseResult<Expr> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, op) = require!(un_op(i));
+    // TODO: maybe cut after here?
+    let (i, e) = require!(unitary_op_expr(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Expr {
+        data: ExprKind::UnOpApp(Box::new(e), op),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+// "unitary" exprs (bind to unary ops for precedence)
+// pull a nonrecursive expr, and maybe a recursive rest
+#[inline]
+fn unitary_expr(input: &[u8]) -> ParseResult<Expr> {
+    let (i, first) = require!(nonrec_unitary_expr(input));
+    let (i, rest) = require!(many(i, |i| alt!(i,
+        indexed(i)
+      ; memberinvoke(i)
+      ; member(i)
+      ; cast(i)
+    )));
+    ok!(i, fold_unitary_exprs(first, rest))
+}
+
+// a non left-recursive unitary expr
+#[inline]
+fn nonrec_unitary_expr(input: &[u8]) -> ParseResult<Expr> {
+    alt!(input,
+   //   fncall
+        extent_expr(input)
+      ; pathexpr(input)
+      ; litexpr(input)
+      ; grouped(input)
+      ; vbexpr(input)
+    )
+}
 
 fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
     rest.into_iter().fold(first, |sofar, rest| {
@@ -211,29 +256,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
     })
 }
 
-// "unitary" exprs (bind to unary ops for precedence)
-// pull a nonrecursive expr, and maybe a recursive rest
-named!(unitary_expr<Expr>, complete!(do_parse!(
-    first: call!(nonrec_unitary_expr) >>
-     rest: many0!(alt_complete!(
-               indexed
-             | memberinvoke
-             | member
-             | cast
-           )) >>
-           (fold_unitary_exprs(first, rest))
-)));
-
-// a non left-recursive unitary expr
-named!(nonrec_unitary_expr<Expr>, alt_complete!(
-    // if we ever allow indirect fncalls this will become left-recursive
-    fncall
-  | extent_expr // n.b. this MUST be above path
-  | pathexpr
-  | litexpr
-  | grouped
-  | vbexpr
-));
+/*
 
 named!(pub fncall<Expr>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -292,7 +315,6 @@ fn litexpr(input: &[u8]) -> ParseResult<Expr> {
     })
 }
 
-/* TODO: when we have expr back up
 // an expr grouped in parentheses, to force precedence
 fn grouped(input: &[u8]) -> ParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
@@ -308,9 +330,7 @@ fn grouped(input: &[u8]) -> ParseResult<Expr> {
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
-*/
 
-/* TODO: when we have expr back up
 // an extents expression e.g. first_index<0>(arr)
 fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
@@ -352,7 +372,6 @@ fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
-*/
 
 // a passthrough VB expression
 // TODO: this needs work to handle escaping ` inside vb stmts
@@ -371,7 +390,6 @@ fn vbexpr(input: &[u8]) -> ParseResult<Expr> {
 
 // various possible recursive "rests" of unitary exprs
 
-/* TODO: when we have expr back up
 fn indexed(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
@@ -388,7 +406,6 @@ fn indexed(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, UnitaryRecExprRest::Indexed(indices, end_pos - start_pos))
 }
-*/
 
 fn member(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
@@ -401,7 +418,6 @@ fn member(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     ok!(i, UnitaryRecExprRest::Member(name, end_pos - start_pos))
 }
 
-/* TODO: when we have expr back up
 fn memberinvoke(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
@@ -416,11 +432,10 @@ fn memberinvoke(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
             |i| byte(i, b',')
         )));
     let (i, _) = opt(i, multispace)?;
-    let (i, _) = require_or_cut!(byte(i, ')'));
+    let (i, _) = require_or_cut!(byte(i, b')'));
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))
 }
-*/
 
 fn cast(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
@@ -457,17 +472,17 @@ mod test {
 
     #[test]
     fn parse_exprs() {
-        expect_parse!(vbexpr(b" `some vb expression`") => Expr {
+        expect_parse!(expr(b" `some vb expression`") => Expr {
             data: ExprKind::VbExpr(_),
             ..
         });
 
-        expect_parse!(litexpr(b"1345.67") => Expr {
+        expect_parse!(expr(b"1345.67") => Expr {
             data: ExprKind::Lit(Literal::Float64(1345.67)),
             ..
         });
 
-        expect_parse!(pathexpr(b" some ::\t thing") => Expr {
+        expect_parse!(expr(b" some ::\t thing") => Expr {
             data: ExprKind::Name(Path(Some(Ident(_, None)), Ident(_, None))),
             ..
         });
