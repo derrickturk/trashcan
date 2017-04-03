@@ -266,18 +266,19 @@ named!(pub optarg<(Ident, Expr)>, dbg_dmp!(complete!(do_parse!(
         (name, arg)
 ))));
 
-named!(pathexpr<Expr>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-         p: path >>
-   end_pos: call!(super::pos) >>
-            (Expr {
-                data: ExprKind::Name(p),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
 */
+
+// a path as an expression
+fn pathexpr(input: &[u8]) -> ParseResult<Expr> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, p) = require!(path(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Expr {
+        data: ExprKind::Name(p),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
 // a literal as an expression
 fn litexpr(input: &[u8]) -> ParseResult<Expr> {
@@ -463,6 +464,11 @@ mod test {
 
         expect_parse!(litexpr(b"1345.67") => Expr {
             data: ExprKind::Lit(Literal::Float64(1345.67)),
+            ..
+        });
+
+        expect_parse!(pathexpr(b" some ::\t thing") => Expr {
+            data: ExprKind::Name(Path(Some(Ident(_, None)), Ident(_, None))),
             ..
         });
     }
