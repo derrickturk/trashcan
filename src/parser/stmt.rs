@@ -11,9 +11,9 @@ use ast::*;
 
 pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
     alt!(input,
-//      decl(input)
-//    ; ret(input)
-        print(input)
+        decl(input)
+      ; ret(input)
+      ; print(input)
       ; alloc(input)
       ; realloc(input)
       ; dealloc(input)
@@ -26,43 +26,51 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
     )
 }
 
+fn decl(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"let"));
+    let (i, _) = require!(multispace(i));
+    // cut on error from this point
+    //   downstream cuts handle required type or initializer-expr, so...
+    let (i, decls) = require_or_cut!(delimited_at_least_one(i,
+        vardeclinit,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b',')
+        )) => ParseError::ExpectedIdent);
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::VarDecl(decls),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+#[inline]
+fn vardeclinit(input: &[u8]) -> ParseResult<(Ident, Type, Option<Expr>)> {
+    let (i, decl) = require!(vardecl(input));
+    let (i, init) = require!(opt!(varinit(i)));
+    ok!(i, (decl.0, decl.1, init))
+}
+
+#[inline]
+fn vardecl(input: &[u8]) -> ParseResult<(Ident, Type)> {
+    let (i, name) = require!(ident(input));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require!(byte(i, b':'));
+    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    ok!(i, (name, ty))
+}
+
+#[inline]
+fn varinit(input: &[u8]) -> ParseResult<Expr> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'='));
+    cut_if_err!(expr(i) => ParseError::ExpectedExpr)
+}
+
 /*
-
-named!(decl<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("let") >>
-            call!(nom::multispace) >>
-     decls: separated_list!(ws!(char!(',')), vardeclinit) >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::VarDecl(decls),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-named!(vardeclinit<(Ident, Type, Option<Expr>)>, complete!(do_parse!(
-          decl: vardecl >>
-          init: opt!(varinit) >>
-                (decl.0, decl.1, init)
-)));
-
-named!(vardecl<(Ident, Type)>, complete!(do_parse!(
-  name: ident >>
-        opt!(call!(nom::multispace)) >>
-        char!(':') >>
-    ty: typename >>
-        (name, ty)
-)));
-
-named!(varinit<Expr>, complete!(do_parse!(
-    opt!(call!(nom::multispace)) >>
-    char!('=') >>
- e: expr >>
-    (e)
-)));
-
 named!(assignment<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
  start_pos: call!(super::pos) >>
@@ -76,19 +84,26 @@ named!(assignment<Stmt>, complete!(do_parse!(
                 loc: SrcLoc::raw(start_pos, end_pos - start_pos),
             })
 )));
+*/
 
-named!(ret<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("return") >>
-         e: opt!(preceded!(call!(nom::multispace), expr)) >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::Return(e),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
+fn ret(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"return"));
+    let (i, e) = require!(opt!(chain!(i,
+        |i| multispace(i) =>
+        |i| expr(i)
+    )));
+    // after this point we can cut on error
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::Return(e),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+/*
 
 named!(ifstmt<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -324,8 +339,6 @@ fn dim_extent(input: &[u8]) -> ParseResult<AllocExtent> {
     )
 }
 
-// TODO: opt! below?
-
 #[inline]
 fn range_extent(input: &[u8]) -> ParseResult<AllocExtent> {
     let (i, lb) = require!(opt(input, |i| {
@@ -445,6 +458,20 @@ mod test {
             data: StmtKind::ReAlloc(_, 3, _),
             ..
         });
+
+        expect_parse!(stmt(b" let x: i32 = 17;") => Stmt {
+            data: StmtKind::VarDecl(_), .. });
+
+        expect_parse!(stmt(b" let x: i32, y: i32[,,,] , z: some::ty;") => Stmt {
+            data: StmtKind::VarDecl(_), .. });
+
+        expect_parse_cut!(stmt(b"let x = 17;") => ParseError::ExpectedIdent);
+
+        expect_parse_cut!(stmt(b" let x: i32 = 17, y = 9;") =>
+            ParseError::ExpectedByte(b';'));
+
+        expect_parse_cut!(stmt(b" let x: i32 = 17, y: 23 = 9;") =>
+            ParseError::ExpectedTypename);
 
         expect_parse_cut!(stmt(b" print f(x[])") => ParseError::ExpectedExpr);
 
