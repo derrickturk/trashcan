@@ -69,7 +69,18 @@ pub fn cmp_op(input: &[u8]) -> ParseResult<BinOp> {
     alt!(i,
         keyword_immediate(i, b"<=") => |_| BinOp::LtEq
       ; keyword_immediate(i, b">=") => |_| BinOp::GtEq
-      ; byte(i, b'<') => |_| BinOp::Lt
+      ; match byte(i, b'<')? {
+            (i, Ok(_)) => {
+                // disambiguate from <- "operator" by lookahead
+                if let Some(&b'-') = i.first() {
+                        err!(i, ParseError::LookAhead)
+                    } else {
+                        ok!(i, BinOp::Lt)
+                    }
+            },
+
+            (_, Err(e)) => err!(i, e),
+        }
       ; byte(i, b'>') => |_| BinOp::Gt
     )
 }

@@ -19,7 +19,7 @@ pub enum ParseError {
     LookAhead,
     InvalidLiteral,
     InvalidEscape,
-    KeywordAsIdent,
+    KeywordAsIdent(&'static [u8]),
     InvalidArrayDim,
     InvalidTrailingContent,
 }

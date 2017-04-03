@@ -1,3 +1,5 @@
+use std::str;
+
 use super::{ParseError, ParseResult};
 
 #[macro_export]

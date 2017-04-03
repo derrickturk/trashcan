@@ -14,8 +14,8 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
 //      decl(input)
 //    ; ret(input)
         print(input)
-//    ; alloc(input)
-//    ; realloc(input)
+      ; alloc(input)
+      ; realloc(input)
       ; dealloc(input)
 //    ; ifstmt(input)
 //    ; whileloop(input)
@@ -24,17 +24,6 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
 //    ; assignment(input)
       ; exprstmt(input)
     )
-}
-
-#[inline]
-pub fn exprstmt(input: &[u8]) -> ParseResult<Stmt> {
-    let (i, e) = require!(expr(input));
-    let (i, _) = require_or_cut!(terminator(i));
-    let loc = e.loc.clone();
-    ok!(i, Stmt {
-        data: StmtKind::ExprStmt(e),
-        loc,
-    })
 }
 
 /*
@@ -261,89 +250,99 @@ named!(foralong<Stmt>, complete!(do_parse!(
             })
 )));
 
+*/
+
 // a note on the syntax:
 // yeah, the thing <- alloc [...] "placement" syntax sucks, but:
 //   1) it avoided an Extremely Vexing Parse (alloc arr[...]; looks
 //     like `alloc indexing-expr` not `alloc name-expr bounds`)
 //   2) I dunno maybe we'll use it for something else later?
 
-named!(alloc<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-     array: expr >>
-            opt!(call!(nom::multispace)) >>
-            tag!("<-") >>
-            opt!(call!(nom::multispace)) >>
-            tag!("alloc") >>
-   extents: alloc_extents >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::Alloc(array, extents),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
+fn alloc(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, array) = require!(expr(i));
+    let (i, _) = require!(keyword(i, b"<-"));
+    let (i, _) = require!(keyword(i, b"alloc"));
+    // after here, we should cut on error
+    let (i, extents) = require_or_cut!(alloc_extents(i));
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::Alloc(array, extents),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
-named!(realloc<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-     array: expr >>
-            opt!(call!(nom::multispace)) >>
-            tag!("<-") >>
-            opt!(call!(nom::multispace)) >>
-            tag!("realloc") >>
-   extents: realloc_extents >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::ReAlloc(array, extents.0, extents.1),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
+fn realloc(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, array) = require!(expr(i));
+    let (i, _) = require!(keyword(i, b"<-"));
+    let (i, _) = require!(keyword(i, b"realloc"));
+    // after here, we should cut on error
+    let (i, extents) = require_or_cut!(realloc_extents(i));
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::ReAlloc(array, extents.0, extents.1),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
-named!(alloc_extents<Vec<AllocExtent>>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
-            char!('[') >>
-   extents: separated_nonempty_list!(ws!(char!(',')), dim_extent) >>
-            opt!(call!(nom::multispace)) >>
-            char!(']') >>
-            (extents)
-)));
+fn alloc_extents(input: &[u8]) -> ParseResult<Vec<AllocExtent>> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'['));
+    let (i, extents) = require!(delimited_at_least_one(i,
+        dim_extent,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b','))
+    ));
+    let (i, _) = require!(byte(i, b']'));
+    ok!(i, extents)
+}
 
-named!(realloc_extents<(usize, AllocExtent)>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
-            char!('[') >>
-   predims: many0!(ws!(char!(','))) >>
-    extent: dim_extent >>
-            opt!(call!(nom::multispace)) >>
-            char!(']') >>
-            (predims.len(), extent)
-)));
+fn realloc_extents(input: &[u8]) -> ParseResult<(usize, AllocExtent)> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'['));
+    let (i, predims) = require!(many(i,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b','))));
+    let (i, extent) = require!(dim_extent(i));
+    let (i, _) = require!(byte(i, b']'));
+    ok!(i, (predims.len(), extent))
+}
 
-named!(dim_extent<AllocExtent>, alt_complete!(
-    range_extent
-  | along_extent
-));
+#[inline]
+fn dim_extent(input: &[u8]) -> ParseResult<AllocExtent> {
+    alt!(input,
+        range_extent(input)
+      ; along_extent(input)
+    )
+}
 
-named!(range_extent<AllocExtent>, complete!(do_parse!(
-    lb: opt!(complete!(terminated!(
-            expr,
-            preceded!(
-                opt!(call!(nom::multispace)),
-                char!(':'))
-        ))) >>
-    ub: expr >>
-        (AllocExtent::Range(lb, ub))
-)));
+// TODO: opt! below?
 
-named!(along_extent<AllocExtent>, complete!(do_parse!(
-    tag!("along") >>
-    call!(nom::multispace) >>
- e: expr >>
-    (AllocExtent::Along(e))
-)));
+#[inline]
+fn range_extent(input: &[u8]) -> ParseResult<AllocExtent> {
+    let (i, lb) = require!(opt(input, |i| {
+        let (i, e) = require!(expr(i));
+        let (i, _) = opt(i, multispace)?;
+        let (i, _) = require!(byte(i, b':'));
+        ok!(i, e)
+    }));
+    let (i, ub) = require!(expr(i));
+    ok!(i, AllocExtent::Range(lb, ub))
+}
 
-*/
+fn along_extent(input: &[u8]) -> ParseResult<AllocExtent> {
+    let (i, _) = require!(keyword(input, b"along"));
+    let (i, _) = require!(multispace(i));
+    let (i, e) = require!(expr(i));
+    ok!(i, AllocExtent::Along(e))
+}
 
 fn dealloc(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
@@ -385,6 +384,17 @@ fn print(input: &[u8]) -> ParseResult<Stmt> {
 }
 
 #[inline]
+pub fn exprstmt(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, e) = require!(expr(input));
+    let (i, _) = require_or_cut!(terminator(i));
+    let loc = e.loc.clone();
+    ok!(i, Stmt {
+        data: StmtKind::ExprStmt(e),
+        loc,
+    })
+}
+
+#[inline]
 fn terminator(input: &[u8]) -> ParseResult<()> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b';'));
@@ -412,6 +422,11 @@ mod test {
                 data: ExprKind::Call(_, _, _),
                 ..
             }),
+            ..
+        });
+
+        expect_parse!(stmt(b"xs<-alloc [ 10 ];") => Stmt {
+            data: StmtKind::Alloc(_, _),
             ..
         });
 

@@ -14,45 +14,45 @@ pub const IDENT_CONT_CHARS: &'static [u8] =
       0123456789\
       _";
 
-pub const KEYWORDS: [&'static str; 38] = [
-    "let",
-    "as",
-    "print",
-    "return",
-    "for",
-    "while",
-    "pub",
-    "mod",
-    "fn",
-    "class",
-    "struct",
-    "enum",
-    "new",
-    "alloc",
-    "realloc",
-    "dealloc",
-    "first_index",
-    "last_index",
-    "array_length",
-    "along",
-    "nullptr",
-    "emptyvar",
-    "nullvar",
-    "bool",
-    "true",
-    "false",
-    "u8",
-    "i16",
-    "i32",
-    "i64",
-    "isize",
-    "f32",
-    "f64",
-    "str",
-    "currency",
-    "date",
-    "var",
-    "obj",
+pub const KEYWORDS: [&'static [u8]; 38] = [
+    b"let",
+    b"as",
+    b"print",
+    b"return",
+    b"for",
+    b"while",
+    b"pub",
+    b"mod",
+    b"fn",
+    b"class",
+    b"struct",
+    b"enum",
+    b"new",
+    b"alloc",
+    b"realloc",
+    b"dealloc",
+    b"first_index",
+    b"last_index",
+    b"array_length",
+    b"along",
+    b"nullptr",
+    b"emptyvar",
+    b"nullvar",
+    b"bool",
+    b"true",
+    b"false",
+    b"u8",
+    b"i16",
+    b"i32",
+    b"i64",
+    b"isize",
+    b"f32",
+    b"f64",
+    b"str",
+    b"currency",
+    b"date",
+    b"var",
+    b"obj",
 ];
 
 pub fn path(input: &[u8]) -> ParseResult<Path> {
@@ -80,8 +80,8 @@ pub fn ident(input: &[u8]) -> ParseResult<Ident> {
         id.push_str(unsafe { str::from_utf8_unchecked(rest) })
     }
 
-    if KEYWORDS.contains(&id.as_str()) {
-        cut!(input, ParseError::KeywordAsIdent)
+    if let Some(kw) = KEYWORDS.iter().filter(|k| **k == id.as_bytes()).next() {
+        cut!(input, ParseError::KeywordAsIdent(kw))
     } else {
         ok!(i, Ident(id, None))
     }
@@ -193,7 +193,8 @@ mod test {
         expect_parse!(ident(b"abc_123") => Ident(_, None));
         expect_parse_err!(ident(b"  __abc_123") =>
           ParseError::ExpectedAsciiLetter);
-        expect_parse_cut!(ident(b"  for") => ParseError::KeywordAsIdent);
+        expect_parse_cut!(ident(b"  for") =>
+          ParseError::KeywordAsIdent(b"for"));
     }
 
     #[test]
@@ -211,7 +212,8 @@ mod test {
         expect_parse_err!(typename(b"__cant_be_ident") =>
           ParseError::NoAltMatch);
         expect_parse_cut!(typename(b"bad::array[bobby]") => _);
-        expect_parse_cut!(typename(b"some::for") => ParseError::KeywordAsIdent);
+        expect_parse_cut!(typename(b"some::for") =>
+          ParseError::KeywordAsIdent(b"for"));
     }
 
     #[test]
