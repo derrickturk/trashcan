@@ -7,6 +7,8 @@ use super::op::*;
 use super::ident::*;
 use super::expr::*;
 
+use ast::*;
+
 /*
 
 named!(pub stmt<Stmt>, alt_complete!(
@@ -347,23 +349,55 @@ named!(dealloc<Stmt>, complete!(do_parse!(
             })
 )));
 
-named!(print<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("print") >>
-            call!(nom::multispace) >>
-     exprs: separated_list!(ws!(char!(',')), expr) >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::Print(exprs),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-named!(terminator<char>, complete!(preceded!(
-    opt!(call!(nom::multispace)),
-    char!(';')
-)));
-
 */
+
+fn print(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"print"));
+    // cut on error after this point
+    let (i, _) = require_or_cut!(multispace(i));
+    let (i, exprs) = require_or_cut!(delimited_at_least_one(i,
+        expr,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b',')
+        )));
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::Print(exprs),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+#[inline]
+fn terminator(input: &[u8]) -> ParseResult<()> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b';'));
+    ok!(i, ())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_stmts() {
+        expect_parse!(print(b"print f(x);") => Stmt {
+            data: StmtKind::Print(_),
+            ..
+        });
+
+        expect_parse!(print(b"\nprint f(x), x[17], \"bobby\";") => Stmt {
+            data: StmtKind::Print(_),
+            ..
+        });
+
+        // n.b. stmt shouldn't cut; this would be an ExprStmt(Call(...))
+        expect_parse_cut!(print(b"printf(x)") =>
+          ParseError::ExpectedWhiteSpace);
+
+        expect_parse_cut!(print(b" print f(x[])") => ParseError::ExpectedExpr);
+    }
+}
