@@ -16,8 +16,8 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
       ; print(input)
       ; ifstmt(input)
       ; whileloop(input)
-//    ; forloop(input)
-//    ; foralong(input)
+      ; forloop(input)
+   // ; foralong(input)
       ; alloc(input)
       ; realloc(input)
       ; dealloc(input)
@@ -71,22 +71,6 @@ fn varinit(input: &[u8]) -> ParseResult<Expr> {
 }
 
 #[inline]
-fn assignment(input: &[u8]) -> ParseResult<Stmt> {
-    let (i, _) = opt(input, multispace)?;
-    let (i, start_pos) = require!(pos(i));
-    let (i, e1) = require!(expr(i));
-    let (i, op) = require!(assign_op(i));
-    // cut on error after here
-    let (i, e2) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
-    let (i, _) = require_or_cut!(terminator(i));
-    let (i, end_pos) = require_or_cut!(pos(i));
-    ok!(i, Stmt {
-        data: StmtKind::Assign(e1, op, e2),
-        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-    })
-}
-
-#[inline]
 fn ret(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
@@ -100,6 +84,30 @@ fn ret(input: &[u8]) -> ParseResult<Stmt> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Stmt {
         data: StmtKind::Return(e),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+fn print(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"print"));
+
+    // we can't cut if we don't see whitespace:
+    //   consider e.g. printf(1,2,3);
+    let (i, _) = require!(multispace(i));
+
+    // cut on error after this point
+    let (i, exprs) = require_or_cut!(delimited_at_least_one(i,
+        expr,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b',')
+        )));
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::Print(exprs),
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -163,7 +171,6 @@ fn whileloop(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"while"));
-    println!("saw a while");
     let (i, _) = require!(multispace(i));
     // after here we can cut on error
     let (i, cond) = require_or_cut!(expr(i));
@@ -182,69 +189,70 @@ fn whileloop(input: &[u8]) -> ParseResult<Stmt> {
     })
 }
 
+fn forloop(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"for"));
+    let (i, _) = require!(multispace(i));
+    // after this point, cut on error
+    let (i, var) = require_or_cut!(forvardecl(i));
+    let (i, spec) = require_or_cut!(alt!(i,
+        for_range(i) => |(from, to, step)| ForSpec::Range(from, to, step)
+      ; for_each(i) => ForSpec::Each
+    ) => ParseError::ExpectedForSpecifier);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::ForLoop {
+            var,
+            spec,
+            body,
+        },
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+#[inline]
+fn forvardecl(input: &[u8]) -> ParseResult<(Ident, Type, ParamMode)> {
+    let (i, name) = require!(ident(input) => ParseError::ExpectedIdent);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require!(byte(i, b':'));
+    let (i, byref) = require!(opt!(chain!(i,
+        |i| multispace(i) =>
+        |i| byte(i, b'&'))));
+    let (i, ty) = require!(typename(i) => ParseError::ExpectedTypename);
+    ok!(i,
+        (name, ty, byref.map(|_| ParamMode::ByRef).unwrap_or(ParamMode::ByVal)))
+}
+
+#[inline]
+fn for_range(input: &[u8]) -> ParseResult<(Expr, Expr, Option<Expr>)> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b'='));
+    // we can cut on error after this point
+    let (i, first) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b':'));
+    let (i, last) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, step) = require!(opt!(chain!(i,
+        |i| opt(i, multispace) =>
+        |i| byte(i, b':') =>
+        |i| cut_if_err!(expr(i) => ParseError::ExpectedExpr))));
+    ok!(i, (first, last, step))
+}
+
+#[inline]
+fn for_each(input: &[u8]) -> ParseResult<Expr> {
+    let (i, _) = require!(keyword(input, b"in"));
+    let (i, _) = require!(multispace(i));
+    cut_if_err!(expr(i) => ParseError::ExpectedExpr)
+}
+
 /*
-
-named!(forloop<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("for") >>
-            call!(nom::multispace) >>
-       var: forvardecl >>
-      spec: alt_complete!(
-                for_range => { |(from, to, step)|
-                    ForSpec::Range(from, to, step) }
-              | for_each => { ForSpec::Each }
-            ) >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-      body: many0!(stmt) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::ForLoop {
-                    var,
-                    spec,
-                    body,
-                },
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-named!(forvardecl<(Ident, Type, ParamMode)>, complete!(do_parse!(
-  name: ident >>
-        opt!(call!(nom::multispace)) >>
-        char!(':') >>
-byref:  opt!(preceded!(
-            opt!(nom::multispace),
-            char!('&'))) >>
-    ty: typename >>
-        (name, ty, byref.map(|_| ParamMode::ByRef).unwrap_or(ParamMode::ByVal))
-)));
-
-named!(for_range<(Expr, Expr, Option<Expr>)>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        char!('=') >>
- first: expr >>
-        opt!(call!(nom::multispace)) >>
-        char!(':') >>
-  last: expr >>
-  step: opt!(do_parse!(
-                opt!(call!(nom::multispace)) >>
-                char!(':') >>
-           step: expr >>
-                (step)
-        )) >>
-        (first, last, step)
-)));
-
-named!(for_each<Expr>, complete!(do_parse!(
-        call!(nom::multispace) >>
-        tag!("in") >>
-        call!(nom::multispace) >>
-     e: expr >>
-        (e)
-)));
 
 named!(foralong<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -380,26 +388,18 @@ fn dealloc(input: &[u8]) -> ParseResult<Stmt> {
     })
 }
 
-fn print(input: &[u8]) -> ParseResult<Stmt> {
+#[inline]
+fn assignment(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
-    let (i, _) = require!(keyword_immediate(i, b"print"));
-
-    // we can't cut if we don't see whitespace:
-    //   consider e.g. printf(1,2,3);
-    let (i, _) = require!(multispace(i));
-
-    // cut on error after this point
-    let (i, exprs) = require_or_cut!(delimited_at_least_one(i,
-        expr,
-        |i| chain!(i,
-            |i| opt(i, multispace) =>
-            |i| byte(i, b',')
-        )));
+    let (i, e1) = require!(expr(i));
+    let (i, op) = require!(assign_op(i));
+    // cut on error after here
+    let (i, e2) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
     let (i, _) = require_or_cut!(terminator(i));
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, Stmt {
-        data: StmtKind::Print(exprs),
+        data: StmtKind::Assign(e1, op, e2),
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -508,6 +508,30 @@ mod test {
         expect_parse!(stmt(b" while 1 { return 17; }") =>
           Stmt { data: StmtKind::WhileLoop{ .. }, .. });
 
+        expect_parse!(stmt(b" for x: i32 = 1:10 { print x; }") => Stmt {
+            data: StmtKind::ForLoop {
+                spec: ForSpec::Range(_, _, _),
+                ..
+            },
+            ..
+        });
+
+        expect_parse!(stmt(b" for x: i32 in xs { print x; }") => Stmt {
+            data: StmtKind::ForLoop {
+                spec: ForSpec::Each(_),
+                ..
+            },
+            ..
+        });
+
+        expect_parse!(stmt(b" for x: &something in xs { print x; }") => Stmt {
+            data: StmtKind::ForLoop {
+                spec: ForSpec::Each(_),
+                ..
+            },
+            ..
+        });
+
         expect_parse_cut!(stmt(b" x::y[17] += ;") => ParseError::ExpectedExpr);
 
         expect_parse_cut!(stmt(b"let x = 17;") => ParseError::ExpectedIdent);
@@ -532,5 +556,11 @@ mod test {
             } else if false || 17 { \
                 return;\
             }") => ParseError::ExpectedExpr);
+
+        expect_parse_cut!(stmt(b" for x in xs { print x; }") => 
+          ParseError::ExpectedByte(b':'));
+
+        expect_parse_cut!(stmt(b" for x: i32 = ! { print x; }") => 
+          ParseError::ExpectedExpr);
     }
 }
