@@ -17,7 +17,7 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
       ; alloc(input)
       ; realloc(input)
       ; dealloc(input)
-//    ; ifstmt(input)
+      ; ifstmt(input)
 //    ; whileloop(input)
 //    ; forloop(input)
 //    ; foralong(input)
@@ -104,58 +104,62 @@ fn ret(input: &[u8]) -> ParseResult<Stmt> {
     })
 }
 
+fn ifstmt(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"if"));
+    let (i, _) = require!(multispace(i));
+    // after here we can cut on error
+    let (i, cond) = require_or_cut!(expr(i));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    let (i, elsifs) = require_or_cut!(many(i, elsif));
+    let (i, els) = require_or_cut!(opt(i, els));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::IfStmt {
+            cond,
+            body,
+            elsifs,
+            els,
+        },
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+#[inline]
+fn elsif(input: &[u8]) -> ParseResult<(Expr, Vec<Stmt>)> {
+    let (i, _) = require!(keyword(input, b"else"));
+    // have to backtrack to input here or hit ambiguity with "els"
+    let (i, _) = require!(input, multispace(i));
+    let (i, _) = require!(input, keyword_immediate(i, b"if"));
+    // after this point we should cut on error
+    let (i, _) = require_or_cut!(input, multispace(i));
+    let (i, cond) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    ok!(i, (cond, body))
+}
+
+#[inline]
+fn els(input: &[u8]) -> ParseResult<Vec<Stmt>> {
+    let (i, _) = require!(keyword(input, b"else"));
+    let (i, _) = opt(i, multispace)?;
+    // can cut after this point
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    ok!(i, body)
+}
+
 /*
-
-named!(ifstmt<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("if") >>
-            call!(nom::multispace) >>
-      cond: expr >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-      body: many0!(stmt) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-    elsifs: many0!(elsif) >>
-       els: opt!(els) >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::IfStmt {
-                    cond,
-                    body,
-                    elsifs,
-                    els,
-                },
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-named!(elsif<(Expr, Vec<Stmt>)>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
-            tag!("else") >>
-            call!(nom::multispace) >>
-            tag!("if") >>
-            call!(nom::multispace) >>
-      cond: expr >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-      body: many0!(stmt) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-            (cond, body)
-)));
-
-named!(els<Vec<Stmt>>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        tag!("else") >>
-        opt!(call!(nom::multispace)) >>
-        char!('{') >>
-  body: many0!(stmt) >>
-        opt!(call!(nom::multispace)) >>
-        char!('}') >>
-        (body)
-)));
 
 named!(whileloop<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -469,6 +473,38 @@ mod test {
         expect_parse!(stmt(b" x::y[17] *= f(32);") => Stmt {
             data: StmtKind::Assign(_, AssignOp::MulAssign, _), .. });
 
+        expect_parse!(stmt(b"\
+            if x > y { \
+                x += 17.32 * x < 7 ? 3 : 5; \
+            }") => Stmt {
+            data: StmtKind::IfStmt { .. }, .. });
+
+        expect_parse!(stmt(b"\
+            if x > y { \
+            } else if true{ \
+                print \"wahtever\" ;
+            }") => Stmt {
+            data: StmtKind::IfStmt { .. }, .. });
+
+        expect_parse!(stmt(b"\
+            if x > y { \
+            } else { \
+            }") => Stmt {
+            data: StmtKind::IfStmt { .. }, .. });
+
+        expect_parse!(stmt(b"\
+            if x > y { \
+            } else if false || 17 {\
+                return;\
+                return;\
+                return;\
+            } else { \
+                return;\
+            }") => Stmt {
+            data: StmtKind::IfStmt { .. }, .. });
+
+        expect_parse_cut!(stmt(b" x::y[17] += ;") => ParseError::ExpectedExpr);
+
         expect_parse_cut!(stmt(b"let x = 17;") => ParseError::ExpectedIdent);
 
         expect_parse_cut!(stmt(b" let x: i32 = 17, y = 9;") =>
@@ -481,5 +517,15 @@ mod test {
 
         expect_parse_cut!(stmt(b"xs <- alloc[:::];") =>
           ParseError::ExpectedDimSpecifier);
+
+        expect_parse_cut!(stmt(b"\
+            if x > y { \
+            } else if {\
+                return;\
+                return;\
+                return;\
+            } else if false || 17 { \
+                return;\
+            }") => ParseError::ExpectedExpr);
     }
 }
