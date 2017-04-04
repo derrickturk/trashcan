@@ -91,9 +91,9 @@ macro_rules! binopexpr {
         #[inline]
         fn $fname(input: &[u8]) -> ParseResult<Expr> {
             let (i, first) = require!($basefn(input));
-            let (i, rest) = require!(many(i, |i| {
-                let (i, op) = require!($op(i));
-                let (i, e) = require!($basefn(i));
+            let (i, rest) = require!(many(i, |input| {
+                let (i, op) = require!(input, $op(input));
+                let (i, e) = require!(input, $basefn(i));
                 ok!(i, (op, e))
             }));
             ok!(i, fold_bin_exprs(first, rest))

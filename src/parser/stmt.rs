@@ -21,7 +21,7 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
 //    ; whileloop(input)
 //    ; forloop(input)
 //    ; foralong(input)
-//    ; assignment(input)
+      ; assignment(input)
       ; exprstmt(input)
     )
 }
@@ -70,22 +70,23 @@ fn varinit(input: &[u8]) -> ParseResult<Expr> {
     cut_if_err!(expr(i) => ParseError::ExpectedExpr)
 }
 
-/*
-named!(assignment<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-        e1: expr >>
-        op: assign_op >>
-        e2: expr >>
-            terminator >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::Assign(e1, op, e2),
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-*/
+#[inline]
+fn assignment(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, e1) = require!(expr(i));
+    let (i, op) = require!(assign_op(i));
+    // cut on error after here
+    let (i, e2) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::Assign(e1, op, e2),
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
+#[inline]
 fn ret(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
@@ -464,6 +465,9 @@ mod test {
 
         expect_parse!(stmt(b" let x: i32, y: i32[,,,] , z: some::ty;") => Stmt {
             data: StmtKind::VarDecl(_), .. });
+
+        expect_parse!(stmt(b" x::y[17] *= f(32);") => Stmt {
+            data: StmtKind::Assign(_, AssignOp::MulAssign, _), .. });
 
         expect_parse_cut!(stmt(b"let x = 17;") => ParseError::ExpectedIdent);
 

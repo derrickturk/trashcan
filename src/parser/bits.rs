@@ -33,7 +33,19 @@ macro_rules! require {
         }
     };
 
-    // TODO: a form that lets you pass in the "fail-back-to" input?
+    ($input:expr, $e:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(e)) => return err!($input, e),
+        }
+    };
+
+    ($input:expr, $e:expr => $err:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(_)) => return err!($input, $err),
+        }
+    };
 }
 
 // like require, but cuts in case of error
@@ -53,7 +65,19 @@ macro_rules! require_or_cut {
         }
     };
 
-    // TODO: a form that lets you pass in the "fail-back-to" input?
+    ($input:expr, $e:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(e)) => return cut!($input, e),
+        }
+    };
+
+    ($input:expr, $e:expr => $err:expr) => {
+        match $e? {
+            (i, Ok(r)) => (i, r),
+            (i, Err(_)) => return cut!($input, $err),
+        }
+    };
 }
 
 // promote an error to a cut from a parsing-expression
