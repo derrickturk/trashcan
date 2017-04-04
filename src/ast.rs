@@ -42,7 +42,8 @@ pub enum NormalItem {
     Function(FunDef),
     Struct(StructDef),
     // Enm(EnmDef),
-    // Constant(...),
+    Static(Static),
+    Const(Constant),
 }
 
 /// A function (or "sub") definition
@@ -260,6 +261,27 @@ pub struct StructDef {
 pub struct StructMem {
     pub name: Ident,
     pub ty: Type,
+    pub loc: SrcLoc,
+}
+
+/// A module static definition
+#[derive(Clone, Debug)]
+pub struct Static {
+    pub name: Ident,
+    pub access: Access,
+    pub ty: Type,
+    // i'm going to regret not requiring the initializer...
+    pub init: Option<Literal>,
+    pub loc: SrcLoc,
+}
+
+/// A module constant definition
+#[derive(Clone, Debug)]
+pub struct Constant {
+    pub name: Ident,
+    pub access: Access,
+    pub ty: Type,
+    pub value: Literal,
     pub loc: SrcLoc,
 }
 

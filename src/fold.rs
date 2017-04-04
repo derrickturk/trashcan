@@ -69,6 +69,14 @@ pub trait ASTFolder {
         noop_fold_structmem(self, m, module, st)
     }
 
+    fn fold_static(&mut self, s: Static, module: &Ident) -> Static {
+        noop_fold_static(self, s, module)
+    }
+
+    fn fold_constant(&mut self, c: Constant, module: &Ident) -> Constant {
+        noop_fold_constant(self, c, module)
+    }
+
     fn fold_stmt_list(&mut self, stmts: Vec<Stmt>, module: &Ident,
       function: &Ident) -> Vec<Stmt> {
         noop_fold_stmt_list(self, stmts, module, function)
@@ -123,7 +131,7 @@ pub trait ASTFolder {
     }
 
     fn fold_literal(&mut self, lit: Literal,
-      _module: &Ident, _function: &Ident, _loc: &SrcLoc) -> Literal {
+      _module: &Ident, _function: Option<&Ident>, _loc: &SrcLoc) -> Literal {
         lit
     }
 
@@ -177,6 +185,10 @@ pub fn noop_fold_normal_item<F: ASTFolder + ?Sized>(folder: &mut F,
             NormalItem::Function(folder.fold_fundef(def, module)),
         NormalItem::Struct(def) =>
             NormalItem::Struct(folder.fold_structdef(def, module)),
+        NormalItem::Static(def) =>
+            NormalItem::Static(folder.fold_static(def, module)),
+        NormalItem::Const(def) =>
+            NormalItem::Const(folder.fold_constant(def, module)),
     }
 }
 
@@ -263,7 +275,8 @@ pub fn noop_fold_optparam<F: ASTFolder + ?Sized>(folder: &mut F,
   (param, default) : (FunParam, Literal), module: &Ident, function: &Ident)
   -> (FunParam, Literal) {
     let param = folder.fold_funparam(param, module, function);
-    let default = folder.fold_literal(default, module, function, &param.loc);
+    let default = folder.fold_literal(default, module,
+      Some(function), &param.loc);
     (param, default)
 }
 
@@ -296,6 +309,39 @@ pub fn noop_fold_structmem<F: ASTFolder + ?Sized>(folder: &mut F,
     StructMem {
         name,
         ty,
+        loc,
+    }
+}
+
+pub fn noop_fold_static<F: ASTFolder + ?Sized>(folder: &mut F,
+  Static { name, access, ty, init, loc } : Static, module: &Ident) -> Static {
+    let name = folder.fold_ident(name,
+      NameCtxt::DefValue(module, None, &ty), &loc);
+    let ty = folder.fold_type(ty, module, &loc);
+    let init = init.map(|i| folder.fold_literal(i, module, None, &loc));
+    let loc = folder.fold_srcloc(loc);
+    Static {
+        name,
+        access,
+        ty,
+        init,
+        loc,
+    }
+}
+
+pub fn noop_fold_constant<F: ASTFolder + ?Sized>(folder: &mut F,
+  Constant { name, access, ty, value, loc } : Constant,
+  module: &Ident) -> Constant {
+    let name = folder.fold_ident(name,
+      NameCtxt::DefConstant(module, &ty), &loc);
+    let ty = folder.fold_type(ty, module, &loc);
+    let value = folder.fold_literal(value, module, None, &loc);
+    let loc = folder.fold_srcloc(loc);
+    Constant {
+        name,
+        access,
+        ty,
+        value,
         loc,
     }
 }
@@ -422,7 +468,8 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
   Expr { data, loc }: Expr, module: &Ident, function: &Ident) -> Expr {
     let data = match data {
         ExprKind::Lit(lit) =>
-            ExprKind::Lit(folder.fold_literal(lit, module, function, &loc)),
+            ExprKind::Lit(folder.fold_literal(lit, module,
+              Some(function), &loc)),
 
         ExprKind::Name(path) =>
             ExprKind::Name(folder.fold_path(path,
@@ -589,6 +636,7 @@ fn ident_ctxt_from_path<'a>(p: &'a Path, ctxt: NameCtxt<'a>)
               | NameCtxt::DefType(_)
               | NameCtxt::DefValue(_, _, _)
               | NameCtxt::DefParam(_, _, _, _)
+              | NameCtxt::DefConstant(_, _)
               | NameCtxt::DefMember(_, _, _) =>
                     panic!("dumpster fire: path as name definition"),
 

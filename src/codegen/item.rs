@@ -17,6 +17,12 @@ impl<'a> Emit<&'a Module> for NormalItem {
 
             NormalItem::Struct(ref def) =>
                 def.emit(out, symtab, (), indent),
+
+            NormalItem::Static(ref def) =>
+                def.emit(out, symtab, (), indent),
+
+            NormalItem::Const(ref def) =>
+                def.emit(out, symtab, (), indent),
         }
     }
 }
@@ -123,6 +129,34 @@ impl Emit<()> for StructMem {
       _ctxt: (), indent: u32) -> io::Result<()> {
         self.name.emit(out, symtab, (), indent)?;
         self.ty.emit(out, symtab, TypePos::Decl, 0)?;
+        out.write_all(b"\n")
+    }
+}
+
+impl<'a> Emit<()> for Static {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
+        self.access.emit(out, symtab, (), indent)?;
+        out.write_all(b" ")?;
+        self.name.emit(out, symtab, (), 0)?;
+        self.ty.emit(out, symtab, TypePos::Decl, 0)?;
+        if let Some(ref init) = self.init {
+            out.write_all(b" = ")?;
+            init.emit(out, symtab, (), 0)?;
+        }
+        out.write_all(b"\n")
+    }
+}
+
+impl<'a> Emit<()> for Constant {
+    fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
+      _ctxt: (), indent: u32) -> io::Result<()> {
+        self.access.emit(out, symtab, (), indent)?;
+        out.write_all(b" Const ")?;
+        self.name.emit(out, symtab, (), 0)?;
+        self.ty.emit(out, symtab, TypePos::Decl, 0)?;
+        out.write_all(b" = ")?;
+        self.value.emit(out, symtab, (), 0)?;
         out.write_all(b"\n")
     }
 }

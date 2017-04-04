@@ -30,6 +30,9 @@ pub enum NameCtxt<'a> {
     DefParam(&'a Ident, &'a Ident, &'a Type, ParamMode),
                                    // parameter type
 
+                // module  // type of constant
+    DefConstant(&'a Ident, &'a Type),
+
               // module  // enclosing type
     DefMember(&'a Ident, &'a Ident, &'a Type),
                                     // type of member
@@ -103,6 +106,15 @@ macro_rules! make_ast_vistor {
                 self.walk_structmem(m, module, st)
             }
 
+            fn visit_static(&mut self, s: & $($_mut)* Static, module: &Ident) {
+                self.walk_static(s, module)
+            }
+
+            fn visit_constant(&mut self, c: & $($_mut)* Constant,
+              module: &Ident) {
+                self.walk_constant(c, module)
+            }
+
             fn visit_stmt(&mut self, stmt: & $($_mut)* Stmt,
               module: &Ident, function: &Ident) {
                 self.walk_stmt(stmt, module, function)
@@ -142,7 +154,7 @@ macro_rules! make_ast_vistor {
             }
 
             fn visit_literal(&mut self, _lit: & $($_mut)* Literal,
-              _module: &Ident, _function: &Ident, _loc: &SrcLoc) {
+              _module: &Ident, _function: Option<&Ident>, _loc: &SrcLoc) {
                 // do nothing
             }
 
@@ -196,6 +208,10 @@ macro_rules! make_ast_vistor {
                         self.visit_fundef(def, module),
                     NormalItem::Struct(ref $($_mut)* def) =>
                         self.visit_structdef(def, module),
+                    NormalItem::Static(ref $($_mut)* def) =>
+                        self.visit_static(def, module),
+                    NormalItem::Const(ref $($_mut)* def) =>
+                        self.visit_constant(def, module),
                 }
             }
 
@@ -277,7 +293,7 @@ macro_rules! make_ast_vistor {
               module: &Ident, function: &Ident) {
                 let (ref $($_mut)* param, ref $($_mut)* default) = *param;
                 self.visit_funparam(param, module, function);
-                self.visit_literal(default, module, function, &param.loc);
+                self.visit_literal(default, module, Some(function), &param.loc);
             }
 
             fn walk_structdef(&mut self, def: & $($_mut)* StructDef,
@@ -311,7 +327,40 @@ macro_rules! make_ast_vistor {
                 self.visit_srcloc(loc);
             }
 
-            // TODO: maybe each pattern should have its own visit function
+            fn walk_static(&mut self, s: & $($_mut)* Static, module: &Ident) {
+                let Static {
+                    ref $($_mut)* name,
+                    access: ref $($_mut)* _access,
+                    ref $($_mut)* ty,
+                    ref $($_mut)* init,
+                    ref $($_mut)* loc,
+                } = *s;
+
+                self.visit_ident(name,
+                  NameCtxt::DefValue(module, None, ty), loc);
+                self.visit_type(ty, module, loc);
+                if let Some(ref $($_mut)* init) = *init {
+                    self.visit_literal(init, module, None, loc);
+                }
+                self.visit_srcloc(loc);
+            }
+
+            fn walk_constant(&mut self, c: & $($_mut)* Constant,
+              module: &Ident) {
+                let Constant {
+                    ref $($_mut)* name,
+                    access: ref $($_mut)* _access,
+                    ref $($_mut)* ty,
+                    ref $($_mut)* value,
+                    ref $($_mut)* loc,
+                } = *c;
+
+                self.visit_ident(name, NameCtxt::DefConstant(module, ty), loc);
+                self.visit_type(ty, module, loc);
+                self.visit_literal(value, module, None, loc);
+                self.visit_srcloc(loc);
+            }
+
             fn walk_stmt(&mut self, stmt: & $($_mut)* Stmt,
               module: &Ident, function: &Ident) {
                 let Stmt {
@@ -479,7 +528,7 @@ macro_rules! make_ast_vistor {
 
                 match *data {
                     ExprKind::Lit(ref $($_mut)* lit) =>
-                        self.visit_literal(lit, module, function, loc),
+                        self.visit_literal(lit, module, Some(function), loc),
 
                     ExprKind::Name(ref $($_mut)* path) => self.visit_path(
                         path,
@@ -677,6 +726,7 @@ macro_rules! make_ast_vistor {
                           | NameCtxt::DefType(_)
                           | NameCtxt::DefValue(_, _, _)
                           | NameCtxt::DefParam(_, _, _, _)
+                          | NameCtxt::DefConstant(_, _)
                           | NameCtxt::DefMember(_, _, _) =>
                                 panic!("dumpster fire: path as name \
                                        definition"),
