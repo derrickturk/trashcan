@@ -1380,20 +1380,23 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
         });
     }
 
-    if args.len() > fun.params.len() + fun.optparams.len() {
-        return Err(AnalysisError {
-            kind: AnalysisErrorKind::FnCallError,
-            regarding: Some(format!("{} requires {} arguments{}; \
-              {} were provided", invoke_path,
-              fun.params.len(),
-              if fun.optparams.is_empty() {
-                  String::from("")
-              } else {
-                  format!(" (+ {} optional)", fun.optparams.len())
-              },
-              args.len())),
-            loc: invoke_loc.clone(),
-        })
+    if let Some(max_optargs) =
+      fun.optparams.as_ref().map(|o| o.max_len()).unwrap_or(Some(0)) {
+        if args.len() > fun.params.len() + max_optargs {
+            return Err(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(format!("{} requires {} arguments{}; \
+                  {} were provided", invoke_path,
+                  fun.params.len(),
+                  if max_optargs != 0 {
+                      format!(" (+ {} optional)", max_optargs)
+                  } else {
+                      String::from("")
+                  },
+                  args.len())),
+                loc: invoke_loc.clone(),
+            });
+        }
     }
 
     for (i, param) in fun.params.iter().enumerate() {
@@ -1426,42 +1429,75 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
     if optargs.is_empty() {
         // any optional arguments are positional
         let optargs = &args[fun.params.len()..];
-        for (i, &(ref param, _)) in fun.optparams.iter().enumerate() {
-            // argument was provided
-            if i < optargs.len() {
-                let arg_ty = type_of(&optargs[i], symtab, ctxt)?.decay();
+        match fun.optparams {
+            Some(FunOptParams::Named(ref optparams)) => {
+                for (i, &(ref param, _)) in optparams.iter().enumerate() {
+                    // argument was provided
+                    if i < optargs.len() {
+                        let arg_ty = type_of(&optargs[i], symtab, ctxt)?
+                            .decay();
 
-                match param.mode {
-                    ParamMode::ByRef =>
-                        if param.ty != arg_ty {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(format!(
-                                  "parameter {} has type &{}; type {} \
-                                    provided",
-                                  param.name, param.ty, arg_ty)),
-                                loc: optargs[i].loc.clone(),
-                            })
-                        },
-                    ParamMode::ByVal =>
-                        if !may_coerce(&arg_ty, &param.ty) {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(format!(
-                                  "parameter {} has type {}; type {} \
-                                    provided",
-                                  param.name, param.ty, arg_ty)),
-                                loc: optargs[i].loc.clone(),
-                            })
-                        },
+                        match param.mode {
+                            ParamMode::ByRef =>
+                                if param.ty != arg_ty {
+                                    return Err(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(format!(
+                                          "parameter {} has type &{}; type {} \
+                                            provided",
+                                          param.name, param.ty, arg_ty)),
+                                        loc: optargs[i].loc.clone(),
+                                    })
+                                },
+                            ParamMode::ByVal =>
+                                if !may_coerce(&arg_ty, &param.ty) {
+                                    return Err(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(format!(
+                                          "parameter {} has type {}; type {} \
+                                            provided",
+                                          param.name, param.ty, arg_ty)),
+                                        loc: optargs[i].loc.clone(),
+                                    })
+                                },
+                        }
+                    }
                 }
-            }
+            },
+
+            Some(FunOptParams::VarArgs(_, _)) => {
+                for arg in optargs.iter() {
+                    let arg_ty = type_of(arg, symtab, ctxt)?.decay();
+                    if !may_coerce(&arg_ty, &Type::Variant) {
+                        return Err(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!(
+                                "variadic optional argument has type {}; not \
+                                  coercible to var", arg_ty)),
+                            loc: arg.loc.clone(),
+                        })
+                    }
+                }
+            },
+
+            None => { },
         }
     } else {
+        let optparams = match fun.optparams {
+            Some(FunOptParams::Named(ref optparams)) => optparams,
+            _ => return Err(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(format!("fn {} called with named optional \
+                  arguments; none specified in function definition",
+                  invoke_path)),
+                loc: optargs[0].1.loc.clone(),
+            })
+        };
+
         let mut seen = HashSet::new();
 
         for &(ref argname, ref arg) in optargs {
-            let which = fun.optparams.iter().enumerate()
+            let which = optparams.iter().enumerate()
                 .find(|&(_, &(ref param, _))| {
                     match param.name {
                         Ident(ref name, None) => *name == argname.0,
@@ -1481,7 +1517,7 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
                     }
                     seen.insert(i);
 
-                    let param = &fun.optparams[i].0;
+                    let param = &optparams[i].0;
                     let arg_ty = type_of(arg, symtab, ctxt)?.decay();
                     match param.mode {
                         ParamMode::ByRef =>

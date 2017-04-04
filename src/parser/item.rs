@@ -36,15 +36,7 @@ pub fn fundef(input: &[u8]) -> CutParseResult<FunDef> {
         )));
 
     let (i, _) = opt(i, multispace)?;
-    let (i, optparams) = require!(opt!(chain!(i,
-        |i| byte(i, b';') =>
-        |i| delimited_at_least_one(i,
-            optfnparam,
-            |i| chain!(i,
-                |i| opt(i, multispace) =>
-                |i| byte(i, b',')
-            )))));
-
+    let (i, optparams) = require_or_cut!(opt!(optparams(i)));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b')'));
     let (i, ret) = require!(opt!(i, fnret(i)));
@@ -59,7 +51,7 @@ pub fn fundef(input: &[u8]) -> CutParseResult<FunDef> {
         name,
         access,
         params,
-        optparams: optparams.unwrap_or(Vec::new()),
+        optparams,
         ret: ret.unwrap_or(Type::Void),
         body,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
@@ -119,6 +111,35 @@ fn fnparam(input: &[u8]) -> CutParseResult<FunParam> {
         },
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
+}
+
+#[inline]
+fn optparams(input: &[u8]) -> CutParseResult<FunOptParams> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b';'));
+    // cut on error below here
+    cut_if_err!(alt!(i,
+        varargs(i)
+      ; delimited_at_least_one(i,
+            optfnparam,
+            |i| chain!(i,
+                |i| opt(i, multispace) =>
+                |i| byte(i, b',')
+        )) => FunOptParams::Named
+    ) => ParseErrorKind::ExpectedOptParams)
+}
+
+#[inline]
+fn varargs(input: &[u8]) -> CutParseResult<FunOptParams> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, name) = require!(ident(i));
+    let (i, _) = require!(keyword(i, b"..."));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, FunOptParams::VarArgs(
+            name,
+            SrcLoc::raw(start_pos, end_pos - start_pos)
+    ))
 }
 
 #[inline]
@@ -199,6 +220,8 @@ mod test {
         expect_parse!(normal_item(b" struct x { y: f64, }") =>
           NormalItem::Struct(_));
         expect_parse!(normal_item(b" fn f() -> i32 { return 1; }") =>
+          NormalItem::Function(_));
+        expect_parse!(normal_item(b" fn f(;xs...) -> i32 { return 1; }") =>
           NormalItem::Function(_));
     }
 

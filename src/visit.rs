@@ -83,6 +83,11 @@ macro_rules! make_ast_vistor {
                 self.walk_funparam(param, module, function)
             }
 
+            fn visit_optparams(&mut self, params: & $($_mut)* FunOptParams,
+              module: &Ident, function: &Ident) {
+                self.walk_optparams(params, module, function)
+            }
+
             fn visit_optparam(&mut self, param: & $($_mut)* (FunParam, Literal),
               module: &Ident, function: &Ident) {
                 self.walk_optparam(param, module, function)
@@ -211,9 +216,11 @@ macro_rules! make_ast_vistor {
                     self.visit_funparam(p, module, name);
                 }
 
-                for op in optparams {
-                    self.visit_optparam(op, module, name);
-                }
+                match *optparams {
+                    None => { },
+                    Some(ref $($_mut)* optparams) =>
+                        self.visit_optparams(optparams, module, name),
+                };
 
                 self.visit_type(ret, module, loc);
 
@@ -237,6 +244,33 @@ macro_rules! make_ast_vistor {
                   NameCtxt::DefParam(module, function, ty, *mode), loc);
                 self.visit_type(ty, module, loc);
                 self.visit_srcloc(loc);
+            }
+
+            fn walk_optparams(&mut self, params: & $($_mut)* FunOptParams,
+              module: &Ident, function: &Ident) {
+                match *params {
+                    FunOptParams::VarArgs(
+                        ref $($_mut)* name,
+                        ref $($_mut)* loc
+                    ) => {
+                        self.visit_ident(name,
+                          NameCtxt::DefParam(module, function,
+                            &Type::Array(
+                                Box::new(Type::Variant),
+                                ArrayBounds::Dynamic(1)
+                            ),
+                            ParamMode::ByRef
+                          ),
+                          loc);
+                        self.visit_srcloc(loc);
+                    },
+
+                    FunOptParams::Named(ref $($_mut)* optparams) => {
+                        for p in optparams {
+                            self.visit_optparam(p, module, function);
+                        }
+                    },
+                }
             }
 
             fn walk_optparam(&mut self, param: & $($_mut)* (FunParam, Literal),

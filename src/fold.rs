@@ -40,6 +40,11 @@ pub trait ASTFolder {
         noop_fold_funparam(self, param, module, function)
     }
 
+    fn fold_optparams(&mut self, optparams: FunOptParams, module: &Ident,
+      function: &Ident) -> FunOptParams {
+        noop_fold_optparams(self, optparams, module, function)
+    }
+
     fn fold_optparam_list(&mut self, params: Vec<(FunParam, Literal)>,
       module: &Ident, function: &Ident) -> Vec<(FunParam, Literal)> {
         noop_fold_optparam_list(self, params, module, function)
@@ -182,7 +187,7 @@ pub fn noop_fold_fundef<F: ASTFolder + ?Sized>(folder: &mut F,
     let name = folder.fold_ident(name, NameCtxt::DefFunction(module), &loc);
     // TODO: hook for fold_access
     let params = folder.fold_funparam_list(params, module, &name);
-    let optparams = folder.fold_optparam_list(optparams, module, &name);
+    let optparams = optparams.map(|o| folder.fold_optparams(o, module, &name));
     let ret = folder.fold_type(ret, module, &loc);
     let body = folder.fold_stmt_list(body, module, &name);
     let loc = folder.fold_srcloc(loc);
@@ -217,6 +222,33 @@ pub fn noop_fold_funparam<F: ASTFolder + ?Sized>(folder: &mut F,
         ty,
         mode,
         loc,
+    }
+}
+
+pub fn noop_fold_optparams<F: ASTFolder + ?Sized>(folder: &mut F,
+  optparams: FunOptParams, module: &Ident, function: &Ident) -> FunOptParams {
+    match optparams {
+        FunOptParams::VarArgs(name, loc) => {
+            let loc = folder.fold_srcloc(loc);
+            FunOptParams::VarArgs(
+                folder.fold_ident(name,
+                  NameCtxt::DefParam(
+                      module,
+                      function,
+                      &Type::Array(
+                        Box::new(Type::Variant),
+                        ArrayBounds::Dynamic(1)
+                      ),
+                      ParamMode::ByRef
+                  ),
+                  &loc),
+                  loc
+            )
+        },
+
+        FunOptParams::Named(list) =>
+            FunOptParams::Named(
+                folder.fold_optparam_list(list, module, function)),
     }
 }
 

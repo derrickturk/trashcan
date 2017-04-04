@@ -51,7 +51,7 @@ pub struct FunDef {
     pub name: Ident,
     pub access: Access,
     pub params: Vec<FunParam>,
-    pub optparams: Vec<(FunParam, Literal)>,
+    pub optparams: Option<FunOptParams>,
     pub ret: Type,
     pub body: Vec<Stmt>,
     pub loc: SrcLoc,
@@ -64,6 +64,22 @@ pub struct FunParam {
     pub ty: Type,
     pub mode: ParamMode,
     pub loc: SrcLoc,
+}
+
+/// A function's optional arguments: either named or variadic
+#[derive(Clone, Debug)]
+pub enum FunOptParams {
+    VarArgs(Ident, SrcLoc),
+    Named(Vec<(FunParam, Literal)>),
+}
+
+impl FunOptParams {
+    pub fn max_len(&self) -> Option<usize> {
+        match *self {
+            FunOptParams::VarArgs(_, _) => None,
+            FunOptParams::Named(ref vec) => Some(vec.len()),
+        }
+    }
 }
 
 /// Statements

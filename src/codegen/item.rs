@@ -46,18 +46,30 @@ impl<'a> Emit<&'a Module> for FunDef {
         }
 
         // optional params
-        if !self.params.is_empty() && !self.optparams.is_empty() {
+        if !self.params.is_empty() && self.optparams.is_some() {
             out.write_all(b", ")?;
         }
 
-        for (i, &(ref p, ref default)) in self.optparams.iter().enumerate() {
-            if i != 0 {
-                out.write_all(b", ")?;
-            }
-            out.write_all(b"Optional ")?;
-            p.emit(out, symtab, (), 0)?;
-            out.write_all(b" = ")?;
-            default.emit(out, symtab, (), 0)?;
+        match self.optparams {
+            Some(FunOptParams::Named(ref optparams)) => {
+                for (i, &(ref p, ref default)) in optparams.iter().enumerate() {
+                    if i != 0 {
+                        out.write_all(b", ")?;
+                    }
+                    out.write_all(b"Optional ")?;
+                    p.emit(out, symtab, (), 0)?;
+                    out.write_all(b" = ")?;
+                    default.emit(out, symtab, (), 0)?;
+                }
+            },
+
+            Some(FunOptParams::VarArgs(ref name, _)) => {
+                out.write_all(b"ParamArray ")?;
+                name.emit(out, symtab, (), 0)?;
+                out.write_all(b"() As Variant")?;
+            },
+
+            None => { },
         }
 
         out.write_all(b")")?;
