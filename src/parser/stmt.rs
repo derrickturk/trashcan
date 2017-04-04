@@ -16,8 +16,8 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
       ; print(input)
       ; ifstmt(input)
       ; whileloop(input)
+      ; foralong(input) // must try this before forloop
       ; forloop(input)
-   // ; foralong(input)
       ; alloc(input)
       ; realloc(input)
       ; dealloc(input)
@@ -189,6 +189,39 @@ fn whileloop(input: &[u8]) -> ParseResult<Stmt> {
     })
 }
 
+// must be tried before forloop or forloop will cut on lack of type ascription
+//   in vars
+fn foralong(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"for"));
+    let (i, _) = require!(multispace(i));
+    let (i, vars) = require!(delimited_at_least_one(i,
+        ident,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b','))));
+    let (i, _) = require!(multispace(i));
+    let (i, _) = require!(keyword_immediate(i, b"along"));
+    // after this point, cut on error
+    let (i, _) = require_or_cut!(multispace(i));
+    let (i, along) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::ForAlong {
+            vars,
+            along,
+            body,
+        },
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
 fn forloop(input: &[u8]) -> ParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
@@ -252,36 +285,6 @@ fn for_each(input: &[u8]) -> ParseResult<Expr> {
     cut_if_err!(expr(i) => ParseError::ExpectedExpr)
 }
 
-/*
-
-named!(foralong<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("for") >>
-            call!(nom::multispace) >>
-      vars: separated_nonempty_list!(ws!(char!(',')), ident) >>
-            call!(nom::multispace) >>
-            tag!("along") >>
-            call!(nom::multispace) >>
-     along: expr >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-      body: many0!(stmt) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::ForAlong {
-                    vars,
-                    along,
-                    body,
-                },
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-*/
-
 // a note on the syntax:
 // yeah, the thing <- alloc [...] "placement" syntax sucks, but:
 //   1) it avoided an Extremely Vexing Parse (alloc arr[...]; looks
@@ -329,6 +332,7 @@ fn alloc_extents(input: &[u8]) -> ParseResult<Vec<AllocExtent>> {
             |i| opt(i, multispace) =>
             |i| byte(i, b','))
     ) => ParseError::ExpectedDimSpecifier);
+    let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b']'));
     ok!(i, extents)
 }
@@ -342,6 +346,7 @@ fn realloc_extents(input: &[u8]) -> ParseResult<(usize, AllocExtent)> {
             |i| byte(i, b','))));
     let (i, extent) = require!(dim_extent(i)
       => ParseError::ExpectedDimSpecifier);
+    let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b']'));
     ok!(i, (predims.len(), extent))
 }
@@ -532,6 +537,14 @@ mod test {
             ..
         });
 
+        expect_parse!(stmt(b" for x,y,z along arr { print arr[x, y, z]; }") =>
+          Stmt {
+              data: StmtKind::ForAlong {
+                  ..
+              },
+              ..
+          });
+
         expect_parse_cut!(stmt(b" x::y[17] += ;") => ParseError::ExpectedExpr);
 
         expect_parse_cut!(stmt(b"let x = 17;") => ParseError::ExpectedIdent);
@@ -561,6 +574,9 @@ mod test {
           ParseError::ExpectedByte(b':'));
 
         expect_parse_cut!(stmt(b" for x: i32 = ! { print x; }") => 
+          ParseError::ExpectedExpr);
+
+        expect_parse_cut!(stmt(b" for x, y, z along { print x; }") => 
           ParseError::ExpectedExpr);
     }
 }

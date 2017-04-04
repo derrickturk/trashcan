@@ -345,9 +345,9 @@ pub fn delimited<'a, F, R, D, _R>(input: &'a [u8], parser: F, delim_parser: D)
         Some(first) => vec![first],
     };
 
-    let next_parser = |i| {
-        let (i, _) = require!(delim_parser(i));
-        let (i, res) = require!(parser(i));
+    let next_parser = |input| {
+        let (i, _) = require!(input, delim_parser(input));
+        let (i, res) = require!(input, parser(i));
         ok!(i, res)
     };
 
@@ -365,9 +365,9 @@ pub fn delimited_at_least_one<'a, F, R, D, _R>(input: &'a [u8], parser: F,
     let (i, first) = require!(parser(input));
     let mut result = vec![first];
 
-    let next_parser = |i| {
-        let (i, _) = require!(delim_parser(i));
-        let (i, res) = require!(parser(i));
+    let next_parser = |input| {
+        let (i, _) = require!(input, delim_parser(input));
+        let (i, res) = require!(input, parser(i));
         ok!(i, res)
     };
 
