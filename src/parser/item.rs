@@ -143,15 +143,15 @@ named!(pub structmem<StructMem>, complete!(do_parse!(
             })
 )));
 
-named!(fnret<Type>, complete!(do_parse!(
-        opt!(call!(nom::multispace)) >>
-        tag!("->") >>
-    ty: typename >>
-        (ty)
-)));
-
 */
 
+#[inline]
+fn fnret(input: &[u8]) -> ParseResult<Type> {
+    let (i, _) = require!(keyword(input, b"->"));
+    cut_if_err!(typename(i) => ParseError::ExpectedTypename)
+}
+
+#[inline]
 fn access(input: &[u8]) -> ParseResult<Access> {
     let (i, _) = opt(input, multispace)?;
     let (i, access) = require!(opt(i, |i| {
@@ -170,5 +170,11 @@ mod test {
     fn parse_access() {
         expect_parse!(access(b"  pub ") => Access::Public);
         expect_parse!(access(b"   ") => Access::Private);
+    }
+
+    #[test]
+    fn parse_ret() {
+        expect_parse!(fnret(b" -> i32[,,]" ) => Type::Array(_, _));
+        expect_parse_cut!(fnret(b" -> []" ) => ParseError::ExpectedTypename);
     }
 }
