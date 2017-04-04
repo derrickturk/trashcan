@@ -72,6 +72,7 @@ mod op;
 mod ident;
 mod expr;
 mod stmt;
+mod item;
 mod srcloc;
 pub use self::srcloc::SrcLoc;
 
