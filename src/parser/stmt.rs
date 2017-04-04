@@ -25,6 +25,13 @@ pub fn stmt(input: &[u8]) -> CutParseResult<Stmt> {
     )
 }
 
+#[inline]
+pub fn terminator(input: &[u8]) -> CutParseResult<()> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, _) = require!(byte(i, b';'));
+    ok!(i, ())
+}
+
 fn decl(input: &[u8]) -> CutParseResult<Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
@@ -410,7 +417,7 @@ fn assignment(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-pub fn exprstmt(input: &[u8]) -> CutParseResult<Stmt> {
+fn exprstmt(input: &[u8]) -> CutParseResult<Stmt> {
     let (i, e) = require!(expr(input));
     let (i, _) = require_or_cut!(terminator(i));
     let loc = e.loc.clone();
@@ -418,13 +425,6 @@ pub fn exprstmt(input: &[u8]) -> CutParseResult<Stmt> {
         data: StmtKind::ExprStmt(e),
         loc,
     })
-}
-
-#[inline]
-fn terminator(input: &[u8]) -> CutParseResult<()> {
-    let (i, _) = opt(input, multispace)?;
-    let (i, _) = require!(byte(i, b';'));
-    ok!(i, ())
 }
 
 #[cfg(test)]

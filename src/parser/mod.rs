@@ -19,6 +19,7 @@ pub enum ParseErrorKind {
     ExpectedOptParams,
     ExpectedDefaultArgument,
     ExpectedItem,
+    ExpectedInitializer,
     ExpectedModule,
     NoAltMatch,
     LookAhead,

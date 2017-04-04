@@ -13,7 +13,7 @@ pub const IDENT_CONT_CHARS: &'static [u8] =
       0123456789\
       _";
 
-pub const KEYWORDS: [&'static [u8]; 38] = [
+pub const KEYWORDS: [&'static [u8]; 41] = [
     b"let",
     b"as",
     b"print",
@@ -24,9 +24,12 @@ pub const KEYWORDS: [&'static [u8]; 38] = [
     b"mod",
     b"fn",
     b"class",
+    b"new",
+    b"this",
     b"struct",
     b"enum",
-    b"new",
+    b"static",
+    b"const",
     b"alloc",
     b"realloc",
     b"dealloc",
