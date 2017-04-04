@@ -16,6 +16,7 @@ pub enum ParseError {
     ExpectedExpr,
     ExpectedDimSpecifier,
     ExpectedForSpecifier,
+    ExpectedDefaultArgument,
     NoAltMatch,
     LookAhead,
     InvalidLiteral,
