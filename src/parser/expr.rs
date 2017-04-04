@@ -2,7 +2,7 @@
 
 use std::str;
 
-use super::{ParseError, ParseResult, SrcLoc};
+use super::{ParseErrorKind, CutParseResult, SrcLoc};
 #[macro_use]
 use super::bits::*;
 use super::op::*;
@@ -48,7 +48,7 @@ enum UnitaryRecExprRest {
 
 // pull a nonrecursive expr, and maybe a recursive rest
 #[inline]
-pub fn expr(input: &[u8]) -> ParseResult<Expr> {
+pub fn expr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, first) = require!(logorexpr(input));
     let (i, rest) = require!(opt(i, condexpr));
     let e = match rest {
@@ -89,7 +89,7 @@ fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
 macro_rules! binopexpr {
     ($fname:ident = $basefn:ident | $op:ident) => {
         #[inline]
-        fn $fname(input: &[u8]) -> ParseResult<Expr> {
+        fn $fname(input: &[u8]) -> CutParseResult<Expr> {
             let (i, first) = require!($basefn(input));
             let (i, rest) = require!(many(i, |input| {
                 let (i, op) = require!(input, $op(input));
@@ -112,18 +112,19 @@ binopexpr!(logandexpr = bitorexpr | logand_op);
 binopexpr!(logorexpr = logandexpr | logor_op);
 
 // the rest (? xxx : yyy) of a conditional expr
-fn condexpr(input: &[u8]) -> ParseResult<RecExprRest> {
+fn condexpr(input: &[u8]) -> CutParseResult<RecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'?'));
 
     // cut on error after ?
-    let (i, ifexpr) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, ifexpr) = require_or_cut!(expr(i) => ParseErrorKind::ExpectedExpr);
 
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b':'));
 
-    let (i, elseexpr) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, elseexpr) = require_or_cut!(expr(i) =>
+      ParseErrorKind::ExpectedExpr);
 
     let (i, end_pos) = require!(pos(i));
     ok!(i, RecExprRest::CondExpr(ifexpr, elseexpr, end_pos - start_pos))
@@ -131,7 +132,7 @@ fn condexpr(input: &[u8]) -> ParseResult<RecExprRest> {
 
 // "unitary" exprs, possibly preceded by unary operators
 #[inline]
-fn unitary_op_expr(input: &[u8]) -> ParseResult<Expr> {
+fn unitary_op_expr(input: &[u8]) -> CutParseResult<Expr> {
     alt!(input,
         unitary_expr(input)
       ; unitary_op_expr1(input)
@@ -140,7 +141,7 @@ fn unitary_op_expr(input: &[u8]) -> ParseResult<Expr> {
 
 // "unitary" expr with exactly one unary op applied
 #[inline]
-fn unitary_op_expr1(input: &[u8]) -> ParseResult<Expr> {
+fn unitary_op_expr1(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, op) = require!(un_op(i));
@@ -156,7 +157,7 @@ fn unitary_op_expr1(input: &[u8]) -> ParseResult<Expr> {
 // "unitary" exprs (bind to unary ops for precedence)
 // pull a nonrecursive expr, and maybe a recursive rest
 #[inline]
-fn unitary_expr(input: &[u8]) -> ParseResult<Expr> {
+fn unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, first) = require!(nonrec_unitary_expr(input));
     let (i, rest) = require!(many(i, |i| alt!(i,
         indexed(i)
@@ -169,7 +170,7 @@ fn unitary_expr(input: &[u8]) -> ParseResult<Expr> {
 
 // a non left-recursive unitary expr
 #[inline]
-fn nonrec_unitary_expr(input: &[u8]) -> ParseResult<Expr> {
+fn nonrec_unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
     alt!(input,
         litexpr(input) // because keywords can be literals
       ; fncall(input)
@@ -219,7 +220,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
 }
 
 // a function call expression
-fn fncall(input: &[u8]) -> ParseResult<Expr> {
+fn fncall(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
 
@@ -234,7 +235,7 @@ fn fncall(input: &[u8]) -> ParseResult<Expr> {
         |i| chain!(i,
             |i| opt(i, multispace) =>
             |i| byte(i, b',')
-        )) => ParseError::ExpectedExpr);
+        )) => ParseErrorKind::ExpectedExpr);
 
     let (i, _) = opt(i, multispace)?;
 
@@ -260,18 +261,18 @@ fn fncall(input: &[u8]) -> ParseResult<Expr> {
 
 // an optional function argument
 #[inline]
-fn optarg(input: &[u8]) -> ParseResult<(Ident, Expr)> {
+fn optarg(input: &[u8]) -> CutParseResult<(Ident, Expr)> {
     let (i, _) = opt(input, multispace)?;
-    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'='));
     let (i, _) = opt(i, multispace)?;
-    let (i, arg) = require!(expr(i) => ParseError::ExpectedExpr);
+    let (i, arg) = require!(expr(i) => ParseErrorKind::ExpectedExpr);
     ok!(i, (name, arg))
 }
 
 // a path as an expression
-fn pathexpr(input: &[u8]) -> ParseResult<Expr> {
+fn pathexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, p) = require!(path(i));
@@ -283,7 +284,7 @@ fn pathexpr(input: &[u8]) -> ParseResult<Expr> {
 }
 
 // a literal as an expression
-fn litexpr(input: &[u8]) -> ParseResult<Expr> {
+fn litexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, lit) = require!(literal(i));
@@ -295,7 +296,7 @@ fn litexpr(input: &[u8]) -> ParseResult<Expr> {
 }
 
 // an expr grouped in parentheses, to force precedence
-fn grouped(input: &[u8]) -> ParseResult<Expr> {
+fn grouped(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(byte(i, b'('));
@@ -311,7 +312,7 @@ fn grouped(input: &[u8]) -> ParseResult<Expr> {
 }
 
 // an extents expression e.g. first_index<0>(arr)
-fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
+fn extent_expr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
 
@@ -327,11 +328,11 @@ fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
     let (i, _) = opt(i, multispace)?;
 
     let (i_after_dim, dim) = require_or_cut!(digits(i)
-      => ParseError::ExpectedDimSpecifier);
+      => ParseErrorKind::ExpectedDimSpecifier);
 
     let dim = match unsafe { str::from_utf8_unchecked(dim) }.parse::<usize>() {
         Ok(dim) => dim,
-        Err(_) => return cut!(i, ParseError::InvalidLiteral),
+        Err(_) => return cut!(i, ParseErrorKind::InvalidLiteral),
     };
 
     let (i, _) = opt(i_after_dim, multispace)?;
@@ -339,7 +340,7 @@ fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
     let (i, _) = opt(i_after_dim, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'('));
 
-    let (i, arr) = require_or_cut!(expr(i) => ParseError::ExpectedExpr);
+    let (i, arr) = require_or_cut!(expr(i) => ParseErrorKind::ExpectedExpr);
 
     let (i, _) = opt(i_after_dim, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b')'));
@@ -354,7 +355,7 @@ fn extent_expr(input: &[u8]) -> ParseResult<Expr> {
 
 // a passthrough VB expression
 // TODO: this needs work to handle escaping ` inside vb stmts
-fn vbexpr(input: &[u8]) -> ParseResult<Expr> {
+fn vbexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(byte(i, b'`'));
@@ -369,7 +370,7 @@ fn vbexpr(input: &[u8]) -> ParseResult<Expr> {
 
 // various possible recursive "rests" of unitary exprs
 
-fn indexed(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
+fn indexed(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'['));
@@ -379,25 +380,25 @@ fn indexed(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
         |i| chain!(i,
             |i| opt(i, multispace) =>
             |i| byte(i, b',')
-        )) => ParseError::ExpectedExpr);
+        )) => ParseErrorKind::ExpectedExpr);
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b']'));
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, UnitaryRecExprRest::Indexed(indices, end_pos - start_pos))
 }
 
-fn member(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
+fn member(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'.'));
     // at this point, we need to cut on error (we run after memberinvoke, so
     //   we need to cut if no ident found after dot)
-    let (i, name) = require_or_cut!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require_or_cut!(ident(i) => ParseErrorKind::ExpectedIdent);
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, UnitaryRecExprRest::Member(name, end_pos - start_pos))
 }
 
-fn memberinvoke(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
+fn memberinvoke(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'.'));
@@ -416,13 +417,15 @@ fn memberinvoke(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
     ok!(i, UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))
 }
 
-fn cast(input: &[u8]) -> ParseResult<UnitaryRecExprRest> {
+fn cast(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = require!(multispace(i));
     let (i, _) = require!(keyword_immediate(i, b"as"));
     // at this point, we need to cut on error
-    let (i, _) = require_or_cut!(multispace(i) => ParseError::ExpectedTypename);
-    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    let (i, _) = require_or_cut!(multispace(i) =>
+      ParseErrorKind::ExpectedTypename);
+    let (i, ty) = require_or_cut!(typename(i) =>
+      ParseErrorKind::ExpectedTypename);
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, UnitaryRecExprRest::Cast(ty, end_pos - start_pos))
 }
@@ -439,14 +442,14 @@ mod test {
           UnitaryRecExprRest::Cast(Type::Array(_, _), 11usize));
         expect_parse_err!(cast(b"(17)") => _);
         expect_parse_cut!(cast(b" as <<<>>>") =>
-          ParseError::ExpectedTypename);
+          ParseErrorKind::ExpectedTypename);
     }
 
     #[test]
     fn parse_members() {
         expect_parse!(member(b" . y") =>
           UnitaryRecExprRest::Member(Ident(_, None), 4));
-        expect_parse_cut!(member(b".777") => ParseError::ExpectedIdent);
+        expect_parse_cut!(member(b".777") => ParseErrorKind::ExpectedIdent);
     }
 
     #[test]
@@ -469,9 +472,12 @@ mod test {
             ..
         });
 
-        expect_parse_cut!(fncall(b"f(<<>>)") => ParseError::ExpectedByte(b')'));
-        expect_parse_cut!(fncall(b"f(1,2,3;)") => ParseError::ExpectedIdent);
-        expect_parse_cut!(fncall(b"f(1,2,3;x=<>)") => ParseError::ExpectedExpr);
+        expect_parse_cut!(fncall(b"f(<<>>)") =>
+          ParseErrorKind::ExpectedByte(b')'));
+        expect_parse_cut!(fncall(b"f(1,2,3;)") =>
+          ParseErrorKind::ExpectedIdent);
+        expect_parse_cut!(fncall(b"f(1,2,3;x=<>)") =>
+          ParseErrorKind::ExpectedExpr);
     }
 
     #[test]
@@ -497,14 +503,15 @@ mod test {
         });
 
         expect_parse_cut!(expr(b"module::array[()]") =>
-          ParseError::ExpectedExpr);
+          ParseErrorKind::ExpectedExpr);
 
         expect_parse!(expr(b"module::o.f(12, x[17])") => Expr {
             data: ExprKind::MemberInvoke(_, _, _),
             ..
         });
 
-        expect_parse_cut!(expr(b"module::o.17") => ParseError::ExpectedIdent);
+        expect_parse_cut!(expr(b"module::o.17") =>
+          ParseErrorKind::ExpectedIdent);
 
         expect_parse!(expr(b"& & & & & & x") => Expr {
             data: ExprKind::UnOpApp(_, UnOp::AddressOf),

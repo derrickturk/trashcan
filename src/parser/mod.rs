@@ -3,7 +3,7 @@
 use ast::*;
 
 #[derive(Copy, Clone, Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
     ExpectedByte(u8),
     ExpectedNotByte(u8),
     ExpectedWhiteSpace,
@@ -28,11 +28,13 @@ pub enum ParseError {
     InvalidTrailingContent,
 }
 
+// the internal parser result type, used to allow cuts back to the
+//   toplevel parser on "unrecoverable" errors
 // outer Result: Err is unrecoverable (stop parsing and return to toplevel)
 // inner Result: Err is recoverable
-pub type ParseResult<'a, R> = Result<
-    (&'a [u8], Result<R, ParseError>),
-    (&'a [u8], ParseError)
+type CutParseResult<'a, R> = Result<
+    (&'a [u8], Result<R, ParseErrorKind>),
+    (&'a [u8], ParseErrorKind)
 >;
 
 macro_rules! expect_parse {
@@ -80,7 +82,23 @@ mod module;
 mod srcloc;
 pub use self::srcloc::SrcLoc;
 
-pub fn parse_dumpster(file: &str, src: &[u8]) -> Result<Dumpster, ParseError> {
+// the public error/result types for parsing
+
+#[derive(Clone, Debug)]
+pub struct ParseError {
+    kind: ParseErrorKind,
+    loc: SrcLoc,
+}
+
+pub type ParseResult<T> = Result<T, ParseError>;
+
+pub fn parse_dumpster(file: &str, src: &[u8]) -> ParseResult<Dumpster> {
     let map = srcloc::map_source(file, src);
+    /*
+    let flatten_result = match module::dumpster(&map.src) => {
+        Ok(i, Ok(d)) => Ok(d),
+        Ok(i, Err(e)) => Ok(d),
+    }
+    */
     unimplemented!()
 }

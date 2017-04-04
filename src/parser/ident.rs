@@ -2,7 +2,7 @@
 
 use std::str;
 
-use super::{ParseError, ParseResult};
+use super::{ParseErrorKind, CutParseResult};
 #[macro_use]
 use super::bits::*;
 
@@ -55,21 +55,21 @@ pub const KEYWORDS: [&'static [u8]; 38] = [
     b"obj",
 ];
 
-pub fn path(input: &[u8]) -> ParseResult<Path> {
+pub fn path(input: &[u8]) -> CutParseResult<Path> {
     let (i, module) = require!(opt(input, path_module));
     let (i, item) = require!(ident(i));
     ok!(i, Path(module, item))
 }
 
 #[inline]
-fn path_module(input: &[u8]) -> ParseResult<Ident> {
+fn path_module(input: &[u8]) -> CutParseResult<Ident> {
     let (i, _) = opt(input, multispace)?;
     let (i, module) = require!(ident(i));
     let (i, _) = require!(keyword(i, b"::"));
     ok!(i, module)
 }
 
-pub fn ident(input: &[u8]) -> ParseResult<Ident> {
+pub fn ident(input: &[u8]) -> CutParseResult<Ident> {
     let (i, loc) = require!(pos(input));
     let (i, _) = opt(input, multispace)?;
     let (i, first) = require!(ascii_letters(i));
@@ -81,13 +81,13 @@ pub fn ident(input: &[u8]) -> ParseResult<Ident> {
     }
 
     if let Some(kw) = KEYWORDS.iter().filter(|k| **k == id.as_bytes()).next() {
-        cut!(input, ParseError::KeywordAsIdent(kw))
+        cut!(input, ParseErrorKind::KeywordAsIdent(kw))
     } else {
         ok!(i, Ident(id, None))
     }
 }
 
-pub fn typename(input: &[u8]) -> ParseResult<Type> {
+pub fn typename(input: &[u8]) -> CutParseResult<Type> {
     let (i, _) = opt(input, multispace)?;
     let (i, base) = require!(alt!(i,
         keyword_immediate(i, b"bool") => |_| Type::Bool
@@ -112,7 +112,7 @@ pub fn typename(input: &[u8]) -> ParseResult<Type> {
     }
 }
 
-fn array_spec(input: &[u8]) -> ParseResult<ArrayBounds> {
+fn array_spec(input: &[u8]) -> CutParseResult<ArrayBounds> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'['));
     // everything past here should cut: we know we're in an array bound
@@ -125,7 +125,7 @@ fn array_spec(input: &[u8]) -> ParseResult<ArrayBounds> {
     ok!(i, bounds)
 }
 
-fn array_dynamic_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
+fn array_dynamic_bounds(input: &[u8]) -> CutParseResult<ArrayBounds> {
     let (i, commas) = require!(many(input,
       |i| chain!(i,
           |i| opt(i, multispace) =>
@@ -135,7 +135,7 @@ fn array_dynamic_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
     ok!(i, ArrayBounds::Dynamic(commas.len() + 1))
 }
 
-fn array_static_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
+fn array_static_bounds(input: &[u8]) -> CutParseResult<ArrayBounds> {
     let (i, bounds) = require!(delimited_at_least_one(input,
       array_dim,
       |i| chain!(i,
@@ -145,7 +145,7 @@ fn array_static_bounds(input: &[u8]) -> ParseResult<ArrayBounds> {
     ok!(i, ArrayBounds::Static(bounds))
 }
 
-fn array_dim(input: &[u8]) -> ParseResult<(i32, i32)> {
+fn array_dim(input: &[u8]) -> CutParseResult<(i32, i32)> {
     let (i, _) = opt(input, multispace)?;
     let (i, first) = require!(digits(i));
 
@@ -158,7 +158,7 @@ fn array_dim(input: &[u8]) -> ParseResult<(i32, i32)> {
 
     match make_range(first, end) {
         Ok(dim) => ok!(i, dim),
-        Err(_) => err!(input, ParseError::InvalidArrayDim),
+        Err(_) => err!(input, ParseErrorKind::InvalidArrayDim),
     }
 }
 
@@ -185,16 +185,16 @@ mod test {
         expect_parse!(path(b"some_guy") =>
           Path(None, Ident(_, None)));
         expect_parse_err!(path(b"some:::wrong_thing") =>
-          ParseError::ExpectedAsciiLetter);
+          ParseErrorKind::ExpectedAsciiLetter);
     }
 
     #[test]
     fn parse_idents() {
         expect_parse!(ident(b"abc_123") => Ident(_, None));
         expect_parse_err!(ident(b"  __abc_123") =>
-          ParseError::ExpectedAsciiLetter);
+          ParseErrorKind::ExpectedAsciiLetter);
         expect_parse_cut!(ident(b"  for") =>
-          ParseError::KeywordAsIdent(b"for"));
+          ParseErrorKind::KeywordAsIdent(b"for"));
     }
 
     #[test]
@@ -210,10 +210,10 @@ mod test {
           Type::Array(_, ArrayBounds::Dynamic(_)));
 
         expect_parse_err!(typename(b"__cant_be_ident") =>
-          ParseError::NoAltMatch);
+          ParseErrorKind::NoAltMatch);
         expect_parse_cut!(typename(b"bad::array[bobby]") => _);
         expect_parse_cut!(typename(b"some::for") =>
-          ParseError::KeywordAsIdent(b"for"));
+          ParseErrorKind::KeywordAsIdent(b"for"));
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod test {
         expect_parse!(array_static_bounds(b" 0:17,9") => _);
         expect_parse!(array_static_bounds(b"10, 10, 10") => _);
         expect_parse_cut!(array_static_bounds(b"17, 99:potato") =>
-          ParseError::ExpectedDigit);
+          ParseErrorKind::ExpectedDigit);
 
         expect_parse!(array_dynamic_bounds(b"") => ArrayBounds::Dynamic(1));
         expect_parse!(array_dynamic_bounds(b" , , ") => ArrayBounds::Dynamic(3));
@@ -234,7 +234,7 @@ mod test {
         expect_parse!(array_spec(b" [ ,\t,\n,\n\n ]") =>
           ArrayBounds::Dynamic(4));
         expect_parse_err!(array_spec(b"bobby") =>
-          ParseError::ExpectedByte(b'['));
+          ParseErrorKind::ExpectedByte(b'['));
         expect_parse_cut!(array_spec(b"[ big bad bobby ]") => _);
     }
 
@@ -243,8 +243,8 @@ mod test {
         expect_parse!(array_dim(b"123") => (0, 122));
         expect_parse!(array_dim(b"17 : 32") => (17, 32));
         expect_parse_err!(array_dim(b"  poatato:23") =>
-          ParseError::ExpectedDigit);
+          ParseErrorKind::ExpectedDigit);
         expect_parse_cut!(array_dim(b"  17:potato") =>
-          ParseError::ExpectedDigit);
+          ParseErrorKind::ExpectedDigit);
     }
 }

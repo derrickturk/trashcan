@@ -2,13 +2,13 @@
 
 use std::str;
 
-use super::{ParseError, ParseResult};
+use super::{ParseErrorKind, CutParseResult};
 #[macro_use]
 use super::bits::*;
 
 use ast::*;
 
-pub fn literal(input: &[u8]) -> ParseResult<Literal> {
+pub fn literal(input: &[u8]) -> CutParseResult<Literal> {
     alt!(input,
         literal_null(input)
       ; literal_bool(input)
@@ -21,7 +21,7 @@ pub fn literal(input: &[u8]) -> ParseResult<Literal> {
     )
 }
 
-fn literal_null(input: &[u8]) -> ParseResult<Literal> {
+fn literal_null(input: &[u8]) -> CutParseResult<Literal> {
     alt!(input,
         keyword(input, b"nullptr") => |_| Literal::NullPtr
       ; keyword(input, b"nullvar") => |_| Literal::NullVar
@@ -29,14 +29,14 @@ fn literal_null(input: &[u8]) -> ParseResult<Literal> {
     )
 }
 
-fn literal_bool(input: &[u8]) -> ParseResult<Literal> {
+fn literal_bool(input: &[u8]) -> CutParseResult<Literal> {
     alt!(input,
         keyword(input, b"true") => |_| Literal::Bool(true)
       ; keyword(input, b"false") => |_| Literal::Bool(false)
     )
 }
 
-fn literal_int(input: &[u8]) -> ParseResult<Literal> {
+fn literal_int(input: &[u8]) -> CutParseResult<Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, num) = require!(digits(i));
     let (i, tag) = require!(opt!(alt!(i,
@@ -60,11 +60,11 @@ fn literal_int(input: &[u8]) -> ParseResult<Literal> {
         Ok(lit) => ok!(i, lit),
         // if we have numbers and a tag but fail the numeric parse,
         //   that's an unrecoverable error
-        Err(_) => cut!(input, ParseError::InvalidLiteral),
+        Err(_) => cut!(input, ParseErrorKind::InvalidLiteral),
     }
 }
 
-fn literal_float(input: &[u8]) -> ParseResult<Literal> {
+fn literal_float(input: &[u8]) -> CutParseResult<Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, whole) = require!(digits(i));
     // mandatory decimal point
@@ -95,11 +95,11 @@ fn literal_float(input: &[u8]) -> ParseResult<Literal> {
         Ok(lit) => ok!(i, lit),
         // if we have numbers and a tag but fail the numeric parse,
         //   that's an unrecoverable error
-        Err(_) => cut!(input, ParseError::InvalidLiteral),
+        Err(_) => cut!(input, ParseErrorKind::InvalidLiteral),
     }
 }
 
-fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
+fn literal_currency(input: &[u8]) -> CutParseResult<Literal> {
     let (i, _) = opt(input, multispace)?;
 
     let (i, whole) = require!(digits(i));
@@ -120,15 +120,15 @@ fn literal_currency(input: &[u8]) -> ParseResult<Literal> {
     };
 
     let (whole, frac) = match (whole, frac) {
-        (Err(_), _) => return cut!(input, ParseError::InvalidLiteral),
-        (_, Err(_)) => return cut!(input, ParseError::InvalidLiteral),
+        (Err(_), _) => return cut!(input, ParseErrorKind::InvalidLiteral),
+        (_, Err(_)) => return cut!(input, ParseErrorKind::InvalidLiteral),
         (Ok(whole), Ok(frac)) => (whole, frac),
     };
 
     ok!(i, make_currency(whole, frac))
 }
 
-fn literal_string(input: &[u8]) -> ParseResult<Literal> {
+fn literal_string(input: &[u8]) -> CutParseResult<Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'"'));
     let (i, escaped) = require!(escaped_string(i));
@@ -136,7 +136,7 @@ fn literal_string(input: &[u8]) -> ParseResult<Literal> {
 
     match String::from_utf8(escaped) {
         Ok(s) => ok!(i, Literal::String(s)),
-        Err(_) => cut!(input, ParseError::InvalidLiteral)
+        Err(_) => cut!(input, ParseErrorKind::InvalidLiteral)
     }
 }
 
@@ -147,7 +147,7 @@ fn make_currency(whole: i64, frac: i16) -> Literal {
     Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
 }
 
-fn escaped_string(input: &[u8]) -> ParseResult<Vec<u8>> {
+fn escaped_string(input: &[u8]) -> CutParseResult<Vec<u8>> {
     let mut s = Vec::new();
     let mut bytes_consumed = 0;
     let mut bytes = input.iter();
@@ -163,7 +163,7 @@ fn escaped_string(input: &[u8]) -> ParseResult<Vec<u8>> {
                 Some(&b'"') => s.push(b'"'),
                 // TODO: more escapes here
                 _ => return cut!(&input[bytes_consumed..],
-                  ParseError::InvalidEscape)
+                  ParseErrorKind::InvalidEscape)
             }
             bytes_consumed += 2;
             continue;
@@ -193,9 +193,9 @@ mod test {
         expect_parse!(literal(b"\t123.45currency") =>
           Literal::Currency(1234500i64));
         expect_parse!(literal(b"\"hello\tworld\"") => Literal::String(_));
-        expect_parse_err!(literal(b"alskf") => ParseError::NoAltMatch);
+        expect_parse_err!(literal(b"alskf") => ParseErrorKind::NoAltMatch);
         expect_parse_cut!(literal(b"  123456789u8") =>
-          ParseError::InvalidLiteral);
+          ParseErrorKind::InvalidLiteral);
     }
 
     #[test]
@@ -216,19 +216,20 @@ mod test {
     fn parse_ints() {
         expect_parse!(literal_int(b"721") => Literal::Int32(721));
         expect_parse!(literal_int(b"123u8") => Literal::UInt8(123u8));
-        expect_parse_err!(literal_int(b"alskf") => ParseError::ExpectedDigit);
+        expect_parse_err!(literal_int(b"alskf") =>
+          ParseErrorKind::ExpectedDigit);
         expect_parse_cut!(literal_int(b"123456789u8") =>
-          ParseError::InvalidLiteral);
+          ParseErrorKind::InvalidLiteral);
     }
 
     #[test]
     fn parse_floats() {
         expect_parse!(literal_float(b"124.5") => Literal::Float64(124.5));
         expect_parse!(literal_float(b"1234.56f32") => Literal::Float32(1234.56f32));
-        expect_parse_err!(literal_float(b"x.12") => ParseError::ExpectedDigit);
+        expect_parse_err!(literal_float(b"x.12") => ParseErrorKind::ExpectedDigit);
         /*
         expect_parse_cut!(literal_float(b"9999999999999999999999999999.0f32") =>
-          ParseError::InvalidLiteral);
+          ParseErrorKind::InvalidLiteral);
         */
     }
 

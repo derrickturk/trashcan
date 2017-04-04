@@ -1,5 +1,7 @@
 //! trashcan's types for tracking source locations
 
+use super::{ParseErrorKind, CutParseResult, ParseError, ParseResult};
+
 use ast::Dumpster;
 use fold::ASTFolder;
 
@@ -61,6 +63,31 @@ impl MappedSource {
             .fold((0, 0), |(line, _), line_begin| {
                 (line + 1, pos - line_begin + 1)
             })
+    }
+
+    fn translate_result<R>(&self, res: CutParseResult<R>) -> ParseResult<R> {
+        let (i, res) = match res {
+            Ok((i, res)) => (i, res),
+            Err((i, e)) => (i, Err(e)),
+        };
+
+        match res {
+            Ok(r) => Ok(r),
+            Err(e) => {
+                let pos = i.as_ptr() as usize;
+                let (line, start) = self.pos_to_line_pos(
+                    self.map_to_original(pos - self.base()));
+                Err(ParseError {
+                    kind: e,
+                    loc: SrcLoc {
+                        file: self.file.clone(),
+                        line,
+                        start,
+                        len: 0,
+                    }
+                })
+            },
+        }
     }
 }
 
@@ -194,8 +221,8 @@ impl<'a> ASTFolder for SrcLocRebaseFolder<'a> {
             self.map.map_to_original(loc.start - self.map.base()));
         SrcLoc {
             file: self.map.file.clone(),
-            line: line,
-            start: start,
+            line,
+            start,
             len: loc.len,
         }
     }

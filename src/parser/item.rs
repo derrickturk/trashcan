@@ -1,6 +1,6 @@
 //! trashcan's sub-parsers for items
 
-use super::{ParseError, ParseResult, SrcLoc};
+use super::{ParseErrorKind, CutParseResult, SrcLoc};
 #[macro_use]
 use super::bits::*;
 use super::lit::*;
@@ -9,14 +9,14 @@ use super::stmt::*;
 
 use ast::*;
 
-pub fn normal_item(input: &[u8]) -> ParseResult<NormalItem> {
+pub fn normal_item(input: &[u8]) -> CutParseResult<NormalItem> {
     alt!(input,
         fundef(input) => NormalItem::Function
       ; structdef(input) => NormalItem::Struct
     )
 }
 
-pub fn fundef(input: &[u8]) -> ParseResult<FunDef> {
+pub fn fundef(input: &[u8]) -> CutParseResult<FunDef> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
@@ -24,7 +24,7 @@ pub fn fundef(input: &[u8]) -> ParseResult<FunDef> {
     let (i, _) = require!(multispace(i));
 
     // cut on error after this point
-    let (i, name) = require_or_cut!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require_or_cut!(ident(i) => ParseErrorKind::ExpectedIdent);
 
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'('));
@@ -67,14 +67,14 @@ pub fn fundef(input: &[u8]) -> ParseResult<FunDef> {
     })
 }
 
-pub fn structdef(input: &[u8]) -> ParseResult<StructDef> {
+pub fn structdef(input: &[u8]) -> CutParseResult<StructDef> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
     let (i, _) = require!(keyword_immediate(i, b"struct"));
     let (i, _) = require!(multispace(i));
     // cut on error after this point
-    let (i, name) = require_or_cut!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require_or_cut!(ident(i) => ParseErrorKind::ExpectedIdent);
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'{'));
     let (i, members) = require_or_cut!(delimited_at_least_one(i,
@@ -97,10 +97,10 @@ pub fn structdef(input: &[u8]) -> ParseResult<StructDef> {
 }
 
 #[inline]
-fn fnparam(input: &[u8]) -> ParseResult<FunParam> {
+fn fnparam(input: &[u8]) -> CutParseResult<FunParam> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
-    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
     // cut on error after this point
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b':'));
@@ -108,7 +108,8 @@ fn fnparam(input: &[u8]) -> ParseResult<FunParam> {
         |i| opt(i, multispace) =>
         |i| byte(i, b'&')
     )));
-    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    let (i, ty) = require_or_cut!(typename(i) =>
+      ParseErrorKind::ExpectedTypename);
     let (i, end_pos) = require!(pos(i));
     ok!(i, FunParam {
         name,
@@ -122,10 +123,10 @@ fn fnparam(input: &[u8]) -> ParseResult<FunParam> {
 }
 
 #[inline]
-fn optfnparam(input: &[u8]) -> ParseResult<(FunParam, Literal)> {
+fn optfnparam(input: &[u8]) -> CutParseResult<(FunParam, Literal)> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
-    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
     // cut on error after this point
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b':'));
@@ -133,12 +134,13 @@ fn optfnparam(input: &[u8]) -> ParseResult<(FunParam, Literal)> {
         |i| opt(i, multispace) =>
         |i| byte(i, b'&')
     )));
-    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    let (i, ty) = require_or_cut!(typename(i) =>
+      ParseErrorKind::ExpectedTypename);
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'=') =>
-      ParseError::ExpectedDefaultArgument);
+      ParseErrorKind::ExpectedDefaultArgument);
     let (i, default) = require_or_cut!(literal(i) =>
-      ParseError::ExpectedDefaultArgument);
+      ParseErrorKind::ExpectedDefaultArgument);
     let (i, end_pos) = require!(pos(i));
     ok!(i, (
         FunParam {
@@ -155,20 +157,21 @@ fn optfnparam(input: &[u8]) -> ParseResult<(FunParam, Literal)> {
 }
 
 #[inline]
-fn fnret(input: &[u8]) -> ParseResult<Type> {
+fn fnret(input: &[u8]) -> CutParseResult<Type> {
     let (i, _) = require!(keyword(input, b"->"));
-    cut_if_err!(typename(i) => ParseError::ExpectedTypename)
+    cut_if_err!(typename(i) => ParseErrorKind::ExpectedTypename)
 }
 
 #[inline]
-fn structmem(input: &[u8]) -> ParseResult<StructMem> {
+fn structmem(input: &[u8]) -> CutParseResult<StructMem> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
-    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
     // cut on error after this point
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b':'));
-    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    let (i, ty) = require_or_cut!(typename(i) =>
+      ParseErrorKind::ExpectedTypename);
     let (i, end_pos) = require_or_cut!(pos(i));
     ok!(i, StructMem {
         name,
@@ -178,7 +181,7 @@ fn structmem(input: &[u8]) -> ParseResult<StructMem> {
 }
 
 #[inline]
-fn access(input: &[u8]) -> ParseResult<Access> {
+fn access(input: &[u8]) -> CutParseResult<Access> {
     let (i, _) = opt(input, multispace)?;
     let (i, access) = require!(opt(i, |i| {
         let (i, access) = require!(keyword_immediate(i, b"pub"));
@@ -209,17 +212,18 @@ mod test {
         expect_parse!(fundef(b" fn f(x: i32, y: f64; z: i32 = 7) {}") =>
           FunDef { .. });
         expect_parse_cut!(fundef(b" fn f( x, y)") =>
-          ParseError::ExpectedByte(b':'));
+          ParseErrorKind::ExpectedByte(b':'));
         expect_parse_cut!(fundef(b" fn f( x: !, y)") =>
-          ParseError::ExpectedTypename);
+          ParseErrorKind::ExpectedTypename);
         expect_parse_cut!(fundef(b" fn f( x: i32; y: i32)") =>
-          ParseError::ExpectedDefaultArgument);
+          ParseErrorKind::ExpectedDefaultArgument);
     }
 
     #[test]
     fn parse_ret() {
         expect_parse!(fnret(b" -> i32[,,]" ) => Type::Array(_, _));
-        expect_parse_cut!(fnret(b" -> []" ) => ParseError::ExpectedTypename);
+        expect_parse_cut!(fnret(b" -> []" ) =>
+          ParseErrorKind::ExpectedTypename);
     }
 
     #[test]
@@ -229,11 +233,11 @@ mod test {
         expect_parse!(structdef(b" pub struct whatever { x: i32 , y: f64[,],}") =>
           StructDef { .. });
         expect_parse_cut!(structdef(b"struct ! {x:i32}") =>
-          ParseError::ExpectedIdent);
+          ParseErrorKind::ExpectedIdent);
         expect_parse_cut!(structdef(b"struct y {!}") =>
-          ParseError::ExpectedIdent);
+          ParseErrorKind::ExpectedIdent);
         expect_parse_cut!(structdef(b"struct y {x : ! }") =>
-          ParseError::ExpectedTypename);
+          ParseErrorKind::ExpectedTypename);
     }
 
     #[test]

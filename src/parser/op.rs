@@ -1,13 +1,13 @@
 //! trashcan's sub-parsers for operators
 
-use super::{ParseError, ParseResult};
+use super::{ParseErrorKind, CutParseResult};
 #[macro_use]
 use super::bits::*;
 
 use ast::*;
 
 #[inline]
-pub fn assign_op(input: &[u8]) -> ParseResult<AssignOp> {
+pub fn assign_op(input: &[u8]) -> CutParseResult<AssignOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         byte(i, b'=') => |_| AssignOp::Assign
@@ -26,7 +26,7 @@ pub fn assign_op(input: &[u8]) -> ParseResult<AssignOp> {
 }
 
 #[inline]
-pub fn un_op(input: &[u8]) -> ParseResult<UnOp> {
+pub fn un_op(input: &[u8]) -> CutParseResult<UnOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         byte(i, b'-') => |_| UnOp::Negate
@@ -37,14 +37,14 @@ pub fn un_op(input: &[u8]) -> ParseResult<UnOp> {
 }
 
 #[inline]
-pub fn pow_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn pow_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'^'));
     ok!(i, BinOp::Pow)
 }
 
 #[inline]
-pub fn muldiv_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn muldiv_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         byte(i, b'*') => |_| BinOp::Mul
@@ -54,7 +54,7 @@ pub fn muldiv_op(input: &[u8]) -> ParseResult<BinOp> {
 }
 
 #[inline]
-pub fn addsub_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn addsub_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         byte(i, b'+') => |_| BinOp::Add
@@ -64,7 +64,7 @@ pub fn addsub_op(input: &[u8]) -> ParseResult<BinOp> {
 }
 
 #[inline]
-pub fn cmp_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn cmp_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         keyword_immediate(i, b"<=") => |_| BinOp::LtEq
@@ -73,7 +73,7 @@ pub fn cmp_op(input: &[u8]) -> ParseResult<BinOp> {
             (i, Ok(_)) => {
                 // disambiguate from <- "operator" by lookahead
                 if let Some(&b'-') = i.first() {
-                        err!(i, ParseError::LookAhead)
+                        err!(i, ParseErrorKind::LookAhead)
                     } else {
                         ok!(i, BinOp::Lt)
                     }
@@ -86,7 +86,7 @@ pub fn cmp_op(input: &[u8]) -> ParseResult<BinOp> {
 }
 
 #[inline]
-pub fn eq_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn eq_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     alt!(i,
         keyword_immediate(i, b"===") => |_| BinOp::IdentEq
@@ -97,38 +97,38 @@ pub fn eq_op(input: &[u8]) -> ParseResult<BinOp> {
 }
 
 #[inline]
-pub fn bitand_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn bitand_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'&'));
     // disambiguate from && operator by lookahead
     if let Some(&b'&') = i.first() {
-        err!(input, ParseError::LookAhead)
+        err!(input, ParseErrorKind::LookAhead)
     } else {
         ok!(i, BinOp::BitAnd)
     }
 }
 
 #[inline]
-pub fn bitor_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn bitor_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'|'));
     // disambiguate from && operator by lookahead
     if let Some(&b'|') = i.first() {
-        err!(input, ParseError::LookAhead)
+        err!(input, ParseErrorKind::LookAhead)
     } else {
         ok!(i, BinOp::BitOr)
     }
 }
 
 #[inline]
-pub fn logand_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn logand_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(keyword_immediate(i, b"&&"));
     ok!(i, BinOp::LogAnd)
 }
 
 #[inline]
-pub fn logor_op(input: &[u8]) -> ParseResult<BinOp> {
+pub fn logor_op(input: &[u8]) -> CutParseResult<BinOp> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(keyword_immediate(i, b"||"));
     ok!(i, BinOp::LogOr)
