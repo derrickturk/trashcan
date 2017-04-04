@@ -17,6 +17,8 @@ pub enum ParseError {
     ExpectedDimSpecifier,
     ExpectedForSpecifier,
     ExpectedDefaultArgument,
+    ExpectedItem,
+    ExpectedModule,
     NoAltMatch,
     LookAhead,
     InvalidLiteral,
@@ -74,6 +76,7 @@ mod ident;
 mod expr;
 mod stmt;
 mod item;
+mod module;
 mod srcloc;
 pub use self::srcloc::SrcLoc;
 
