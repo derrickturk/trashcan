@@ -13,6 +13,7 @@ pub fn normal_item(input: &[u8]) -> CutParseResult<NormalItem> {
         fundef(input) => NormalItem::Function
       ; structdef(input) => NormalItem::Struct
       ; staticdef(input) => NormalItem::Static
+      ; constantdef(input) => NormalItem::Const
     )
 }
 
@@ -104,7 +105,7 @@ pub fn staticdef(input: &[u8]) -> CutParseResult<Static> {
         |i| opt(i, multispace) =>
         |i| byte(i, b'=') =>
         |i| opt(i, multispace) =>
-        |i| cut_if_err!(literal(i) => ParseErrorKind::ExpectedInitializer)
+        |i| cut_if_err!(literal(i) => ParseErrorKind::ExpectedLiteral)
     )));
     let (i, _) = require_or_cut!(terminator(i));
     let (i, end_pos) = require_or_cut!(pos(i));
@@ -113,6 +114,34 @@ pub fn staticdef(input: &[u8]) -> CutParseResult<Static> {
         access,
         ty,
         init,
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+pub fn constantdef(input: &[u8]) -> CutParseResult<Constant> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, access) = require!(access(i));
+    let (i, _) = require!(keyword_immediate(i, b"const"));
+    let (i, _) = require!(multispace(i));
+    // cut on error after this point
+    let (i, name) = require_or_cut!(ident(i) => ParseErrorKind::ExpectedIdent);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b':'));
+    let (i, ty) = require_or_cut!(typename(i) =>
+      ParseErrorKind::ExpectedTypename);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'='));
+    let (i, _) = opt(i, multispace)?;
+    let (i, value) = require_or_cut!(literal(i) =>
+      ParseErrorKind::ExpectedLiteral);
+    let (i, _) = require_or_cut!(terminator(i));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, Constant {
+        name,
+        access,
+        ty,
+        value,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -255,6 +284,8 @@ mod test {
           NormalItem::Function(_));
         expect_parse!(normal_item(b" static m: i32 = 7 ;") =>
           NormalItem::Static(_));
+        expect_parse!(normal_item(b" const m: i32 = 7 ;") =>
+          NormalItem::Const(_));
     }
 
     #[test]
@@ -299,7 +330,14 @@ mod test {
         expect_parse!(staticdef(b" static x: destroyer;") => Static { .. });
         expect_parse!(staticdef(b" static m: i32 = 7 ;") => Static { .. });
         expect_parse_cut!(staticdef(b" static m: i32 = ! ;") =>
-          ParseErrorKind::ExpectedInitializer);
+          ParseErrorKind::ExpectedLiteral);
+    }
+
+    #[test]
+    fn parse_constants() {
+        expect_parse!(constantdef(b" const m: i32 = 7 ;") => Constant { .. });
+        expect_parse_cut!(constantdef(b" const m: i32 = ! ;") =>
+          ParseErrorKind::ExpectedLiteral);
     }
 
     #[test]
