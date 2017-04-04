@@ -172,9 +172,18 @@ macro_rules! opt {
             };
             r
         }
-    }
+    };
 
-    // TODO: a form that lets you pass in the "fail-back-to" input?
+    ($input:expr, $maybe:expr) => {
+        {
+            // the compiler can't infer the type here unless we help it
+            let r: $crate::parser::ParseResult<Option<_>> = match $maybe? {
+                (i, Ok(r)) => Ok((i, Ok(Some(r)))),
+                (_, Err(_)) => Ok(($input, Ok(None))),
+            };
+            r
+        }
+    };
 }
 
 #[inline]

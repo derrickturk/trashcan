@@ -105,50 +105,58 @@ named!(pub optfnparam<(FunParam, Literal)>, complete!(do_parse!(
             )
 )));
 
-named!(pub structdef<StructDef>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-    access: opt_access >>
-            tag!("struct") >>
-            call!(nom::multispace) >>
-      name: ident >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-   members: separated_nonempty_list!(ws!(char!(',')), structmem) >>
-            opt!(call!(nom::multispace)) >>
-            opt!(char!(',')) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-   end_pos: call!(super::pos) >>
-            (StructDef {
-                name,
-                access,
-                members,
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
-named!(pub structmem<StructMem>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-      name: ident >>
-            opt!(call!(nom::multispace)) >>
-            char!(':') >>
-        ty: typename >>
-   end_pos: call!(super::pos) >>
-            (StructMem {
-                name,
-                ty,
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
-
 */
 
 #[inline]
 fn fnret(input: &[u8]) -> ParseResult<Type> {
     let (i, _) = require!(keyword(input, b"->"));
     cut_if_err!(typename(i) => ParseError::ExpectedTypename)
+}
+
+fn structdef(input: &[u8]) -> ParseResult<StructDef> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, access) = require!(access(i));
+    let (i, _) = require!(keyword_immediate(i, b"struct"));
+    let (i, _) = require!(multispace(i));
+    // cut on error after this point
+    let (i, name) = require_or_cut!(ident(i) => ParseError::ExpectedIdent);
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, members) = require_or_cut!(delimited_at_least_one(i,
+        structmem,
+        |i| chain!(i,
+            |i| opt(i, multispace) =>
+            |i| byte(i, b',')
+        )));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = opt!(byte(i, b','))?;
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, StructDef {
+        name,
+        access,
+        members,
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
+
+#[inline]
+fn structmem(input: &[u8]) -> ParseResult<StructMem> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, name) = require!(ident(i) => ParseError::ExpectedIdent);
+    // cut on error after this point
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b':'));
+    let (i, ty) = require_or_cut!(typename(i) => ParseError::ExpectedTypename);
+    let (i, end_pos) = require_or_cut!(pos(i));
+    ok!(i, StructMem {
+        name,
+        ty,
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
 }
 
 #[inline]
@@ -167,14 +175,28 @@ mod test {
     use super::*;
 
     #[test]
-    fn parse_access() {
-        expect_parse!(access(b"  pub ") => Access::Public);
-        expect_parse!(access(b"   ") => Access::Private);
-    }
-
-    #[test]
     fn parse_ret() {
         expect_parse!(fnret(b" -> i32[,,]" ) => Type::Array(_, _));
         expect_parse_cut!(fnret(b" -> []" ) => ParseError::ExpectedTypename);
+    }
+
+    #[test]
+    fn parse_structs() {
+        expect_parse!(structdef(b" struct whatever { x: i32 }") =>
+          StructDef { .. });
+        expect_parse!(structdef(b" struct whatever { x: i32 , y: f64[,],}") =>
+          StructDef { .. });
+        expect_parse_cut!(structdef(b"struct ! {x:i32}") =>
+          ParseError::ExpectedIdent);
+        expect_parse_cut!(structdef(b"struct y {!}") =>
+          ParseError::ExpectedIdent);
+        expect_parse_cut!(structdef(b"struct y {x : ! }") =>
+          ParseError::ExpectedTypename);
+    }
+
+    #[test]
+    fn parse_access() {
+        expect_parse!(access(b"  pub ") => Access::Public);
+        expect_parse!(access(b"   ") => Access::Private);
     }
 }
