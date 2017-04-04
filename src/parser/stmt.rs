@@ -14,13 +14,13 @@ pub fn stmt(input: &[u8]) -> ParseResult<Stmt> {
         decl(input)
       ; ret(input)
       ; print(input)
+      ; ifstmt(input)
+      ; whileloop(input)
+//    ; forloop(input)
+//    ; foralong(input)
       ; alloc(input)
       ; realloc(input)
       ; dealloc(input)
-      ; ifstmt(input)
-//    ; whileloop(input)
-//    ; forloop(input)
-//    ; foralong(input)
       ; assignment(input)
       ; exprstmt(input)
     )
@@ -159,28 +159,30 @@ fn els(input: &[u8]) -> ParseResult<Vec<Stmt>> {
     ok!(i, body)
 }
 
-/*
+fn whileloop(input: &[u8]) -> ParseResult<Stmt> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, start_pos) = require!(pos(i));
+    let (i, _) = require!(keyword_immediate(i, b"while"));
+    println!("saw a while");
+    let (i, _) = require!(multispace(i));
+    // after here we can cut on error
+    let (i, cond) = require_or_cut!(expr(i));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'{'));
+    let (i, body) = require_or_cut!(many(i, stmt));
+    let (i, _) = opt(i, multispace)?;
+    let (i, _) = require_or_cut!(byte(i, b'}'));
+    let (i, end_pos) = require!(pos(i));
+    ok!(i, Stmt {
+        data: StmtKind::WhileLoop {
+            cond,
+            body,
+        },
+        loc: SrcLoc::raw(start_pos, end_pos - start_pos),
+    })
+}
 
-named!(whileloop<Stmt>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
- start_pos: call!(super::pos) >>
-            tag!("while") >>
-            call!(nom::multispace) >>
-      cond: expr >>
-            opt!(call!(nom::multispace)) >>
-            char!('{') >>
-      body: many0!(stmt) >>
-            opt!(call!(nom::multispace)) >>
-            char!('}') >>
-   end_pos: call!(super::pos) >>
-            (Stmt {
-                data: StmtKind::WhileLoop {
-                    cond,
-                    body,
-                },
-                loc: SrcLoc::raw(start_pos, end_pos - start_pos),
-            })
-)));
+/*
 
 named!(forloop<Stmt>, complete!(do_parse!(
             opt!(call!(nom::multispace)) >>
@@ -502,6 +504,9 @@ mod test {
                 return;\
             }") => Stmt {
             data: StmtKind::IfStmt { .. }, .. });
+
+        expect_parse!(stmt(b" while 1 { return 17; }") =>
+          Stmt { data: StmtKind::WhileLoop{ .. }, .. });
 
         expect_parse_cut!(stmt(b" x::y[17] += ;") => ParseError::ExpectedExpr);
 
