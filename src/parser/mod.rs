@@ -94,11 +94,6 @@ pub type ParseResult<T> = Result<T, ParseError>;
 
 pub fn parse_dumpster(file: &str, src: &[u8]) -> ParseResult<Dumpster> {
     let map = srcloc::map_source(file, src);
-    /*
-    let flatten_result = match module::dumpster(&map.src) => {
-        Ok(i, Ok(d)) => Ok(d),
-        Ok(i, Err(e)) => Ok(d),
-    }
-    */
-    unimplemented!()
+    map.translate_errors(module::dumpster(map.src()))
+        .map(|d| map.rebase_srclocs(d))
 }

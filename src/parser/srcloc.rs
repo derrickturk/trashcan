@@ -44,28 +44,12 @@ pub struct MappedSource {
 }
 
 impl MappedSource {
-    fn base(&self) -> usize {
-        self.src.as_ptr() as usize
+    pub fn src(&self) -> &[u8] {
+        &self.src
     }
 
-    fn map_to_original(&self, mut pos: usize) -> usize {
-        for &(first, skipped) in &self.gaps {
-            if first <= pos {
-                pos += skipped;
-            }
-        }
-        pos
-    }
-
-    // one-based line, char
-    fn pos_to_line_pos(&self, pos: usize) -> (u32, usize) {
-        self.lines.iter().cloned().take_while(|begin| *begin <= pos)
-            .fold((0, 0), |(line, _), line_begin| {
-                (line + 1, pos - line_begin + 1)
-            })
-    }
-
-    fn translate_result<R>(&self, res: CutParseResult<R>) -> ParseResult<R> {
+    pub fn translate_errors<R>(&self, res: CutParseResult<R>)
+      -> ParseResult<R> {
         let (i, res) = match res {
             Ok((i, res)) => (i, res),
             Err((i, e)) => (i, Err(e)),
@@ -88,6 +72,32 @@ impl MappedSource {
                 })
             },
         }
+    }
+
+    pub fn rebase_srclocs(&self, dumpster: Dumpster) -> Dumpster {
+        let mut folder = SrcLocRebaseFolder { map: self };
+        folder.fold_dumpster(dumpster)
+    }
+
+    fn base(&self) -> usize {
+        self.src.as_ptr() as usize
+    }
+
+    fn map_to_original(&self, mut pos: usize) -> usize {
+        for &(first, skipped) in &self.gaps {
+            if first <= pos {
+                pos += skipped;
+            }
+        }
+        pos
+    }
+
+    // one-based line, char
+    fn pos_to_line_pos(&self, pos: usize) -> (u32, usize) {
+        self.lines.iter().cloned().take_while(|begin| *begin <= pos)
+            .fold((0, 0), |(line, _), line_begin| {
+                (line + 1, pos - line_begin + 1)
+            })
     }
 }
 
@@ -206,13 +216,8 @@ pub fn map_source(file: &str, input: &[u8]) -> MappedSource {
     res
 }
 
-pub fn rebase_srclocs(dumpster: Dumpster, map: &MappedSource) -> Dumpster {
-    let mut folder = SrcLocRebaseFolder { map };
-    folder.fold_dumpster(dumpster)
-}
-
 struct SrcLocRebaseFolder<'a> {
-    map: &'a MappedSource,
+    pub map: &'a MappedSource,
 }
 
 impl<'a> ASTFolder for SrcLocRebaseFolder<'a> {
