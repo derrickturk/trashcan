@@ -150,19 +150,25 @@ named!(fnret<Type>, complete!(do_parse!(
         (ty)
 )));
 
-named!(opt_access<Access>, complete!(do_parse!(
-            opt!(call!(nom::multispace)) >>
-    access: opt!(terminated!(
-                tag!("pub"),
-                call!(nom::multispace))) >>
-            (match access {
-                Some(_) => Access::Public,
-                None => Access::Private,
-            })
-)));
-
 */
+
+fn access(input: &[u8]) -> ParseResult<Access> {
+    let (i, _) = opt(input, multispace)?;
+    let (i, access) = require!(opt(i, |i| {
+        let (i, access) = require!(keyword_immediate(i, b"pub"));
+        let (i, _) = require!(multispace(i));
+        ok!(i, Access::Public)
+    }));
+    ok!(i, access.unwrap_or(Access::Private))
+}
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
+    #[test]
+    fn parse_access() {
+        expect_parse!(access(b"  pub ") => Access::Public);
+        expect_parse!(access(b"   ") => Access::Private);
+    }
 }
