@@ -3,7 +3,6 @@
 use std::str;
 
 use super::{ParseErrorKind, CutParseResult};
-#[macro_use]
 use super::bits::*;
 
 use ast::*;
@@ -70,7 +69,6 @@ fn path_module(input: &[u8]) -> CutParseResult<Ident> {
 }
 
 pub fn ident(input: &[u8]) -> CutParseResult<Ident> {
-    let (i, loc) = require!(pos(input));
     let (i, _) = opt(input, multispace)?;
     let (i, first) = require!(ascii_letters(i));
     let (i, rest) = require!(opt!(bytes_in(i, IDENT_CONT_CHARS)));

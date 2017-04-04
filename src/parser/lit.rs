@@ -3,7 +3,6 @@
 use std::str;
 
 use super::{ParseErrorKind, CutParseResult};
-#[macro_use]
 use super::bits::*;
 
 use ast::*;

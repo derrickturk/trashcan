@@ -140,7 +140,7 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        ExprKind::MemberInvoke(ref expr, ref mem, ref args) => {
+        ExprKind::MemberInvoke(ref expr, ref _mem, ref _args) => {
             let expr_ty = type_of(&**expr, symtab, ctxt)?;
             match expr_ty {
                 // for now
@@ -574,12 +574,6 @@ pub fn may_cast(from: &Type, to: &Type) -> bool {
       | Type::Currency => to.might_be_numeric(),
 
         Type::String => to.might_be_string() || to.might_be_numeric(),
-
-        Type::Currency => match *to {
-            Type::Currency
-          | Type::Variant => true,
-            _ => false,
-        },
 
         Type::Variant => match *to {
             // can't assign to statically-dimensioned array
@@ -1468,7 +1462,7 @@ fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
 
         for &(ref argname, ref arg) in optargs {
             let which = fun.optparams.iter().enumerate()
-                .find(|&(i, &(ref param, _))| {
+                .find(|&(_, &(ref param, _))| {
                     match param.name {
                         Ident(ref name, None) => *name == argname.0,
                         Ident(_, Some(ref prev)) => *prev == argname.0,

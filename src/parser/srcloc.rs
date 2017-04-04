@@ -1,6 +1,6 @@
 //! trashcan's types for tracking source locations
 
-use super::{ParseErrorKind, CutParseResult, ParseError, ParseResult};
+use super::{CutParseResult, ParseError, ParseResult};
 
 use ast::Dumpster;
 use fold::ASTFolder;
@@ -135,7 +135,7 @@ pub fn map_source(file: &str, input: &[u8]) -> MappedSource {
             if c == b'*' {
                 skipped += 1;
                 match bytes.next() {
-                    Some((pos, b'/')) => {
+                    Some((_, b'/')) => {
                         in_block_comment = false;
                         res.src.push(b' '); // replace block comment by space
                         res.gaps.push((gap_begin, skipped));

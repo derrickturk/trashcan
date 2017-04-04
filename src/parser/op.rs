@@ -1,7 +1,6 @@
 //! trashcan's sub-parsers for operators
 
 use super::{ParseErrorKind, CutParseResult};
-#[macro_use]
 use super::bits::*;
 
 use ast::*;

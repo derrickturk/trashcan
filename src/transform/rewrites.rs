@@ -49,16 +49,16 @@ pub fn alloc_along_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
 }
 
 struct CastRewriteFolder<'a> {
-    // we'll need this for object-type gensyms
     symtab: &'a mut SymbolTable,
-    before_stmt_stack: Vec<Vec<Stmt>>,
+    // we'll need this for object-type gensyms
+    // before_stmt_stack: Vec<Vec<Stmt>>,
 }
 
 impl<'a> CastRewriteFolder<'a> {
     fn new(symtab: &'a mut SymbolTable) -> Self {
         CastRewriteFolder {
             symtab,
-            before_stmt_stack: Vec::new(),
+            // before_stmt_stack: Vec::new(),
         }
     }
 }

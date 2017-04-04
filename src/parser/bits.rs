@@ -1,5 +1,3 @@
-use std::str;
-
 use super::{ParseErrorKind, CutParseResult};
 
 #[macro_export]
@@ -36,14 +34,14 @@ macro_rules! require {
     ($input:expr, $e:expr) => {
         match $e? {
             (i, Ok(r)) => (i, r),
-            (i, Err(e)) => return err!($input, e),
+            (_, Err(e)) => return err!($input, e),
         }
     };
 
     ($input:expr, $e:expr => $err:expr) => {
         match $e? {
             (i, Ok(r)) => (i, r),
-            (i, Err(_)) => return err!($input, $err),
+            (_, Err(_)) => return err!($input, $err),
         }
     };
 }
@@ -68,14 +66,14 @@ macro_rules! require_or_cut {
     ($input:expr, $e:expr) => {
         match $e? {
             (i, Ok(r)) => (i, r),
-            (i, Err(e)) => return cut!($input, e),
+            (_, Err(e)) => return cut!($input, e),
         }
     };
 
     ($input:expr, $e:expr => $err:expr) => {
         match $e? {
             (i, Ok(r)) => (i, r),
-            (i, Err(_)) => return cut!($input, $err),
+            (_, Err(_)) => return cut!($input, $err),
         }
     };
 }
@@ -108,7 +106,7 @@ macro_rules! chain {
     ($input:expr, $parser:expr => $($rest:tt)*) => {
         match $parser($input)? {
             (i, Ok(_)) => chain!(i, $($rest)*),
-            (i, Err(e)) => err!($input, e),
+            (_, Err(e)) => err!($input, e),
         }
     };
 
@@ -121,7 +119,7 @@ macro_rules! chain {
     ($orig:expr; $input:expr, $parser:expr => $($rest:tt)*) => {
         match $parser($input)? {
             (i, Ok(_)) => chain!($orig; i, $($rest)*),
-            (i, Err(e)) => err!($orig, e),
+            (_, Err(e)) => err!($orig, e),
         }
     };
 }
@@ -293,7 +291,7 @@ pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<Option<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R> {
     let res = parser(input)?;
     match res {
-        (i, Err(_)) => ok!(input, None),
+        (_, Err(_)) => ok!(input, None),
         (i, Ok(r)) => ok!(i, Some(r)),
     }
 }

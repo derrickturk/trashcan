@@ -1,7 +1,6 @@
 //! trashcan's sub-parsers for dumpsters and modules
 
 use super::{ParseErrorKind, CutParseResult, SrcLoc};
-#[macro_use]
 use super::bits::*;
 use super::ident::*;
 use super::item::*;

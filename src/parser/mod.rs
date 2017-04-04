@@ -37,8 +37,10 @@ type CutParseResult<'a, R> = Result<
     (&'a [u8], ParseErrorKind)
 >;
 
+#[allow(unreachable_patterns)]
 macro_rules! expect_parse {
     ($e:expr => $p:pat) => {
+        #[allow(unreachable_patterns)]
         match $e {
             Ok((rest, Ok($p))) => { assert_eq!(rest.len(), 0) },
             Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },
@@ -50,6 +52,7 @@ macro_rules! expect_parse {
 
 macro_rules! expect_parse_err {
     ($e:expr => $p:pat) => {
+        #[allow(unreachable_patterns)]
         match $e {
             Ok((_, Err($p))) => { },
             Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },
@@ -61,6 +64,7 @@ macro_rules! expect_parse_err {
 
 macro_rules! expect_parse_cut {
     ($e:expr => $p:pat) => {
+        #[allow(unreachable_patterns)]
         match $e {
             Err((_, $p)) => { },
             Ok((_, Ok(r))) => { panic!("parse result: {:?}", r) },

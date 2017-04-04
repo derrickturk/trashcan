@@ -1,7 +1,6 @@
 //! trashcan's sub-parsers for items
 
 use super::{ParseErrorKind, CutParseResult, SrcLoc};
-#[macro_use]
 use super::bits::*;
 use super::lit::*;
 use super::ident::*;
@@ -184,7 +183,7 @@ fn structmem(input: &[u8]) -> CutParseResult<StructMem> {
 fn access(input: &[u8]) -> CutParseResult<Access> {
     let (i, _) = opt(input, multispace)?;
     let (i, access) = require!(opt(i, |i| {
-        let (i, access) = require!(keyword_immediate(i, b"pub"));
+        let (i, _) = require!(keyword_immediate(i, b"pub"));
         let (i, _) = require!(multispace(i));
         ok!(i, Access::Public)
     }));

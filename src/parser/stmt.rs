@@ -1,7 +1,6 @@
 //! trashcan's sub-parsers for statements
 
 use super::{ParseErrorKind, CutParseResult, SrcLoc};
-#[macro_use]
 use super::bits::*;
 use super::op::*;
 use super::ident::*;
