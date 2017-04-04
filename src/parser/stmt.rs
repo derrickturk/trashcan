@@ -355,8 +355,8 @@ fn realloc_extents(input: &[u8]) -> CutParseResult<(usize, AllocExtent)> {
 #[inline]
 fn dim_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
     alt!(input,
-        range_extent(input)
-      ; along_extent(input)
+        along_extent(input) // this has to be first; it starts with a keyword
+      ; range_extent(input)
     )
 }
 

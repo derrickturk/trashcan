@@ -173,8 +173,8 @@ fn unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
 fn nonrec_unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
     alt!(input,
         litexpr(input) // because keywords can be literals
+      ; extent_expr(input) // and these guys start with keywords
       ; fncall(input)
-      ; extent_expr(input)
       ; pathexpr(input)
       ; grouped(input)
       ; vbexpr(input)
@@ -337,12 +337,12 @@ fn extent_expr(input: &[u8]) -> CutParseResult<Expr> {
 
     let (i, _) = opt(i_after_dim, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'>'));
-    let (i, _) = opt(i_after_dim, multispace)?;
+    let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b'('));
 
     let (i, arr) = require_or_cut!(expr(i) => ParseErrorKind::ExpectedExpr);
 
-    let (i, _) = opt(i_after_dim, multispace)?;
+    let (i, _) = opt(i, multispace)?;
     let (i, _) = require_or_cut!(byte(i, b')'));
 
     let (i, end_pos) = require!(pos(i));
@@ -481,6 +481,14 @@ mod test {
     }
 
     #[test]
+    fn parse_extents() {
+        expect_parse!(extent_expr(b" array_length<0>(arr)") => Expr {
+            data: ExprKind::ExtentExpr(_, ExtentKind::Length, 0),
+            ..
+        });
+    }
+
+    #[test]
     fn parse_exprs() {
         expect_parse!(expr(b" `some vb expression`") => Expr {
             data: ExprKind::VbExpr(_),
@@ -507,6 +515,11 @@ mod test {
 
         expect_parse!(expr(b"module::o.f(12, x[17])") => Expr {
             data: ExprKind::MemberInvoke(_, _, _),
+            ..
+        });
+
+        expect_parse!(expr(b" array_length<0>(arr)") => Expr {
+            data: ExprKind::ExtentExpr(_, ExtentKind::Length, 0),
             ..
         });
 
