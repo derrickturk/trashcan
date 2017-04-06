@@ -42,10 +42,12 @@ impl ASTFolder for ScopedSubstitutionFolder {
         let (module, function) = match ctxt {
             NameCtxt::Value(m, f, _) if self.values =>
                 (Some(m), f),
-            NameCtxt::DefValue(m, f, _) if self.defns && self.values =>
+            NameCtxt::DefValue(m, f, _, _) if self.defns && self.values =>
                 (Some(m), f),
             NameCtxt::DefParam(m, f, _, _) if self.defns && self.values =>
                 (Some(m), Some(f)),
+            NameCtxt::DefConstant(m, _, _) if self.defns && self.values =>
+                (Some(m), None),
 
             NameCtxt::Function(m, _) if self.fns =>
                 (Some(m), None),

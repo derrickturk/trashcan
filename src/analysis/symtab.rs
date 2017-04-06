@@ -16,10 +16,10 @@ use std::collections::HashMap;
 #[derive(Clone, Debug)]
 pub enum Symbol {
     /// a constant definition
-    Const(Type),
+    Const(Type, Access),
 
     /// e.g. x: i32
-    Value(Type, Option<ParamMode>),
+    Value(Type, Option<ParamMode>, Access),
 
     /// e.g. f : (i32, i32) -> i32
     Fun {
@@ -36,12 +36,11 @@ pub enum Symbol {
 
 impl Symbol {
     pub fn access(&self) -> Access {
-        // TODO: update these
         match *self {
-            Symbol::Const(_) => Access::Public,
-            Symbol::Value(_, _) => Access::Public,
-            Symbol::Fun { ref def, .. } => def.access.clone(),
-            Symbol::Struct { ref def, .. } => def.access.clone(),
+            Symbol::Const(_, access) => access,
+            Symbol::Value(_, _, access) => access,
+            Symbol::Fun { ref def, .. } => def.access,
+            Symbol::Struct { ref def, .. } => def.access,
         }
     }
 }
@@ -142,7 +141,7 @@ impl SymbolTable {
             },
 
             NameCtxt::Value(_, _, _) => match *sym {
-                Symbol::Const(_) | Symbol::Value(_, _) => Ok(sym),
+                Symbol::Const(_, _) | Symbol::Value(_, _, _) => Ok(sym),
 
                 Symbol::Fun { .. } => Err(AnalysisError {
                     kind: AnalysisErrorKind::TypeError,
@@ -173,15 +172,40 @@ impl SymbolTable {
     }
 
     pub fn add_value_entry(&mut self, ident: &Ident, module: &Ident,
-      function: Option<&Ident>, ty: &Type, err_loc: &SrcLoc)
+      function: Option<&Ident>, ty: &Type, access: Access, err_loc: &SrcLoc)
       -> AnalysisResult<()> {
         let mut value_collector =
             ValueCollectingSymbolTableBuilder::build(self);
         value_collector.visit_ident(ident,
-          NameCtxt::DefValue(module, function, ty), err_loc);
+          NameCtxt::DefValue(module, function, ty, access), err_loc);
         let _ = value_collector.result()?;
 
         Ok(())
+    }
+
+    pub fn type_access(&self, ty: &Type, module: &Ident, err_loc: &SrcLoc)
+      -> AnalysisResult<Access> {
+        match *ty {
+            Type::Array(ref base, _) => self.type_access(base, module, err_loc),
+
+            Type::Object(_) => Ok(Access::Public), // TODO: for now
+
+            Type::Struct(ref path) => {
+                match *self.symbol_at_path(path,
+                  NameCtxt::Type(module, Access::Private), err_loc)? {
+                    Symbol::Struct { ref def, .. } => Ok(def.access),
+                    _ => panic!("dumpster fire: non-struct made it to \
+                      access check"),
+                }
+            },
+
+            Type::Enum(_) => Ok(Access::Public), // TODO: for now,
+
+            Type::Deferred(_) => panic!("dumpster fire: deferred type in \
+              access check"),
+
+            _ => Ok(Access::Public),
+        }
     }
 
     fn module_table(&self, module: &Ident) -> Option<&Scopetab> {
@@ -266,9 +290,9 @@ fn dump_sub_tbl<W: Write>(out: &mut W,
     for (k, sym) in tbl {
         write!(out, "{:in$}item {}: ", "", k, in=ind*4).unwrap();
         match *sym {
-            Symbol::Const(ref ty) =>
+            Symbol::Const(ref ty, _) =>
                 write!(out, "constant {}\n", ty)?,
-            Symbol::Value(ref ty, ref mode) =>
+            Symbol::Value(ref ty, ref mode, _) =>
                 write!(out, "value {:?} {}\n", mode, ty)?,
             Symbol::Fun { ref def, ref locals } => {
                 write!(out, "fn {}\n", def.name.0)?;
@@ -417,6 +441,8 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
     }
 
     fn visit_path(&mut self, p: &Path, ctxt: NameCtxt, loc: &SrcLoc) {
+        // TODO something something statics and consts
+        //   (related: those guys need lifted to the top of modules)
         // ensure declare-before-use of "local" names
         match *p {
             Path(None, _) => {
@@ -440,11 +466,14 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
     }
 
     fn visit_ident(&mut self, i: &Ident, ctxt: NameCtxt, loc: &SrcLoc) {
-        let (module, scope, ty, mode, desc) = match ctxt {
-            NameCtxt::DefValue(m, f, ty) =>
-                (m, f, ty, None, "variable"),
+        let (module, scope, sym, desc) = match ctxt {
+            NameCtxt::DefValue(m, f, ty, access) =>
+                (m, f, Symbol::Value(ty.clone(), None, access), "variable"),
             NameCtxt::DefParam(m, f, ty, mode) =>
-                (m, Some(f), ty, Some(mode), "parameter"),
+                (m, Some(f), Symbol::Value(ty.clone(), Some(mode), Access::Private),
+                  "parameter"),
+            NameCtxt::DefConstant(m, ty, access) =>
+                (m, None, Symbol::Const(ty.clone(), access), "constant"),
             _ => { return; },
         };
 
@@ -465,7 +494,7 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
                     loc: loc.clone(),
                 });
             } else {
-                locals.insert(i.0.clone(), Symbol::Value(ty.clone(), mode));
+                locals.insert(i.0.clone(), sym);
             }
         } else {
             if mod_tab.contains_key(&i.0) {
@@ -475,7 +504,7 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
                     loc: loc.clone(),
                 });
             } else {
-                mod_tab.insert(i.0.clone(), Symbol::Value(ty.clone(), mode));
+                mod_tab.insert(i.0.clone(), sym);
             }
         }
     }

@@ -23,6 +23,7 @@ pub enum AnalysisErrorKind {
     InvalidStmt,
     InvalidExpr,
     FnCallError,
+    PrivateInPublic,
 }
 
 pub type AnalysisResult<T> = Result<T, AnalysisError>;

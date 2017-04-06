@@ -22,18 +22,17 @@ pub enum NameCtxt<'a> {
             // module in which definition occurs
     DefType(&'a Ident),
 
-    // TODO: add ability to specify access for DefValue and DefConstant
-
              // module  // function (may be Option once globals happen)
-    DefValue(&'a Ident, Option<&'a Ident>, &'a Type),
-                                           // type of value
+    DefValue(&'a Ident, Option<&'a Ident>, &'a Type, Access),
+                                           // type,  access of value
 
              // module  // function          // parameter mode
     DefParam(&'a Ident, &'a Ident, &'a Type, ParamMode),
                                    // parameter type
 
                 // module  // type of constant
-    DefConstant(&'a Ident, &'a Type),
+    DefConstant(&'a Ident, &'a Type, Access),
+                                     // access of constant
 
               // module  // enclosing type
     DefMember(&'a Ident, &'a Ident, &'a Type),
@@ -332,14 +331,14 @@ macro_rules! make_ast_vistor {
             fn walk_static(&mut self, s: & $($_mut)* Static, module: &Ident) {
                 let Static {
                     ref $($_mut)* name,
-                    access: ref $($_mut)* _access,
+                    ref $($_mut)* access,
                     ref $($_mut)* ty,
                     ref $($_mut)* init,
                     ref $($_mut)* loc,
                 } = *s;
 
                 self.visit_ident(name,
-                  NameCtxt::DefValue(module, None, ty), loc);
+                  NameCtxt::DefValue(module, None, ty, *access), loc);
                 self.visit_type(ty, module, loc);
                 if let Some(ref $($_mut)* init) = *init {
                     self.visit_literal(init, module, None, loc);
@@ -351,13 +350,14 @@ macro_rules! make_ast_vistor {
               module: &Ident) {
                 let Constant {
                     ref $($_mut)* name,
-                    access: ref $($_mut)* _access,
+                    ref $($_mut)* access,
                     ref $($_mut)* ty,
                     ref $($_mut)* value,
                     ref $($_mut)* loc,
                 } = *c;
 
-                self.visit_ident(name, NameCtxt::DefConstant(module, ty), loc);
+                self.visit_ident(name,
+                  NameCtxt::DefConstant(module, ty, *access), loc);
                 self.visit_type(ty, module, loc);
                 self.visit_literal(value, module, None, loc);
                 self.visit_srcloc(loc);
@@ -381,7 +381,8 @@ macro_rules! make_ast_vistor {
                             ref $($_mut)* init
                         ) in decls {
                             self.visit_ident(ident,
-                              NameCtxt::DefValue(module, Some(function), ty),
+                              NameCtxt::DefValue(module, Some(function),
+                                ty, Access::Private),
                               loc);
                             self.visit_type(ty, module, loc);
                             match *init {
@@ -458,7 +459,8 @@ macro_rules! make_ast_vistor {
                             ref $($_mut)* _mode
                         ) = *var;
                         self.visit_ident(ident,
-                          NameCtxt::DefValue(module, Some(function), ty), loc);
+                          NameCtxt::DefValue(module, Some(function), ty,
+                            Access::Private), loc);
                         self.visit_type(ty, module, loc);
                         self.visit_forspec(spec, module, function, loc);
                         for stmt in body {
@@ -474,7 +476,7 @@ macro_rules! make_ast_vistor {
                         for var in vars {
                             self.visit_ident(var,
                               NameCtxt::DefValue(module, Some(function),
-                                &Type::Int32),
+                                &Type::Int32, Access::Private),
                               loc);
                         }
 
@@ -725,9 +727,9 @@ macro_rules! make_ast_vistor {
 
                             NameCtxt::DefFunction(_)
                           | NameCtxt::DefType(_)
-                          | NameCtxt::DefValue(_, _, _)
+                          | NameCtxt::DefValue(_, _, _, _)
                           | NameCtxt::DefParam(_, _, _, _)
-                          | NameCtxt::DefConstant(_, _)
+                          | NameCtxt::DefConstant(_, _, _)
                           | NameCtxt::DefMember(_, _, _) =>
                                 panic!("dumpster fire: path as name \
                                        definition"),

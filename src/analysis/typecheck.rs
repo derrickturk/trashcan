@@ -38,8 +38,8 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             match *symtab.symbol_at_path(path,
               NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
               &expr.loc)? {
-                Symbol::Const(ref ty) => Ok(ty.clone()),
-                Symbol::Value(ref ty, _) => Ok(ty.clone()),
+                Symbol::Const(ref ty, _) => Ok(ty.clone()),
+                Symbol::Value(ref ty, _, _) => Ok(ty.clone()),
                 _ => panic!("dumpster fire: non-value slipped past \
                   lookup typecheck"),
             }
@@ -631,6 +631,23 @@ struct TypecheckVisitor<'a> {
 }
 
 impl<'a> ASTVisitor for TypecheckVisitor<'a> {
+    fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
+        // private-in-public check: a pub fn may not have a private return type
+        if def.access == Access::Public {
+            if let Ok(Access::Private) =
+              self.symtab.type_access(&def.ret, m, &def.loc) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::PrivateInPublic,
+                    regarding: Some(format!("return type {} of pub fn {}::{} \
+                      is private to mod {}", def.ret, m, def.name, m)),
+                    loc: def.loc.clone(),
+                });
+            }
+        }
+
+        self.walk_fundef(def, m);
+    }
+
     fn visit_funparam(&mut self, p: &FunParam, m: &Ident, f: &Ident) {
         match p.mode {
             ParamMode::ByRef => match p.ty {
@@ -715,6 +732,51 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
                     });
                 },
         }
+    }
+
+    fn visit_static(&mut self, s: &Static, m: &Ident) {
+        // private-in-public check: a pub static may not have a private type
+        if s.access == Access::Public {
+            if let Ok(Access::Private) =
+              self.symtab.type_access(&s.ty, m, &s.loc) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::PrivateInPublic,
+                    regarding: Some(format!("type {} of pub static {}::{} \
+                      is private to mod {}", s.ty, m, s.name, m)),
+                    loc: s.loc.clone(),
+                });
+            }
+        }
+
+        self.walk_static(s, m);
+    }
+
+    fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
+        // private-in-public check: a pub struct may not have a
+        //   private member type
+
+        let st_access = match *self.symtab.symbol_at_path(
+          &Path(None, st.clone()), NameCtxt::Type(m, Access::Private),
+          &mem.loc).expect(
+              "dumpster fire: couldn't retrieve struct definition") {
+            Symbol::Struct { ref def, .. } => def.access,
+            _ => panic!("dumpster fire: struct wasn't a struct"),
+        };
+
+        if st_access == Access::Public {
+            if let Ok(Access::Private) =
+              self.symtab.type_access(&mem.ty, m, &mem.loc) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::PrivateInPublic,
+                    regarding: Some(format!("type {} of member {} \
+                      of struct {} is private to mod {}",
+                      mem.ty, mem.name, st, m)),
+                    loc: mem.loc.clone(),
+                });
+            }
+        }
+
+        self.walk_structmem(mem, m, st);
     }
 
     fn visit_stmt(&mut self, stmt: &Stmt, m: &Ident, f: &Ident) {

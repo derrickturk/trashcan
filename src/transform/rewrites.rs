@@ -233,7 +233,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                         // add symbol table entry for it
                         self.symtab.add_value_entry(&g, module, Some(function),
-                          &Type::Bool, &loc)
+                          &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
 
@@ -276,7 +276,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                         // add symbol table entry for it
                         self.symtab.add_value_entry(&g, module, Some(function),
-                          &Type::Bool, &loc)
+                          &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
 
@@ -334,7 +334,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                 // add symbol table entry for g
                 self.symtab.add_value_entry(&g, module, Some(function),
-                  &ty, &loc).expect("dumpster fire: \
+                  &ty, Access::Private, &loc).expect("dumpster fire: \
                                     failure adding symtab entry for gensym");
 
                 let before_stmts = self.before_stmt_stack.last_mut()
@@ -423,7 +423,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
         // add gensyms to symbol table
         for g in &g_iters {
             self.symtab.add_value_entry(g, module, Some(function),
-              &Type::Int32, &loc)
+              &Type::Int32, Access::Private, &loc)
               .expect("dumpster fire: failure adding symtab entry for gensym");
         }
 
@@ -621,7 +621,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
 
                         // add symbol table entry for it
                         self.symtab.add_value_entry(&g, module, Some(function),
-                          &Type::Bool, &loc)
+                          &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
 
@@ -664,7 +664,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
 
                         // add symbol table entry for it
                         self.symtab.add_value_entry(&g, module, Some(function),
-                          &Type::Bool, &loc)
+                          &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
 
@@ -722,7 +722,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
 
                 // add symbol table entry for g
                 self.symtab.add_value_entry(&g, module, Some(function),
-                  &ty, &loc).expect("dumpster fire: \
+                  &ty, Access::Private, &loc).expect("dumpster fire: \
                                     failure adding symtab entry for gensym");
 
                 let before_stmts = self.before_stmt_stack.last_mut()

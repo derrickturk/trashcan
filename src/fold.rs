@@ -316,7 +316,7 @@ pub fn noop_fold_structmem<F: ASTFolder + ?Sized>(folder: &mut F,
 pub fn noop_fold_static<F: ASTFolder + ?Sized>(folder: &mut F,
   Static { name, access, ty, init, loc } : Static, module: &Ident) -> Static {
     let name = folder.fold_ident(name,
-      NameCtxt::DefValue(module, None, &ty), &loc);
+      NameCtxt::DefValue(module, None, &ty, access), &loc);
     let ty = folder.fold_type(ty, module, &loc);
     let init = init.map(|i| folder.fold_literal(i, module, None, &loc));
     let loc = folder.fold_srcloc(loc);
@@ -333,7 +333,7 @@ pub fn noop_fold_constant<F: ASTFolder + ?Sized>(folder: &mut F,
   Constant { name, access, ty, value, loc } : Constant,
   module: &Ident) -> Constant {
     let name = folder.fold_ident(name,
-      NameCtxt::DefConstant(module, &ty), &loc);
+      NameCtxt::DefConstant(module, &ty, access), &loc);
     let ty = folder.fold_type(ty, module, &loc);
     let value = folder.fold_literal(value, module, None, &loc);
     let loc = folder.fold_srcloc(loc);
@@ -364,7 +364,8 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 (
                     folder.fold_ident(
                         ident, 
-                        NameCtxt::DefValue(module, Some(function), &ty),
+                        NameCtxt::DefValue(module, Some(function),
+                          &ty, Access::Private),
                         &loc),
                     folder.fold_type(ty, module, &loc),
                     init.map(|init| folder.fold_expr(init, module, function))
@@ -409,7 +410,8 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                 var: (
                     folder.fold_ident(
                         ident,
-                        NameCtxt::DefValue(module, Some(function), &ty),
+                        NameCtxt::DefValue(module, Some(function),
+                          &ty, Access::Private),
                         &loc),
                     folder.fold_type(ty, module, &loc),
                     mode,
@@ -422,7 +424,8 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
             StmtKind::ForAlong {
                 vars: vars.into_iter().map(|var|
                     folder.fold_ident(var,
-                      NameCtxt::DefValue(module, Some(function), &Type::Int32),
+                      NameCtxt::DefValue(module, Some(function), &Type::Int32,
+                        Access::Private),
                       &loc)
                 ).collect(),
                 along: folder.fold_expr(along, module, function),
@@ -634,9 +637,9 @@ fn ident_ctxt_from_path<'a>(p: &'a Path, ctxt: NameCtxt<'a>)
 
                 NameCtxt::DefFunction(_)
               | NameCtxt::DefType(_)
-              | NameCtxt::DefValue(_, _, _)
+              | NameCtxt::DefValue(_, _, _, _)
               | NameCtxt::DefParam(_, _, _, _)
-              | NameCtxt::DefConstant(_, _)
+              | NameCtxt::DefConstant(_, _, _)
               | NameCtxt::DefMember(_, _, _) =>
                     panic!("dumpster fire: path as name definition"),
 

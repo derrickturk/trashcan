@@ -108,8 +108,9 @@ impl ASTVisitor for VbKeywordGensymCollectVisitor {
         }
 
         let (module, function, what) = match ctxt {
-            NameCtxt::DefValue(m, f, _) => (Some(m), f, Rename::Value),
+            NameCtxt::DefValue(m, f, _, _) => (Some(m), f, Rename::Value),
             NameCtxt::DefParam(m, f, _, _) => (Some(m), Some(f), Rename::Value),
+            NameCtxt::DefConstant(m, _, _) => (Some(m), None, Rename::Value),
             NameCtxt::DefFunction(m) => (Some(m), None, Rename::Function),
             NameCtxt::DefType(m) => (Some(m), None, Rename::Type),
             NameCtxt::DefMember(_, _, _) => (None, None, Rename::Member),
@@ -161,7 +162,7 @@ impl FnNameLocalGensymCollectVisitor {
 impl ASTVisitor for FnNameLocalGensymCollectVisitor {
     fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, _loc: &SrcLoc) {
         let (module, function) = match ctxt {
-            NameCtxt::DefValue(m, Some(f), _) => (m, f),
+            NameCtxt::DefValue(m, Some(f), _, _) => (m, f),
             NameCtxt::DefParam(m, f, _, _) => (m, f),
             _ => return
         };
@@ -288,8 +289,9 @@ impl CaseFoldingDuplicateGensymVisitor {
 impl ASTVisitor for CaseFoldingDuplicateGensymVisitor {
     fn visit_ident(&mut self, ident: &Ident, ctxt: NameCtxt, _loc: &SrcLoc) {
         let (mut module, mut function, what) = match ctxt {
-            NameCtxt::DefValue(m, f, _) => (Some(m), f, Rename::Value),
+            NameCtxt::DefValue(m, f, _, _) => (Some(m), f, Rename::Value),
             NameCtxt::DefParam(m, f, _, _) => (Some(m), Some(f), Rename::Value),
+            NameCtxt::DefConstant(m, _, _) => (Some(m), None, Rename::Value),
             NameCtxt::DefFunction(m) => (Some(m), None, Rename::Function),
             NameCtxt::DefType(m) => (Some(m), None, Rename::Type),
             // members are tricky: we only care if we see clashing members in
