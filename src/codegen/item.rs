@@ -140,9 +140,9 @@ impl<'a> Emit<()> for Static {
         out.write_all(b" ")?;
         self.name.emit(out, symtab, (), 0)?;
         self.ty.emit(out, symtab, TypePos::Decl, 0)?;
-        if let Some(ref init) = self.init {
-            out.write_all(b" = ")?;
-            init.emit(out, symtab, (), 0)?;
+        if let Some(_) = self.init {
+            panic!("dumpster fire: we can't emit static initializers \
+                     (lazy statics) yet");
         }
         out.write_all(b"\n")
     }

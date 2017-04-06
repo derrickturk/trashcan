@@ -748,7 +748,37 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
             }
         }
 
+        match s.init {
+            Some(ref lit) => if !may_coerce(&lit.ty(), &s.ty) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::TypeError,
+                    regarding: Some(format!(
+                      "static {}::{} has type {}; initializer of type {} \
+                        provided", m, s.name, s.ty, lit.ty())),
+                    loc: s.loc.clone(),
+                });
+            },
+
+            None => { },
+        };
+
         self.walk_static(s, m);
+    }
+
+    fn visit_constant(&mut self, c: &Constant, m: &Ident) {
+        // no private-in-public check: all constable types are public
+
+        if !may_coerce(&c.value.ty(), &c.ty) {
+            self.errors.push(AnalysisError {
+                kind: AnalysisErrorKind::TypeError,
+                regarding: Some(format!(
+                  "const {}::{} has type {}; initializer of type {} \
+                    provided", m, c.name, c.ty, c.value.ty())),
+                loc: c.loc.clone(),
+            });
+        }
+
+        self.walk_constant(c, m);
     }
 
     fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
