@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-// TODO: fixme later
 use parser::SrcLoc;
 
 /// A trashcan "project" is of course referred to as a dumpster
@@ -367,7 +366,6 @@ pub enum Type {
     Deferred(Path),
     /// unit type (only used in function returns)
     Void,
-    // TODO: Const(Box<Type>)?
 }
 
 impl Type {
@@ -619,7 +617,6 @@ pub enum Literal {
 
 impl Literal {
     pub fn ty(&self) -> Type {
-        // TODO: probably make these const?
         match *self {
             Literal::NullPtr => Type::Obj,
             Literal::NullVar => Type::Variant,

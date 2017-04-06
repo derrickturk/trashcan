@@ -402,6 +402,24 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
     }
 }
 
+pub fn is_constexpr(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
+  -> AnalysisResult<bool> {
+      match expr.data {
+          ExprKind::Lit(_) => Ok(true),
+
+          ExprKind::Name(ref path) => {
+              match *symtab.symbol_at_path(path,
+                NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
+                &expr.loc)? {
+                  Symbol::Const(_, _) => Ok(true),
+                  _ => Ok(false),
+              }
+          },
+
+          _ => Ok(false),
+      }
+}
+
 pub fn upper_bound_type(lhs: &Type, rhs: &Type) -> Option<Type> {
     // TODO: revisit this for object types
     if lhs == rhs {
@@ -893,6 +911,16 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
             let lhs_ty = type_of(lhs, symtab, ctxt)?;
             let rhs_ty = type_of(rhs, symtab, ctxt)?;
+
+            if is_constexpr(lhs, symtab, ctxt)? {
+                return Err(AnalysisError {
+                    kind: AnalysisErrorKind::InvalidStmt,
+                    regarding: Some(String::from("assignment to const \
+                      expression")),
+                    loc: lhs.loc.clone(),
+                });
+            }
+
             match *op {
                 AssignOp::Assign => { },
 
