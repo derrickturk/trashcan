@@ -539,7 +539,10 @@ impl<'a> ASTVisitorMut for DeferredResolver<'a> {
                 match self.symtab.symbol_at_path(path,
                   NameCtxt::Type(module, Access::Private), loc) {
                     Ok(&Symbol::Struct { .. }) => {
-                        Type::Struct(path.clone())
+                        Type::Struct(Path(
+                                Some(path.0.as_ref().unwrap_or(module).clone()),
+                                path.1.clone()
+                        ))
                     },
 
                     Ok(_) => {

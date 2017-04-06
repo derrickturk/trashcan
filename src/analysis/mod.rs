@@ -24,6 +24,7 @@ pub enum AnalysisErrorKind {
     InvalidExpr,
     FnCallError,
     PrivateInPublic,
+    RecursiveType,
 }
 
 pub type AnalysisResult<T> = Result<T, AnalysisError>;

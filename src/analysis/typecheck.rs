@@ -752,9 +752,19 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
     }
 
     fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
+        // TODO: also recurse into nested types
+        // recursive type check
+        if mem.ty == Type::Struct(Path(Some(m.clone()), st.clone())) {
+            self.errors.push(AnalysisError {
+                kind: AnalysisErrorKind::RecursiveType,
+                regarding: Some(format!("member {} of struct {}::{} makes type \
+                  recursive", mem.name, m, st)),
+                loc: mem.loc.clone(),
+            })
+        }
+
         // private-in-public check: a pub struct may not have a
         //   private member type
-
         let st_access = match *self.symtab.symbol_at_path(
           &Path(None, st.clone()), NameCtxt::Type(m, Access::Private),
           &mem.loc).expect(
