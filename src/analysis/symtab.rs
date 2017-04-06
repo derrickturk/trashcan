@@ -367,32 +367,6 @@ impl<'a> ASTVisitor for TypeCollectingSymbolTableBuilder<'a> {
 
         self.walk_structdef(def, m);
     }
-
-    fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
-        {
-            let mod_tab = self.symtab.module_table_mut(m).expect(
-                "dumpster fire: no module entry in symbol table");
-
-            let members = match mod_tab.get_mut(&st.0) {
-                Some(&mut Symbol::Struct { ref mut members, .. }) => members,
-                _ => panic!("dumpster fire: \
-                  no struct entry for {}::{}", m, st),
-            };
-
-            if members.contains_key(&mem.name.0) {
-                self.errors.push(AnalysisError {
-                    kind: AnalysisErrorKind::DuplicateSymbol,
-                    regarding: Some(format!("struct member {}::{}",
-                      st, mem.name)),
-                    loc: mem.loc.clone(),
-                });
-            } else {
-                members.insert(mem.name.0.clone(), mem.ty.clone());
-            }
-        }
-
-        self.walk_structmem(mem, m, st);
-    }
 }
 
 struct ValueCollectingSymbolTableBuilder<'a> {
@@ -438,6 +412,32 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
         }
 
         self.walk_fundef(def, m);
+    }
+
+    fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
+        {
+            let mod_tab = self.symtab.module_table_mut(m).expect(
+                "dumpster fire: no module entry in symbol table");
+
+            let members = match mod_tab.get_mut(&st.0) {
+                Some(&mut Symbol::Struct { ref mut members, .. }) => members,
+                _ => panic!("dumpster fire: \
+                  no struct entry for {}::{}", m, st),
+            };
+
+            if members.contains_key(&mem.name.0) {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::DuplicateSymbol,
+                    regarding: Some(format!("struct member {}::{}",
+                      st, mem.name)),
+                    loc: mem.loc.clone(),
+                });
+            } else {
+                members.insert(mem.name.0.clone(), mem.ty.clone());
+            }
+        }
+
+        self.walk_structmem(mem, m, st);
     }
 
     fn visit_path(&mut self, p: &Path, ctxt: NameCtxt, loc: &SrcLoc) {
