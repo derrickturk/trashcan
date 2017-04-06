@@ -86,7 +86,6 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
             }
         },
 
-        // TODO aaaaaaa
         ExprKind::Call(ref path, ref args, ref optargs) => {
             let fun = match *symtab.symbol_at_path(path,
               NameCtxt::Function(&ctxt.0, Access::Private), &expr.loc)? {
@@ -106,23 +105,23 @@ pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     Ok(Type::Variant),
 
                 Type::Struct(ref path) => {
-                    if let Ok(&Symbol::Struct { ref members, .. }) = symtab
-                      .symbol_at_path(path,
-                                      NameCtxt::Type(&ctxt.0, Access::Private),
-                                      &expr.loc) {
-                        match members.get(&mem.0).cloned() {
-                            Some(ty) => Ok(ty),
-                            None => {
-                                return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::NotDefined,
-                                    regarding: Some(format!(
-                                      "member {} of struct {}", mem, path)),
-                                    loc: expr.loc.clone(),
-                                })
-                            }
+                    let members = match *symtab.symbol_at_path(path,
+                      NameCtxt::Type(&ctxt.0, Access::Private), &expr.loc)? {
+                        Symbol::Struct { ref members, .. } => members,
+                        _ => panic!("dumpster fire: non-struct slipped \
+                          past lookup typecheck"),
+                    };
+
+                    match members.get(&mem.0).cloned() {
+                        Some(ty) => Ok(ty),
+                        None => {
+                            return Err(AnalysisError {
+                                kind: AnalysisErrorKind::NotDefined,
+                                regarding: Some(format!(
+                                  "member {} of struct {}", mem, path)),
+                                loc: expr.loc.clone(),
+                            })
                         }
-                    } else {
-                        panic!("dumpster fire: struct definition not found");
                     }
                 },
 

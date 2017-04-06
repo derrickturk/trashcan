@@ -271,6 +271,7 @@ pub struct Static {
     pub access: Access,
     pub ty: Type,
     // i'm going to regret not requiring the initializer...
+    // TODO: it turns out you can't have one anyway
     pub init: Option<Literal>,
     pub loc: SrcLoc,
 }

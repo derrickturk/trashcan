@@ -22,6 +22,8 @@ pub enum NameCtxt<'a> {
             // module in which definition occurs
     DefType(&'a Ident),
 
+    // TODO: add ability to specify access for DefValue and DefConstant
+
              // module  // function (may be Option once globals happen)
     DefValue(&'a Ident, Option<&'a Ident>, &'a Type),
                                            // type of value
@@ -518,7 +520,6 @@ macro_rules! make_ast_vistor {
                 self.visit_srcloc(loc);
             }
 
-            // TODO: maybe each pattern should have its own visit function
             fn walk_expr(&mut self, expr: & $($_mut)* Expr,
               module: &Ident, function: &Ident) {
                 let Expr {
@@ -767,7 +768,7 @@ macro_rules! make_ast_vistor {
                                         Access::Private
                                     } else {
                                         Access::Public
-                                }),
+                                    }),
 
                             NameCtxt::Member(_, _, _) =>
                                 panic!("dumpster fire: path as member name"),
