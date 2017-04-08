@@ -23,8 +23,14 @@ fn main() {
         let mut contents = vec![];
         let _ = file.read_to_end(&mut contents).expect(
             &format!("Unable to read {}.", f.to_string_lossy()));
-        dumpsters.push(parser::parse_dumpster(&f.to_string_lossy(), &contents)
-                       .expect("parse error"));
+
+        match parser::parse_dumpster(&f.to_string_lossy(), &contents) {
+            Ok(d) => dumpsters.push(d),
+            Err(err) => {
+                println!("parse error: {:?}", err);
+                return;
+            }
+        }
     }
 
     // pre-processing / rename passes
@@ -41,8 +47,15 @@ fn main() {
         .expect("symtab/resolve error");
 
     // typecheck
-    analysis::typecheck(&mut dumpster, &symtab)
-        .expect("typeck error");
+    match analysis::typecheck(&mut dumpster, &symtab) {
+        Ok(_) => { },
+        Err(errs) => {
+            for err in errs {
+                println!("error: {:?}", err);
+            }
+            return;
+        }
+    };
 
     // post-processing / semantics-preserving passes
     //   (these need symbols and access to typing)
