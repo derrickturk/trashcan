@@ -5,19 +5,17 @@ use std::io::Write;
 
 use ast::*;
 use parser::SrcLoc;
-use analysis;
 use analysis::SymbolTable;
-use analysis::ExprCtxt;
 use super::*;
 use super::expr::*;
 use super::ty::*;
 
-impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
+impl<'a> Emit<&'a FunDef> for Stmt {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32) -> io::Result<()> {
+      ctxt: &'a FunDef, indent: u32) -> io::Result<()> {
         match self.data {
             StmtKind::ExprStmt(ref e) => {
-                e.emit(out, symtab, (ExprPos::Stmt, &ctxt.1), indent)?;
+                e.emit(out, symtab, ExprPos::Stmt, indent)?;
                 out.write_all(b"\n")
             },
 
@@ -32,15 +30,15 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 write!(out, "{:in$}", "",
                   in = (indent * INDENT) as usize)?;
 
-                let place_ty = analysis::type_of(place, symtab, &ctxt.1)
-                    .expect("dumpster fire: untypeable expression \
+                let place_ty = place.ty.as_ref()
+                    .expect("dumpster fire: untyped expression \
                       in codegen");
                 match place_ty.is_object() {
                     Some(true) => out.write_all(b"Set ")?,
                     Some(false) => {},
                     None => {
-                        let expr_ty = analysis::type_of(expr, symtab, &ctxt.1)
-                            .expect("dumpster fire: untypeable expression \
+                        let expr_ty = expr.ty.as_ref()
+                            .expect("dumpster fire: untyped expression \
                               in codegen");
                         match expr_ty.is_object() {
                             Some(true) => out.write_all(b"Set ")?,
@@ -49,21 +47,21 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                     }
                 };
 
-                place.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                place.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b" = ")?;
                 match op {
                     &AssignOp::Assign => {},
                     _ => {
-                        place.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        place.emit(out, symtab, ExprPos::Expr, 0)?;
                         op.emit(out, symtab, (), 0)?;
                     }
                 }
-                expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                expr.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b"\n")
             },
 
             StmtKind::Return(ref expr) => {
-                let fnsub = match ctxt.0.ret {
+                let fnsub = match ctxt.ret {
                     Type::Void => "Sub",
                     _ => "Function",
                 };
@@ -72,23 +70,22 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                     &Some(ref e) => {
                         write!(out, "{:in$}", "",
                           in = (indent * INDENT) as usize)?;
-                        match ctxt.0.ret.is_object() {
+                        match ctxt.ret.is_object() {
                             Some(true) => out.write_all(b"Set ")?,
                             Some(false) => {},
                             None => {
-                                let ret_ty = analysis::type_of(
-                                    e, symtab, &ctxt.1)
+                                let ret_ty = e.ty.as_ref()
                                     .expect("dumpster fire: \
-                                      untypeable expression in codegen");
+                                      untyped expression in codegen");
                                 match ret_ty.is_object() {
                                     Some(true) => out.write_all(b"Set ")?,
                                     _ => {},
                                 };
                             },
                         }
-                        ctxt.0.name.emit(out, symtab, (), 0)?;
+                        ctxt.name.emit(out, symtab, (), 0)?;
                         out.write_all(b" = ")?;
-                        e.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        e.emit(out, symtab, ExprPos::Expr, 0)?;
                         out.write_all(b"\n")?;
                     },
                     &None => {}
@@ -97,8 +94,8 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 // if we're the last statement in the function body,
                 //   we don't need an "Exit Function"; we use a ptr cast here
                 //   because we really will be a reference to
-                //   ctxt.0.body.last().unwrap()
-                if self as *const _ != ctxt.0.body.last().unwrap() as *const _ {
+                //   ctxt.body.last().unwrap()
+                if self as *const _ != ctxt.body.last().unwrap() as *const _ {
                     write!(out, "{:in$}Exit {}\n", "", fnsub,
                       in = (indent * INDENT) as usize)?;
                 }
@@ -109,24 +106,24 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
             StmtKind::Alloc(ref expr, ref extents) => {
                 write!(out, "{:in$}ReDim ", "",
                   in = (indent * INDENT) as usize)?;
-                expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
-                emit_alloc_extents(out, extents, symtab, ctxt, 0)?;
+                expr.emit(out, symtab, ExprPos::Expr, 0)?;
+                emit_alloc_extents(out, extents, symtab, 0)?;
                 out.write_all(b"\n")
             },
 
             StmtKind::ReAlloc(ref expr, preserved, ref extents) => {
                 write!(out, "{:in$}ReDim Preserve ", "",
                   in = (indent * INDENT) as usize)?;
-                expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                expr.emit(out, symtab, ExprPos::Expr, 0)?;
                 emit_realloc_extents(out, expr, (preserved, extents),
-                  symtab, ctxt, 0)?;
+                  symtab, 0)?;
                 out.write_all(b"\n")
             },
 
             StmtKind::DeAlloc(ref expr) => {
                 write!(out, "{:in$}Erase ", "",
                   in = (indent * INDENT) as usize)?;
-                expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                expr.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b"\n")
             },
 
@@ -139,14 +136,14 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                         //   probably punt until we have "as str"
                         out.write_all(b"; ")?;
                     }
-                    expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                    expr.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
                 out.write_all(b"\n")
             },
 
             StmtKind::IfStmt { ref cond, ref body, ref elsifs, ref els } => {
                 write!(out, "{:in$}If ", "", in = (indent * INDENT) as usize)?;
-                cond.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                cond.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b" Then\n")?;
                 for stmt in body {
                     stmt.emit(out, symtab, ctxt, indent + 1)?;
@@ -155,7 +152,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                 for &(ref cond, ref body) in elsifs {
                     write!(out, "{:in$}ElseIf ", "",
                       in = (indent * INDENT) as usize)?;
-                    cond.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                    cond.emit(out, symtab, ExprPos::Expr, 0)?;
                     out.write_all(b" Then\n")?;
                     for stmt in body {
                         stmt.emit(out, symtab, ctxt, indent + 1)?;
@@ -177,7 +174,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
             StmtKind::WhileLoop { ref cond, ref body } => {
                 write!(out, "{:in$}Do While ", "",
                   in = (indent * INDENT) as usize)?;
-                cond.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                cond.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b"\n")?;
 
                 for stmt in body {
@@ -203,13 +200,13 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                     ForSpec::Range(ref from, ref to, ref by) => {
                         var.0.emit(out, symtab, (), 0)?;
                         out.write_all(b" = ")?;
-                        from.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        from.emit(out, symtab, ExprPos::Expr, 0)?;
                         out.write_all(b" To ")?;
-                        to.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        to.emit(out, symtab, ExprPos::Expr, 0)?;
                         match *by {
                             Some(ref step) => {
                                 out.write_all(b" Step ")?;
-                                step.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                                step.emit(out, symtab, ExprPos::Expr, 0)?;
                             },
                             None => {},
                         }
@@ -220,7 +217,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
                         out.write_all(b"Each ")?;
                         var.0.emit(out, symtab, (), 0)?;
                         out.write_all(b" In ")?;
-                        expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        expr.emit(out, symtab, ExprPos::Expr, 0)?;
                         out.write_all(b"\n")?;
                     },
                 }
@@ -243,7 +240,7 @@ impl<'a> Emit<&'a (&'a FunDef, ExprCtxt)> for Stmt {
 }
 
 fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
-  symtab: &SymbolTable, ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32)
+  symtab: &SymbolTable, ctxt: &'a FunDef, indent: u32)
   -> io::Result<()> {
     write!(out, "{:in$}Dim ", "", in = (indent * INDENT) as usize)?;
     decl.0.emit(out, symtab, (), 0)?;
@@ -256,6 +253,7 @@ fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
                 data: StmtKind::Assign(
                           Expr {
                               data: ExprKind::Name(Path(None, decl.0.clone())),
+                              ty: Some(decl.1.clone()),
                               loc: SrcLoc::empty(),
                           },
                           AssignOp::Assign,
@@ -272,9 +270,8 @@ fn emit_decl<'a, W: Write>(out: &mut W, decl: &(Ident, Type, Option<Expr>),
     Ok(())
 }
 
-fn emit_alloc_extents<'a, W: Write>(out: &mut W,
-  extents: &Vec<AllocExtent>, symtab: &SymbolTable,
-  ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32) -> io::Result<()> {
+fn emit_alloc_extents<W: Write>(out: &mut W, extents: &Vec<AllocExtent>,
+  symtab: &SymbolTable, indent: u32) -> io::Result<()> {
     write!(out, "{:in$}(", "", in = (indent * INDENT) as usize)?;
     for (i, extent) in extents.iter().enumerate() {
         if i != 0 {
@@ -296,25 +293,24 @@ fn emit_alloc_extents<'a, W: Write>(out: &mut W,
                     },
 
                     _ => {
-                        ub.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                        ub.emit(out, symtab, ExprPos::Expr, 0)?;
                         out.write_all(b" - 1")?;
                     },
                 };
             },
 
             Some(ref lb) => {
-                lb.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                lb.emit(out, symtab, ExprPos::Expr, 0)?;
                 out.write_all(b" To ")?;
-                ub.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                ub.emit(out, symtab, ExprPos::Expr, 0)?;
             },
         };
     }
     out.write_all(b")")
 }
 
-fn emit_realloc_extents<'a, W: Write>(out: &mut W, array_expr: &Expr,
-  extents: (usize, &AllocExtent), symtab: &SymbolTable,
-  ctxt: &'a (&'a FunDef, ExprCtxt), indent: u32)
+fn emit_realloc_extents<W: Write>(out: &mut W, array_expr: &Expr,
+  extents: (usize, &AllocExtent), symtab: &SymbolTable, indent: u32)
   -> io::Result<()> {
     let (preserved, lb, ub) = match extents {
         (preserved, &AllocExtent::Range(ref lb, ref ub)) => (preserved, lb, ub),
@@ -326,9 +322,9 @@ fn emit_realloc_extents<'a, W: Write>(out: &mut W, array_expr: &Expr,
 
     for dim in 1..(preserved + 1) {
         out.write_all(b"LBound(")?;
-        array_expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+        array_expr.emit(out, symtab, ExprPos::Expr, 0)?;
         write!(out, ", {}) To UBound(", dim)?;
-        array_expr.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+        array_expr.emit(out, symtab, ExprPos::Expr, 0)?;
         write!(out, ", {}), ", dim)?;
     }
 
@@ -341,16 +337,16 @@ fn emit_realloc_extents<'a, W: Write>(out: &mut W, array_expr: &Expr,
                 },
 
                 _ => {
-                    ub.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+                    ub.emit(out, symtab, ExprPos::Expr, 0)?;
                     out.write_all(b" - 1")?;
                 },
             };
         },
 
         Some(ref lb) => {
-            lb.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+            lb.emit(out, symtab, ExprPos::Expr, 0)?;
             out.write_all(b" To ")?;
-            ub.emit(out, symtab, (ExprPos::Expr, &ctxt.1), 0)?;
+            ub.emit(out, symtab, ExprPos::Expr, 0)?;
         },
     };
 

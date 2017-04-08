@@ -17,7 +17,7 @@ impl Emit<()> for Module {
                     if i != 0 {
                         out.write_all(b"\n")?;
                     }
-                    item.emit(out, symtab, self, indent)?;
+                    item.emit(out, symtab, (), indent)?;
                 }
                 Ok(())
             },

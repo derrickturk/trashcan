@@ -4,16 +4,15 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
-use analysis::ExprCtxt;
 use super::*;
 use super::ty::*;
 
-impl<'a> Emit<&'a Module> for NormalItem {
+impl<'a> Emit<()> for NormalItem {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: &'a Module, indent: u32) -> io::Result<()> {
+      _ctxt: (), indent: u32) -> io::Result<()> {
         match *self {
             NormalItem::Function(ref def) =>
-                def.emit(out, symtab, ctxt, indent),
+                def.emit(out, symtab, (), indent),
 
             NormalItem::Struct(ref def) =>
                 def.emit(out, symtab, (), indent),
@@ -27,9 +26,9 @@ impl<'a> Emit<&'a Module> for NormalItem {
     }
 }
 
-impl<'a> Emit<&'a Module> for FunDef {
+impl<'a> Emit<()> for FunDef {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: &'a Module, indent: u32) -> io::Result<()> {
+      _ctxt: (), indent: u32) -> io::Result<()> {
         self.access.emit(out, symtab, (), indent)?;
 
         let fnsub = match self.ret {
@@ -88,9 +87,7 @@ impl<'a> Emit<&'a Module> for FunDef {
         out.write_all(b"\n")?;
 
         for stmt in self.body.iter() {
-            stmt.emit(out, symtab,
-              &(self, ExprCtxt(ctxt.name.clone(), Some(self.name.clone()))),
-              indent + 1)?;
+            stmt.emit(out, symtab, &self, indent + 1)?;
         }
 
         write!(out, "{:in$}End {}\n", "", fnsub,

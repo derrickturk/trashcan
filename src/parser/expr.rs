@@ -60,6 +60,7 @@ pub fn expr(input: &[u8]) -> CutParseResult<Expr> {
                          if_expr: Box::new(ifexpr),
                          else_expr: Box::new(elseexpr),
                      },
+               ty: None,
                loc,
            }
        },
@@ -78,6 +79,7 @@ fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
 
         Expr {
             data: ExprKind::BinOpApp(Box::new(sofar), Box::new(e), op),
+            ty: None,
             loc,
         }
     })
@@ -149,6 +151,7 @@ fn unitary_op_expr1(input: &[u8]) -> CutParseResult<Expr> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
         data: ExprKind::UnOpApp(Box::new(e), op),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -187,6 +190,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
                 let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
                 Expr {
                     data: ExprKind::Index(Box::new(sofar), indices),
+                    ty: None,
                     loc,
                 }
             },
@@ -195,6 +199,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
                 let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
                 Expr {
                     data: ExprKind::Member(Box::new(sofar), i),
+                    ty: None,
                     loc,
                 }
             },
@@ -203,6 +208,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
                 let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
                 Expr {
                     data: ExprKind::MemberInvoke(Box::new(sofar), i, args),
+                    ty: None,
                     loc,
                 }
             },
@@ -211,6 +217,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
                 let loc = SrcLoc::raw(sofar.loc.start, sofar.loc.len + len);
                 Expr {
                     data: ExprKind::Cast(Box::new(sofar), ty),
+                    ty: None,
                     loc,
                 }
             },
@@ -254,6 +261,7 @@ fn fncall(input: &[u8]) -> CutParseResult<Expr> {
 
     ok!(i, Expr {
         data: ExprKind::Call(name, args, optargs.unwrap_or(Vec::new())),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -278,6 +286,7 @@ fn pathexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
         data: ExprKind::Name(p),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -290,6 +299,7 @@ fn litexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
         data: ExprKind::Lit(lit),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -306,6 +316,7 @@ fn grouped(input: &[u8]) -> CutParseResult<Expr> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
         data: e.data,
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -348,6 +359,7 @@ fn extent_expr(input: &[u8]) -> CutParseResult<Expr> {
 
     ok!(i, Expr {
         data: ExprKind::ExtentExpr(Box::new(arr), kind, dim),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }
@@ -363,6 +375,7 @@ fn vbexpr(input: &[u8]) -> CutParseResult<Expr> {
     let (i, end_pos) = require!(pos(i));
     ok!(i, Expr {
         data: ExprKind::VbExpr(Vec::from(vb)),
+        ty: None,
         loc: SrcLoc::raw(start_pos, end_pos - start_pos),
     })
 }

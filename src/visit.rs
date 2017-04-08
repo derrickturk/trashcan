@@ -122,7 +122,7 @@ macro_rules! make_ast_vistor {
             }
 
             fn visit_expr(&mut self, expr: & $($_mut)* Expr,
-              module: &Ident, function: &Ident) {
+              module: &Ident, function: Option<&Ident>) {
                 self.walk_expr(expr, module, function)
             }
 
@@ -160,7 +160,7 @@ macro_rules! make_ast_vistor {
             }
 
             fn visit_vbexpr(&mut self, _data: & $($_mut)* Vec<u8>,
-              _module: &Ident, _function: &Ident, _loc: &SrcLoc) {
+              _module: &Ident, _function: Option<&Ident>, _loc: &SrcLoc) {
                 // do nothing
             }
 
@@ -372,7 +372,7 @@ macro_rules! make_ast_vistor {
 
                 match *data {
                     StmtKind::ExprStmt(ref $($_mut)* expr) =>
-                        self.visit_expr(expr, module, function),
+                        self.visit_expr(expr, module, Some(function)),
 
                     StmtKind::VarDecl(ref $($_mut)* decls) => {
                         for & $($_mut)* (
@@ -387,7 +387,8 @@ macro_rules! make_ast_vistor {
                             self.visit_type(ty, module, loc);
                             match *init {
                                 Some(ref $($_mut)* init) =>
-                                    self.visit_expr(init, module, function),
+                                    self.visit_expr(init, module,
+                                      Some(function)),
                                 None => {},
                             }
                         }
@@ -398,12 +399,12 @@ macro_rules! make_ast_vistor {
                         _,
                         ref $($_mut)* rhs
                     ) => {
-                        self.visit_expr(lhs, module, function);
-                        self.visit_expr(rhs, module, function);
+                        self.visit_expr(lhs, module, Some(function));
+                        self.visit_expr(rhs, module, Some(function));
                     },
 
                     StmtKind::Return(Some(ref $($_mut)* expr)) =>
-                        self.visit_expr(expr, module, function),
+                        self.visit_expr(expr, module, Some(function)),
 
                     StmtKind::Return(None) => {},
 
@@ -413,7 +414,7 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* elsifs,
                         ref $($_mut)* els,
                     } => {
-                        self.visit_expr(cond, module, function);
+                        self.visit_expr(cond, module, Some(function));
                         for stmt in body {
                             self.visit_stmt(stmt, module, function);
                         }
@@ -422,7 +423,7 @@ macro_rules! make_ast_vistor {
                             ref $($_mut)* cond,
                             ref $($_mut)* body
                         ) in elsifs {
-                            self.visit_expr(cond, module, function);
+                            self.visit_expr(cond, module, Some(function));
                             for stmt in body {
                                 self.visit_stmt(stmt, module, function);
                             }
@@ -442,7 +443,7 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* cond,
                         ref $($_mut)* body,
                     } => {
-                        self.visit_expr(cond, module, function);
+                        self.visit_expr(cond, module, Some(function));
                         for stmt in body {
                             self.visit_stmt(stmt, module, function);
                         }
@@ -480,7 +481,7 @@ macro_rules! make_ast_vistor {
                               loc);
                         }
 
-                        self.visit_expr(along, module, function);
+                        self.visit_expr(along, module, Some(function));
 
                         for stmt in body {
                             self.visit_stmt(stmt, module, function);
@@ -491,7 +492,7 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* expr,
                         ref $($_mut)* extents
                     ) => {
-                        self.visit_expr(expr, module, function);
+                        self.visit_expr(expr, module, Some(function));
                         for extent in extents {
                             self.visit_allocextent(extent, module,
                               function, loc);
@@ -503,18 +504,18 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* _preserved,
                         ref $($_mut)* extent
                     ) => {
-                        self.visit_expr(expr, module, function);
+                        self.visit_expr(expr, module, Some(function));
                         self.visit_allocextent(extent, module,
                           function, loc);
                     },
 
                     StmtKind::DeAlloc(ref $($_mut)* expr) => {
-                        self.visit_expr(expr, module, function);
+                        self.visit_expr(expr, module, Some(function));
                     },
 
                     StmtKind::Print(ref $($_mut)* exprs) => {
                         for expr in exprs {
-                            self.visit_expr(expr, module, function);
+                            self.visit_expr(expr, module, Some(function));
                         }
                     }
                 }
@@ -523,21 +524,20 @@ macro_rules! make_ast_vistor {
             }
 
             fn walk_expr(&mut self, expr: & $($_mut)* Expr,
-              module: &Ident, function: &Ident) {
+              module: &Ident, function: Option<&Ident>) {
                 let Expr {
                     ref $($_mut)* data,
+                    ref $($_mut)* ty,
                     ref $($_mut)* loc,
                 } = *expr;
 
                 match *data {
                     ExprKind::Lit(ref $($_mut)* lit) =>
-                        self.visit_literal(lit, module, Some(function), loc),
+                        self.visit_literal(lit, module, function, loc),
 
                     ExprKind::Name(ref $($_mut)* path) => self.visit_path(
                         path,
-                        NameCtxt::Value(module,
-                                        Some(function),
-                                        Access::Private),
+                        NameCtxt::Value(module, function, Access::Private),
                         loc),
 
                     ExprKind::Index(
@@ -631,6 +631,10 @@ macro_rules! make_ast_vistor {
                         self.visit_vbexpr(data, module, function, loc),
                 }
 
+                if let Some(ref $($_mut)* ty) = *ty {
+                    self.visit_type(ty, module, &loc);
+                }
+
                 self.visit_srcloc(loc);
             }
 
@@ -642,17 +646,17 @@ macro_rules! make_ast_vistor {
                         ref $($_mut)* to,
                         ref $($_mut)* step,
                     ) => {
-                        self.visit_expr(from, module, function);
-                        self.visit_expr(to, module, function);
+                        self.visit_expr(from, module, Some(function));
+                        self.visit_expr(to, module, Some(function));
                         match *step {
                             Some(ref $($_mut)* step) =>
-                                self.visit_expr(step, module, function),
+                                self.visit_expr(step, module, Some(function)),
                             None => {},
                         }
                     },
 
                     ForSpec::Each(ref $($_mut)* of) =>
-                        self.visit_expr(of, module, function)
+                        self.visit_expr(of, module, Some(function))
                 }
             }
 
@@ -660,7 +664,7 @@ macro_rules! make_ast_vistor {
               module: &Ident, function: &Ident, _loc: &SrcLoc) {
                 match *extent {
                     AllocExtent::Along(ref $($_mut)* expr) => {
-                        self.visit_expr(expr, module, function);
+                        self.visit_expr(expr, module, Some(function));
                     },
 
                     AllocExtent::Range(
@@ -669,10 +673,10 @@ macro_rules! make_ast_vistor {
                     ) => {
                         match *lb {
                             Some(ref $($_mut)* lb) =>
-                                self.visit_expr(lb, module, function),
+                                self.visit_expr(lb, module, Some(function)),
                             None => {},
                         };
-                        self.visit_expr(ub, module, function);
+                        self.visit_expr(ub, module, Some(function));
                     },
                 };
             }

@@ -4,11 +4,7 @@ use std::io;
 use std::io::Write;
 
 use ast::*;
-use parser::SrcLoc;
 use super::*;
-
-use analysis;
-use analysis::ExprCtxt;
 
 #[derive(Copy, Clone, Debug)]
 pub enum ExprPos {
@@ -19,9 +15,9 @@ pub enum ExprPos {
     Stmt,
 }
 
-impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
+impl Emit<ExprPos> for Expr {
     fn emit<W: Write>(&self, out: &mut W, symtab: &SymbolTable,
-      ctxt: (ExprPos, &'a ExprCtxt), indent: u32) -> io::Result<()> {
+      ctxt: ExprPos, indent: u32) -> io::Result<()> {
         match self.data {
             ExprKind::Lit(ref literal) => literal.emit(out, symtab, (), indent),
 
@@ -30,32 +26,28 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
             },
 
             ExprKind::Index(ref expr, ref indices) => {
-                expr.emit(out, symtab, (ExprPos::Expr, ctxt.1), indent)?;
+                expr.emit(out, symtab, ExprPos::Expr, indent)?;
                 out.write_all(b"(")?;
                 for (i, index) in indices.iter().enumerate() {
                     if i != 0 {
                         out.write_all(b", ")?;
                     }
-                    index.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
+                    index.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
                 out.write_all(b")")
             },
 
             ExprKind::Call(ref path, ref args, ref optargs) => {
-                let pathexpr = Expr {
-                    data: ExprKind::Name(path.clone()),
-                    loc: SrcLoc::empty(),
-                };
-                pathexpr.emit(out, symtab, ctxt, indent)?;
+                path.emit(out, symtab, (), indent)?;
 
-                match ctxt.0 {
+                match ctxt {
                     ExprPos::Expr => out.write_all(b"(")?,
                     ExprPos::Stmt => out.write_all(b" ")?,
                 };
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
-                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
+                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
 
                 if !args.is_empty() && !optargs.is_empty() {
@@ -66,10 +58,10 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                     if i != 0 { out.write_all(b", ")?; }
                     name.emit(out, symtab, (), 0)?;
                     out.write_all(b" := ")?;
-                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
+                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
 
-                match ctxt.0 {
+                match ctxt {
                     ExprPos::Expr => out.write_all(b")")?,
                     ExprPos::Stmt => {},
                 };
@@ -88,17 +80,17 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                 out.write_all(b".")?;
                 member.emit(out, symtab, (), 0)?;
 
-                match ctxt.0 {
+                match ctxt {
                     ExprPos::Expr => out.write_all(b"(")?,
                     ExprPos::Stmt => out.write_all(b" ")?,
                 };
 
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 { out.write_all(b", ")?; }
-                    arg.emit(out, symtab, (ExprPos::Expr, ctxt.1), 0)?;
+                    arg.emit(out, symtab, ExprPos::Expr, 0)?;
                 }
 
-                match ctxt.0 {
+                match ctxt {
                     ExprPos::Expr => out.write_all(b")")?,
                     ExprPos::Stmt => {},
                 };
@@ -120,10 +112,10 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                     },
 
                     UnOp::AddressOf => {
-                        let expr_ty = analysis::type_of(expr, symtab, ctxt.1)
-                            .expect("dumpster fire: untypeable expression \
+                        let expr_ty = expr.ty.as_ref()
+                            .expect("dumpster fire: untyped expression \
                                     in codegen");
-                        match expr_ty {
+                        match *expr_ty {
                             Type::Obj | Type::Object(_) =>
                                 out.write_all(b"ObjPtr(")?,
                             _ => out.write_all(b"VarPtr(")?,
@@ -154,11 +146,11 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
                         write!(out, "{:in$}(", "",
                           in = (indent * INDENT) as usize)?;
 
-                        let lhs_ty = analysis::type_of(lhs, symtab, ctxt.1)
-                            .expect("dumpster fire: untypeable expression \
+                        let lhs_ty = lhs.ty.as_ref()
+                            .expect("dumpster fire: untyped expression \
                                     in codegen");
-                        let rhs_ty = analysis::type_of(rhs, symtab, ctxt.1)
-                            .expect("dumpster fire: untypeable expression \
+                        let rhs_ty = rhs.ty.as_ref()
+                            .expect("dumpster fire: untyped expression \
                                     in codegen");
 
                         if lhs_ty.is_integral() && rhs_ty.is_integral() {
@@ -189,11 +181,11 @@ impl<'a> Emit<(ExprPos, &'a ExprCtxt)> for Expr {
             },
 
             ExprKind::ExtentExpr(ref expr, kind, dim) => {
-                let expr_ty = analysis::type_of(expr, symtab, ctxt.1)
-                    .expect("dumpster fire: untypeable expression \
+                let expr_ty = expr.ty.as_ref()
+                    .expect("dumpster fire: untyped expression \
                             in codegen");
 
-                let emit_dim = match expr_ty {
+                let emit_dim = match *expr_ty {
                     Type::Array(_, ref bounds) => bounds.dims() != 1,
                     // TODO: maybe allow variants here (checked at runtime)?
                     _ => panic!("dumpster fire: non-array expression \

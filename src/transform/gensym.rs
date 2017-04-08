@@ -93,19 +93,19 @@ pub struct ScopedExprSubstitutionFolder {
     pub orig: Ident,
     pub replace: Expr,
     pub module: Ident,
-    pub function: Ident,
+    pub function: Option<Ident>,
 }
 
 impl ASTFolder for ScopedExprSubstitutionFolder {
-    fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
-      -> Expr {
+    fn fold_expr(&mut self, expr: Expr, module: &Ident,
+      function: Option<&Ident>) -> Expr {
         let expr = fold::noop_fold_expr(self, expr, module, function);
 
-        if self.module != *module || self.function != *function {
+        if self.module != *module || self.function.as_ref() != function {
             return expr;
         }
 
-        let Expr { data, loc } = expr;
+        let Expr { data, ty, loc } = expr;
 
         let data = match data {
             ExprKind::Name(Path(None, ref ident)) if *ident == self.orig =>
@@ -116,6 +116,7 @@ impl ASTFolder for ScopedExprSubstitutionFolder {
 
         Expr {
             data,
+            ty,
             loc,
         }
     }

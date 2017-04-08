@@ -28,6 +28,7 @@ pub enum AnalysisErrorKind {
 }
 
 pub type AnalysisResult<T> = Result<T, AnalysisError>;
+pub type AnalysisResultMany<T> = Result<T, Vec<AnalysisError>>;
 
 pub mod symtab;
 pub use self::symtab::*;

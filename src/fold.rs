@@ -88,12 +88,12 @@ pub trait ASTFolder {
     }
 
     fn fold_expr_list(&mut self, exprs: Vec<Expr>, module: &Ident,
-      function: &Ident) -> Vec<Expr> {
+      function: Option<&Ident>) -> Vec<Expr> {
         noop_fold_expr_list(self, exprs, module, function)
     }
 
-    fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
-      -> Expr {
+    fn fold_expr(&mut self, expr: Expr, module: &Ident,
+      function: Option<&Ident>) -> Expr {
         noop_fold_expr(self, expr, module, function)
     }
 
@@ -136,7 +136,7 @@ pub trait ASTFolder {
     }
 
     fn fold_vbexpr(&mut self, data: Vec<u8>,
-      _module: &Ident, _function: &Ident, _loc: &SrcLoc) -> Vec<u8> {
+      _module: &Ident, _function: Option<&Ident>, _loc: &SrcLoc) -> Vec<u8> {
         data
     }
 
@@ -357,7 +357,7 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
   Stmt { data, loc }: Stmt, module: &Ident, function: &Ident) -> Stmt {
     let data = match data {
         StmtKind::ExprStmt(expr) =>
-            StmtKind::ExprStmt(folder.fold_expr(expr, module, function)),
+            StmtKind::ExprStmt(folder.fold_expr(expr, module, Some(function))),
 
         StmtKind::VarDecl(decls) =>
             StmtKind::VarDecl(decls.into_iter().map(|(ident, ty, init)| {
@@ -368,30 +368,31 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                           &ty, Access::Private),
                         &loc),
                     folder.fold_type(ty, module, &loc),
-                    init.map(|init| folder.fold_expr(init, module, function))
+                    init.map(|init|
+                      folder.fold_expr(init, module, Some(function)))
                 )
             }).collect()),
 
         StmtKind::Assign(lhs, op, rhs) =>
             StmtKind::Assign(
-                folder.fold_expr(lhs, module, function),
+                folder.fold_expr(lhs, module, Some(function)),
                 op,
-                folder.fold_expr(rhs, module, function)),
+                folder.fold_expr(rhs, module, Some(function))),
 
         StmtKind::Return(Some(expr)) =>
             StmtKind::Return(
-                Some(folder.fold_expr(expr, module, function))),
+                Some(folder.fold_expr(expr, module, Some(function)))),
 
         StmtKind::Return(None) =>
             StmtKind::Return(None),
 
         StmtKind::IfStmt { cond, body, elsifs, els } =>
             StmtKind::IfStmt {
-                cond: folder.fold_expr(cond, module, function),
+                cond: folder.fold_expr(cond, module, Some(function)),
                 body: folder.fold_stmt_list(body, module, function),
                 elsifs: elsifs.into_iter().map(|(cond, body)| {
                     (
-                        folder.fold_expr(cond, module, function),
+                        folder.fold_expr(cond, module, Some(function)),
                         folder.fold_stmt_list(body, module, function),
                     )
                 }).collect(),
@@ -401,7 +402,7 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
 
         StmtKind::WhileLoop { cond, body } =>
             StmtKind::WhileLoop {
-                cond: folder.fold_expr(cond, module, function),
+                cond: folder.fold_expr(cond, module, Some(function)),
                 body: folder.fold_stmt_list(body, module, function),
             },
 
@@ -428,28 +429,29 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
                         Access::Private),
                       &loc)
                 ).collect(),
-                along: folder.fold_expr(along, module, function),
+                along: folder.fold_expr(along, module, Some(function)),
                 body: folder.fold_stmt_list(body, module, function),
             },
 
         StmtKind::Alloc(expr, extents) =>
             StmtKind::Alloc(
-                folder.fold_expr(expr, module, function),
+                folder.fold_expr(expr, module, Some(function)),
                 folder.fold_allocextent_list(extents, module, function, &loc)
             ),
 
         StmtKind::ReAlloc(expr, preserved, extent) =>
             StmtKind::ReAlloc(
-                folder.fold_expr(expr, module, function),
+                folder.fold_expr(expr, module, Some(function)),
                 preserved,
                 folder.fold_allocextent(extent, module, function, &loc)
             ),
 
         StmtKind::DeAlloc(expr) =>
-            StmtKind::DeAlloc(folder.fold_expr(expr, module, function)),
+            StmtKind::DeAlloc(folder.fold_expr(expr, module, Some(function))),
 
         StmtKind::Print(exprs) =>
-            StmtKind::Print(folder.fold_expr_list(exprs, module, function)),
+            StmtKind::Print(folder.fold_expr_list(exprs, module,
+              Some(function))),
     };
 
     let loc = folder.fold_srcloc(loc);
@@ -461,22 +463,23 @@ pub fn noop_fold_stmt<F: ASTFolder + ?Sized>(folder: &mut F,
 }
 
 pub fn noop_fold_expr_list<F: ASTFolder + ?Sized>(folder: &mut F,
-  exprs: Vec<Expr>, module: &Ident, function: &Ident) -> Vec<Expr> {
+  exprs: Vec<Expr>, module: &Ident, function: Option<&Ident>) -> Vec<Expr> {
     exprs.into_iter().map(|expr| folder.fold_expr(expr, module, function))
         .collect()
 }
 
 // TODO: maybe each pattern should have its own visit function
 pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
-  Expr { data, loc }: Expr, module: &Ident, function: &Ident) -> Expr {
+  Expr { data, ty, loc }: Expr, module: &Ident, function: Option<&Ident>)
+  -> Expr {
     let data = match data {
         ExprKind::Lit(lit) =>
             ExprKind::Lit(folder.fold_literal(lit, module,
-              Some(function), &loc)),
+              function, &loc)),
 
         ExprKind::Name(path) =>
             ExprKind::Name(folder.fold_path(path,
-              NameCtxt::Value(module, Some(function), Access::Private), &loc)),
+              NameCtxt::Value(module, function, Access::Private), &loc)),
 
         ExprKind::Index(expr, indices) =>
             ExprKind::Index(
@@ -545,10 +548,13 @@ pub fn noop_fold_expr<F: ASTFolder + ?Sized>(folder: &mut F,
             ExprKind::VbExpr(folder.fold_vbexpr(data, module, function, &loc)),
     };
 
+    let ty = ty.map(|ty| folder.fold_type(ty, module, &loc));
+
     let loc = folder.fold_srcloc(loc);
 
     Expr {
         data,
+        ty,
         loc,
     }
 }
@@ -558,13 +564,13 @@ pub fn noop_fold_forspec<F: ASTFolder + ?Sized>(folder: &mut F, spec: ForSpec,
     match spec {
         ForSpec::Range(from, to, step) =>
             ForSpec::Range(
-                folder.fold_expr(from, module, function),
-                folder.fold_expr(to, module, function),
-                step.map(|step| folder.fold_expr(step, module, function))
+                folder.fold_expr(from, module, Some(function)),
+                folder.fold_expr(to, module, Some(function)),
+                step.map(|step| folder.fold_expr(step, module, Some(function)))
             ),
 
         ForSpec::Each(of) =>
-            ForSpec::Each(folder.fold_expr(of, module, function)),
+            ForSpec::Each(folder.fold_expr(of, module, Some(function))),
     }
 }
 
@@ -581,11 +587,11 @@ fn noop_fold_allocextent<F: ASTFolder + ?Sized>(folder: &mut F,
   -> AllocExtent {
     match extent {
         AllocExtent::Along(expr) =>
-            AllocExtent::Along(folder.fold_expr(expr, module, function)),
+            AllocExtent::Along(folder.fold_expr(expr, module, Some(function))),
         AllocExtent::Range(lb, ub) =>
             AllocExtent::Range(
-                lb.map(|lb| folder.fold_expr(lb, module, function)),
-                folder.fold_expr(ub, module, function)
+                lb.map(|lb| folder.fold_expr(lb, module, Some(function))),
+                folder.fold_expr(ub, module, Some(function))
             ),
     }
 }

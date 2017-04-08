@@ -2,414 +2,36 @@
 
 use ast::*;
 use super::*;
-use visit::ASTVisitor;
+use visit::ASTVisitorMut;
 use visit::NameCtxt;
 
 use std::collections::HashSet;
 
-/// Context in which expression typecheck takes place: module name, optional
-///   function name
-pub struct ExprCtxt(pub Ident, pub Option<Ident>);
-
 /// Typecheck a dumpster
-pub fn typecheck(dumpster: &Dumpster, symtab: &SymbolTable)
-  -> AnalysisResult<()> {
+pub fn typecheck(dumpster: &mut Dumpster, symtab: &SymbolTable)
+  -> AnalysisResultMany<()> {
     let mut v = TypecheckVisitor {
         symtab,
-        errors: vec![],
+        errors: Vec::new(),
     };
 
     v.visit_dumpster(dumpster);
 
-    for err in v.errors.drain(..) { // for now
-        return Err(err);
-    }
-
-    Ok(())
-}
-
-pub fn type_of(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<Type> {
-    match expr.data {
-        ExprKind::Lit(ref lit) => Ok(lit.ty()),
-
-        // qualified::name (must denote a module item)
-        ExprKind::Name(ref path) => {
-            match *symtab.symbol_at_path(path,
-              NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
-              &expr.loc)? {
-                Symbol::Const(ref ty, _) => Ok(ty.clone()),
-                Symbol::Value(ref ty, _, _) => Ok(ty.clone()),
-                _ => panic!("dumpster fire: non-value slipped past \
-                  lookup typecheck"),
-            }
-        },
-
-        ExprKind::Index(ref expr, ref indices) => {
-            let expr_t = type_of(expr, symtab, ctxt)?;
-
-            for index in indices {
-                let index_t = type_of(index, symtab, ctxt)?;
-                if !may_coerce(&index_t, &Type::Int32) {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("index not coercible to i32")),
-                        loc: index.loc.clone(),
-                    });
-                }
-            }
-
-            match expr_t {
-                Type::Array(ref base_t, ref bounds) => {
-                    if bounds.dims() == indices.len() {
-                        Ok((**base_t).clone())
-                    } else {
-                        Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("expression indexed with \
-                              {} dimensions; {} required", indices.len(),
-                              bounds.dims())),
-                            loc: expr.loc.clone(),
-                        })
-                    }
-                },
-
-                // not a lot else we can do
-                Type::Variant => Ok(Type::Variant),
-
-                _ => Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("indexed expression not of \
-                                            indexible type")),
-                    loc: expr.loc.clone(),
-                })
-            }
-        },
-
-        ExprKind::Call(ref path, ref args, ref optargs) => {
-            let fun = match *symtab.symbol_at_path(path,
-              NameCtxt::Function(&ctxt.0, Access::Private), &expr.loc)? {
-                Symbol::Fun { ref def, .. } => def,
-                _ => panic!("dumpster fire: non-function \
-                  slipped past lookup typecheck"),
-            };
-
-            typeof_fn_call(fun, args, optargs, symtab, ctxt, path, &expr.loc)
-        },
-
-        ExprKind::Member(ref expr, ref mem) => {
-            let expr_ty = type_of(&**expr, symtab, ctxt)?;
-            match expr_ty {
-                // for now
-                Type::Variant | Type::Obj | Type::Object(_) =>
-                    Ok(Type::Variant),
-
-                Type::Struct(ref path) => {
-                    let members = match *symtab.symbol_at_path(path,
-                      NameCtxt::Type(&ctxt.0, Access::Private), &expr.loc)? {
-                        Symbol::Struct { ref members, .. } => members,
-                        _ => panic!("dumpster fire: non-struct slipped \
-                          past lookup typecheck"),
-                    };
-
-                    match members.get(&mem.0).cloned() {
-                        Some(ty) => Ok(ty),
-                        None => {
-                            return Err(AnalysisError {
-                                kind: AnalysisErrorKind::NotDefined,
-                                regarding: Some(format!(
-                                  "member {} of struct {}", mem, path)),
-                                loc: expr.loc.clone(),
-                            })
-                        }
-                    }
-                },
-
-                Type::Deferred(ref path) => panic!("dumpster fire:
-                  deferred type {} in type checking pass", path),
-
-                ty => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(format!("attempt to access member \
-                          of type {} (not struct, class, obj, or var)", ty)),
-                        loc: expr.loc.clone(),
-                    });
-                }
-            }
-        },
-
-        ExprKind::MemberInvoke(ref expr, ref _mem, ref _args) => {
-            let expr_ty = type_of(&**expr, symtab, ctxt)?;
-            match expr_ty {
-                // for now
-                Type::Variant | Type::Obj | Type::Object(_) =>
-                    Ok(Type::Variant),
-
-                ty => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(format!("attempt to invoke member \
-                          function of type {} (not class, obj, or var)", ty)),
-                        loc: expr.loc.clone(),
-                    });
-                }
-            }
-
-            // eventually use typeof_fn_call
-        },
-
-        ExprKind::UnOpApp(ref expr, ref op) => {
-            let expr_ty = type_of(&**expr, symtab, ctxt)?;
-            match *op {
-                UnOp::Negate => {
-                    if !expr_ty.might_be_numeric() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("unary negation of \
-                              non-numeric expression")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                    Ok(expr_ty.clone())
-                },
-
-                UnOp::BitNot => {
-                    if !expr_ty.might_be_bitwise() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("bitwise complement \
-                              of non-bitwise expression")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                    Ok(expr_ty.clone())
-                },
-
-                UnOp::LogNot => {
-                    if !may_coerce(&expr_ty, &Type::Bool) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("logical complement \
-                              of non-boolean expression")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                    Ok(Type::Bool)
-                },
-
-                UnOp::AddressOf => {
-                    if !expr.is_lvalue() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::InvalidExpr,
-                            regarding: Some(String::from("attempt to take \
-                              address of non-lvalue")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                    Ok(Type::IntPtr)
-                },
-            }
-        },
-
-        ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
-            let lhs_ty = type_of(&**lhs, symtab, ctxt)?;
-            let rhs_ty = type_of(&**rhs, symtab, ctxt)?;
-            let ub_ty = upper_bound_type(&lhs_ty, &rhs_ty).ok_or(
-                AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("no common type for {} and {}",
-                      lhs_ty, rhs_ty)),
-                    loc: expr.loc.clone(),
-                })?;
-
-            match *op {
-                BinOp::Add
-              | BinOp::Sub
-              | BinOp::Mul
-              | BinOp::Div
-              | BinOp::Mod 
-              | BinOp::Pow => {
-                    if !lhs_ty.might_be_numeric()
-                      || !rhs_ty.might_be_numeric() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-numeric type in \
-                              numeric operation")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                },
-
-                BinOp::StrCat => {
-                    if !lhs_ty.might_be_string()
-                      || !rhs_ty.might_be_string() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-string type in \
-                              string operation")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                },
-
-                BinOp::Eq | BinOp::NotEq => {
-                    if !lhs_ty.is_scalar() || !rhs_ty.is_scalar() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-scalar type in \
-                              equality test")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-
-                    return Ok(Type::Bool);
-                },
-
-                // TODO: we might codegen this as an addressof comparison,
-                //   eventually
-                BinOp::IdentEq | BinOp::NotIdentEq => {
-                    if let Some(false) = lhs_ty.is_object() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-object type in \
-                              object identity test")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-
-                    if let Some(false) = rhs_ty.is_object() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-object type in \
-                              object identity test")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-
-                    return Ok(Type::Bool);
-                },
-
-                BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq => {
-                    if !(lhs_ty.might_be_numeric()
-                         || lhs_ty.might_be_string())
-                      || !(rhs_ty.might_be_numeric()
-                         || rhs_ty.might_be_string()) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-comparable type \
-                              in comparison operation")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-
-                    return Ok(Type::Bool);
-                },
-
-                BinOp::BitAnd | BinOp::BitOr => {
-                    if !lhs_ty.might_be_bitwise()
-                      || !rhs_ty.might_be_bitwise() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-bitwise type in \
-                              bitwise operation")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                },
-
-                BinOp::LogAnd | BinOp::LogOr => {
-                    if !may_coerce(&lhs_ty, &Type::Bool)
-                      || !may_coerce(&rhs_ty, &Type::Bool) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-boolean type in \
-                              logical operation")),
-                            loc: expr.loc.clone(),
-                        });
-                    }
-                },
-            };
-
-            Ok(ub_ty)
-        },
-
-        ExprKind::CondExpr { ref cond, ref if_expr, ref else_expr } => {
-            if !may_coerce(&type_of(cond, symtab, ctxt)?, &Type::Bool) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from("non-boolean expression as \
-                      conditional-expression condition")),
-                    loc: cond.loc.clone(),
-                });
-            }
-
-            let if_ty = type_of(if_expr, symtab, ctxt)?;
-            let else_ty = type_of(else_expr, symtab, ctxt)?;
-            let ub_ty = upper_bound_type(&if_ty, &else_ty).ok_or(AnalysisError {
-                kind: AnalysisErrorKind::TypeError,
-                regarding: Some(format!("no common type for {} and {}",
-                  if_ty, else_ty)),
-                loc: expr.loc.clone(),
-            })?;
-
-            Ok(ub_ty)
-        },
-
-        ExprKind::ExtentExpr(ref expr, _, dim) => {
-            let expr_ty = type_of(expr, symtab, ctxt)?;
-            match expr_ty {
-                Type::Array(_, ref bounds) => {
-                    if dim < bounds.dims() {
-                        Ok(Type::Int32)
-                    } else {
-                        Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("dimension {} not \
-                              valid for type {}", dim, expr_ty)),
-                            loc: expr.loc.clone(),
-                        })
-                    }
-                },
-
-                // TODO: maybe allow variants here (checked at runtime)?
-
-                _ => Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("cannot get extents for \
-                      non-array type {}", expr_ty)),
-                    loc: expr.loc.clone(),
-                }),
-            }
-        },
-
-        ExprKind::Cast(ref expr, ref ty) => {
-            let expr_ty = type_of(expr, symtab, ctxt)?;
-            if may_cast(&expr_ty, ty) {
-                Ok(ty.clone())
-            } else {
-                Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("cannot cast expression of type {} \
-                      to type {}", expr_ty, ty)),
-                    loc: expr.loc.clone(),
-                })
-            }
-        },
-
-        // could be anything
-        ExprKind::VbExpr(_) => Ok(Type::Variant),
+    if v.errors.is_empty() {
+        Ok(())
+    } else {
+        Err(v.errors)
     }
 }
 
-pub fn is_constexpr(expr: &Expr, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<bool> {
+pub fn is_constexpr(expr: &Expr, symtab: &SymbolTable, module: &Ident,
+  function: Option<&Ident>) -> AnalysisResult<bool> {
       match expr.data {
           ExprKind::Lit(_) => Ok(true),
 
           ExprKind::Name(ref path) => {
               match *symtab.symbol_at_path(path,
-                NameCtxt::Value(&ctxt.0, ctxt.1.as_ref(), Access::Private),
+                NameCtxt::Value(module, function, Access::Private),
                 &expr.loc)? {
                   Symbol::Const(_, _) => Ok(true),
                   _ => Ok(false),
@@ -643,13 +265,38 @@ pub fn may_cast(from: &Type, to: &Type) -> bool {
     }
 }
 
+// used to fail a shallow check if subexprs previously failed typecheck
+macro_rules! try_type {
+    ($ex:expr) => {
+        match $ex.ty {
+            Some(ref ty) => ty,
+            None => return,
+        }
+    }
+}
+
+// used to fail a shallow check if e.g. symbol lookup fails
+macro_rules! try_collect {
+    ($e:expr => $errs:expr) => {
+        match $e {
+            Ok(r) => r,
+            Err(e) => {
+                $errs.push(e);
+                return;
+            },
+        }
+    }
+}
+
 struct TypecheckVisitor<'a> {
     symtab: &'a SymbolTable,
     errors: Vec<AnalysisError>,
 }
 
-impl<'a> ASTVisitor for TypecheckVisitor<'a> {
-    fn visit_fundef(&mut self, def: &FunDef, m: &Ident) {
+impl<'a> ASTVisitorMut for TypecheckVisitor<'a> {
+    fn visit_fundef(&mut self, def: &mut FunDef, m: &Ident) {
+        self.walk_fundef(def, m);
+
         // private-in-public check: a pub fn may not have a private return type
         if def.access == Access::Public {
             if let Ok(Access::Private) =
@@ -662,11 +309,11 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
                 });
             }
         }
-
-        self.walk_fundef(def, m);
     }
 
-    fn visit_funparam(&mut self, p: &FunParam, m: &Ident, f: &Ident) {
+    fn visit_funparam(&mut self, p: &mut FunParam, m: &Ident, f: &Ident) {
+        self.walk_funparam(p, m, f);
+
         match p.mode {
             ParamMode::ByRef => match p.ty {
                 Type::Array(_, ArrayBounds::Static(_)) =>
@@ -703,11 +350,9 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
             panic!("dumpster fire: \
               parameter {} has same name as function", p.name);
         }
-
-        self.walk_funparam(p, m, f);
     }
 
-    fn visit_optparam(&mut self, p: &(FunParam, Literal),
+    fn visit_optparam(&mut self, p: &mut (FunParam, Literal),
       m: &Ident, f: &Ident) {
         // run defaults to typecheck param, literal
         self.walk_optparam(p, m, f);
@@ -752,7 +397,9 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
         }
     }
 
-    fn visit_static(&mut self, s: &Static, m: &Ident) {
+    fn visit_static(&mut self, s: &mut Static, m: &Ident) {
+        self.walk_static(s, m);
+
         // private-in-public check: a pub static may not have a private type
         if s.access == Access::Public {
             if let Ok(Access::Private) =
@@ -779,11 +426,11 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
 
             None => { },
         };
-
-        self.walk_static(s, m);
     }
 
-    fn visit_constant(&mut self, c: &Constant, m: &Ident) {
+    fn visit_constant(&mut self, c: &mut Constant, m: &Ident) {
+        self.walk_constant(c, m);
+
         // no private-in-public check: all constable types are public
 
         if !may_coerce(&c.value.ty(), &c.ty) {
@@ -795,11 +442,11 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
                 loc: c.loc.clone(),
             });
         }
-
-        self.walk_constant(c, m);
     }
 
-    fn visit_structmem(&mut self, mem: &StructMem, m: &Ident, st: &Ident) {
+    fn visit_structmem(&mut self, mem: &mut StructMem, m: &Ident, st: &Ident) {
+        self.walk_structmem(mem, m, st);
+
         // TODO: also recurse into nested types
         // recursive type check
         if mem.ty == Type::Struct(Path(Some(m.clone()), st.clone())) {
@@ -833,173 +480,616 @@ impl<'a> ASTVisitor for TypecheckVisitor<'a> {
                 });
             }
         }
-
-        self.walk_structmem(mem, m, st);
     }
 
-    fn visit_stmt(&mut self, stmt: &Stmt, m: &Ident, f: &Ident) {
-        let ctxt = ExprCtxt(m.clone(), Some(f.clone()));
-        if let Err(e) = typecheck_stmt_shallow(stmt, self.symtab, &ctxt) {
-            self.errors.push(e);
-        }
+    fn visit_stmt(&mut self, stmt: &mut Stmt, m: &Ident, f: &Ident) {
         self.walk_stmt(stmt, m, f);
+        self.typecheck_stmt_shallow(stmt, m, f);
     }
 
-    fn visit_allocextent(&mut self, extent: &AllocExtent, m: &Ident,
+    fn visit_expr(&mut self, expr: &mut Expr, module: &Ident,
+      function: Option<&Ident>) {
+        // ok, here's the reasoning.
+        // our goal is to:
+        //   * typecheck every expr
+        //   * typecheck every expr once
+        //   * not repeat errors when we recurse in/out of exprs
+        //   * avoid weird Option<Result<<Type>>> types
+        //
+        // so, to typecheck an expr:
+        //   * walk all subexpressions and typecheck
+        //   * if any subexprs are not typed, they hit errors,
+        //   *   so done (don't double up)
+        //   * apply shallow typecheck to expr, given any
+        //       subexpr types
+        //   * report shallow errors if any
+
+        // first, walk subexprs and typecheck
+        self.walk_expr(expr, module, function);
+
+        // now do a shallow check on our type, iff all subexprs
+        //   were successfully typed
+        expr.ty = match expr.data {
+            ExprKind::Lit(ref lit) => Some(lit.ty()),
+
+            // qualified::name (must denote a module item)
+            ExprKind::Name(ref path) => {
+                match *try_collect!(self.symtab.symbol_at_path(
+                  path,
+                  NameCtxt::Value(module, function, Access::Private),
+                  &expr.loc) => self.errors) {
+                    Symbol::Const(ref ty, _) => Some(ty.clone()),
+                    Symbol::Value(ref ty, _, _) => Some(ty.clone()),
+                    _ => panic!("dumpster fire: non-value slipped past \
+                      lookup typecheck"),
+                }
+            },
+
+            ExprKind::Index(ref expr, ref indices) => {
+                let expr_t = try_type!(expr);
+
+                for index in indices {
+                    let index_t = try_type!(index);
+                    if !may_coerce(index_t, &Type::Int32) {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("index not coercible to i32")),
+                            loc: index.loc.clone(),
+                        });
+                    }
+                }
+
+                match *expr_t {
+                    Type::Array(ref base_t, ref bounds) => {
+                        if bounds.dims() == indices.len() {
+                            Some((**base_t).clone())
+                        } else {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("expression indexed with \
+                                  {} dimensions; {} required", indices.len(),
+                                  bounds.dims())),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        }
+                    },
+
+                    // not a lot else we can do
+                    Type::Variant => Some(Type::Variant),
+
+                    _ => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("indexed expression \
+                              not of indexible type")),
+                            loc: expr.loc.clone(),
+                        });
+                        None
+                    }
+                }
+            },
+
+            ExprKind::Call(ref path, ref args, ref optargs) => {
+                let fun = match *try_collect!(self.symtab.symbol_at_path(
+                  path,
+                  NameCtxt::Function(module, Access::Private),
+                  &expr.loc) => self.errors) {
+                    Symbol::Fun { ref def, .. } => def,
+                    _ => panic!("dumpster fire: non-function \
+                      slipped past lookup typecheck"),
+                };
+
+                self.typecheck_fn_call(fun, args, optargs, path, &expr.loc);
+                Some(fun.ret.clone())
+            },
+
+            ExprKind::Member(ref expr, ref mem) => {
+                match *try_type!(expr) {
+                    // for now
+                    Type::Variant | Type::Obj | Type::Object(_) =>
+                        Some(Type::Variant),
+
+                    Type::Struct(ref path) => {
+                        let members = match *try_collect!(
+                          self.symtab.symbol_at_path(
+                              path,
+                              NameCtxt::Type(module, Access::Private),
+                              &expr.loc) => self.errors) {
+                            Symbol::Struct { ref members, .. } => members,
+                            _ => panic!("dumpster fire: non-struct slipped \
+                              past lookup typecheck"),
+                        };
+
+                        match members.get(&mem.0).cloned() {
+                            Some(ty) => Some(ty),
+                            None => {
+                                self.errors.push(AnalysisError {
+                                    kind: AnalysisErrorKind::NotDefined,
+                                    regarding: Some(format!(
+                                      "member {} of struct {}", mem, path)),
+                                    loc: expr.loc.clone(),
+                                });
+                                None
+                            }
+                        }
+                    },
+
+                    Type::Deferred(ref path) => panic!("dumpster fire:
+                      deferred type {} in type checking pass", path),
+
+                    ref ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("attempt to access member \
+                              of type {} (not struct, class, obj, or var)", ty)),
+                            loc: expr.loc.clone(),
+                        });
+                        None
+                    }
+                }
+            },
+
+            ExprKind::MemberInvoke(ref expr, ref _mem, ref _args) => {
+                match *try_type!(expr) {
+                    // for now
+                    Type::Variant | Type::Obj | Type::Object(_) =>
+                        Some(Type::Variant),
+
+                    ref ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("attempt to invoke member \
+                              function of type {} (not class, obj, or var)", ty)),
+                            loc: expr.loc.clone(),
+                        });
+                        None
+                    }
+                }
+
+                // eventually use typecheck_fn_call
+            },
+
+            ExprKind::UnOpApp(ref expr, ref op) => {
+                let expr_ty = try_type!(expr);
+                match *op {
+                    UnOp::Negate => {
+                        if !expr_ty.might_be_numeric() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("unary negation of \
+                                  non-numeric expression")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(expr_ty.clone())
+                        }
+                    },
+
+                    UnOp::BitNot => {
+                        if !expr_ty.might_be_bitwise() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("bitwise complement \
+                                  of non-bitwise expression")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(expr_ty.clone())
+                        }
+                    },
+
+                    UnOp::LogNot => {
+                        if !may_coerce(&expr_ty, &Type::Bool) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("logical complement \
+                                  of non-boolean expression")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(Type::Bool)
+                        }
+                    },
+
+                    UnOp::AddressOf => {
+                        if !expr.is_lvalue() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::InvalidExpr,
+                                regarding: Some(String::from("attempt to take \
+                                  address of non-lvalue")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(Type::IntPtr)
+                        }
+                    },
+                }
+            },
+
+            ExprKind::BinOpApp(ref lhs, ref rhs, ref op) => {
+                let lhs_ty = try_type!(lhs);
+                let rhs_ty = try_type!(rhs);
+                let ub_ty = match upper_bound_type(lhs_ty, rhs_ty) {
+                    None => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("no common type for {} and {}",
+                              lhs_ty, rhs_ty)),
+                            loc: expr.loc.clone(),
+                        });
+                        return;
+                    },
+
+                    Some(ty) => ty,
+                };
+
+                match *op {
+                    BinOp::Add
+                  | BinOp::Sub
+                  | BinOp::Mul
+                  | BinOp::Div
+                  | BinOp::Mod 
+                  | BinOp::Pow => {
+                        if !lhs_ty.might_be_numeric()
+                          || !rhs_ty.might_be_numeric() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-numeric type in \
+                                  numeric operation")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(ub_ty)
+                        }
+                    },
+
+                    BinOp::StrCat => {
+                        if !lhs_ty.might_be_string()
+                          || !rhs_ty.might_be_string() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-string type in \
+                                  string operation")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(ub_ty)
+                        }
+                    },
+
+                    BinOp::Eq | BinOp::NotEq => {
+                        if !lhs_ty.is_scalar() || !rhs_ty.is_scalar() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-scalar type in \
+                                  equality test")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(Type::Bool)
+                        }
+                    },
+
+                    // TODO: we might codegen this as an addressof comparison,
+                    //   eventually
+                    BinOp::IdentEq | BinOp::NotIdentEq => {
+                        let mut both_maybe_object = true;
+
+                        if let Some(false) = lhs_ty.is_object() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-object type in \
+                                  object identity test")),
+                                loc: lhs.loc.clone(),
+                            });
+                            both_maybe_object = false;
+                        }
+
+                        if let Some(false) = rhs_ty.is_object() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-object type in \
+                                  object identity test")),
+                                loc: rhs.loc.clone(),
+                            });
+                            both_maybe_object = false;
+                        }
+
+                        if both_maybe_object {
+                            Some(Type::Bool)
+                        } else {
+                            None
+                        }
+                    },
+
+                    BinOp::Lt | BinOp::Gt | BinOp::LtEq | BinOp::GtEq => {
+                        if !(lhs_ty.might_be_numeric()
+                             || lhs_ty.might_be_string())
+                          || !(rhs_ty.might_be_numeric()
+                             || rhs_ty.might_be_string()) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-comparable type \
+                                  in comparison operation")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(Type::Bool)
+                        }
+                    },
+
+                    BinOp::BitAnd | BinOp::BitOr => {
+                        if !lhs_ty.might_be_bitwise()
+                          || !rhs_ty.might_be_bitwise() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-bitwise type in \
+                                  bitwise operation")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(ub_ty)
+                        }
+                    },
+
+                    BinOp::LogAnd | BinOp::LogOr => {
+                        if !may_coerce(&lhs_ty, &Type::Bool)
+                          || !may_coerce(&rhs_ty, &Type::Bool) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-boolean type in \
+                                  logical operation")),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        } else {
+                            Some(ub_ty)
+                        }
+                    },
+                }
+            },
+
+            ExprKind::CondExpr { ref cond, ref if_expr, ref else_expr } => {
+                if !may_coerce(try_type!(cond), &Type::Bool) {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from("non-boolean expression as \
+                          conditional-expression condition")),
+                        loc: cond.loc.clone(),
+                    });
+                }
+
+                let if_ty = try_type!(if_expr);
+                let else_ty = try_type!(else_expr);
+                let ub_ty = upper_bound_type(&if_ty, &else_ty);
+                match ub_ty {
+                    None => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("no common type for {} and {}",
+                              if_ty, else_ty)),
+                            loc: expr.loc.clone(),
+                        });
+                        None
+                    },
+
+                    Some(ub_ty) => Some(ub_ty),
+                }
+            },
+
+            ExprKind::ExtentExpr(ref expr, _, dim) => {
+                let expr_ty = try_type!(expr);
+                match *expr_ty {
+                    Type::Array(_, ref bounds) => {
+                        if dim < bounds.dims() {
+                            Some(Type::Int32)
+                        } else {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("dimension {} not \
+                                  valid for type {}", dim, expr_ty)),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        }
+                    },
+
+                    // TODO: maybe allow variants here (checked at runtime)?
+
+                    _ => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("cannot get extents for \
+                              non-array type {}", expr_ty)),
+                            loc: expr.loc.clone(),
+                        });
+                        None
+                    },
+                }
+            },
+
+            ExprKind::Cast(ref expr, ref ty) => {
+                let expr_ty = try_type!(expr);
+                if may_cast(expr_ty, ty) {
+                    Some(ty.clone())
+                } else {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!("cannot cast expression of type {} \
+                          to type {}", expr_ty, ty)),
+                        loc: expr.loc.clone(),
+                    });
+                    None
+                }
+            },
+
+            // could be anything
+            ExprKind::VbExpr(_) => Some(Type::Variant),
+        };
+    }
+
+    fn visit_allocextent(&mut self, extent: &mut AllocExtent, m: &Ident,
       f: &Ident, loc: &SrcLoc) {
-        let ctxt = ExprCtxt(m.clone(), Some(f.clone()));
-        if let Err(e) = typecheck_allocextent(extent, self.symtab, &ctxt, loc) {
-            self.errors.push(e);
-        }
         self.walk_allocextent(extent, m, f, loc);
+        self.typecheck_allocextent(extent, loc);
     }
-
 }
 
-fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
-  -> AnalysisResult<()> {
-    match stmt.data {
-        StmtKind::ExprStmt(ref expr) => {
-            match expr.data {
-                ExprKind::Call(_, _, _)
-              | ExprKind::MemberInvoke(_, _, _)
-              | ExprKind::VbExpr(_) => {},
+impl<'a> TypecheckVisitor<'a> {
 
-                _ => return Err(AnalysisError {
-                    kind: AnalysisErrorKind::InvalidStmt,
-                    regarding: None,
-                    loc: expr.loc.clone(),
-                })
-            };
+    fn typecheck_stmt_shallow(&mut self, stmt: &Stmt, module: &Ident,
+      function: &Ident) {
+        match stmt.data {
+            StmtKind::ExprStmt(ref expr) => {
+                match expr.data {
+                    ExprKind::Call(_, _, _)
+                  | ExprKind::MemberInvoke(_, _, _)
+                  | ExprKind::VbExpr(_) => {},
 
-            let _ = type_of(&expr, symtab, ctxt)?;
-        },
+                    _ => self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: None,
+                        loc: expr.loc.clone(),
+                    })
+                };
+            },
 
-        StmtKind::VarDecl(ref decls) => {
-            for &(ref ident, ref ty, ref init) in decls {
-                if let Some(ref fun) = ctxt.1 {
+            StmtKind::VarDecl(ref decls) => {
+                for &(ref ident, ref ty, ref init) in decls {
                     // these should already be gensymmed away
-                    if ident == fun {
+                    if ident == function {
                         panic!("dumpster fire: \
                           variable {} has same name as function", ident);
                     }
-                }
 
-                if let Some(ref init) = *init {
-                    let init_ty = type_of(init, symtab, ctxt)?;
-                    if !may_coerce(&init_ty, &ty) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("initializer (of type {}) \
-                              not coercible to declared type {}", init_ty, ty)),
-                            loc: stmt.loc.clone(),
-                        })
+                    if let Some(ref init) = *init {
+                        let init_ty = try_type!(init);
+                        if !may_coerce(&init_ty, &ty) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("initializer (of type {}) \
+                                  not coercible to declared type {}", init_ty, ty)),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
                     }
                 }
-            }
-        },
+            },
 
-        StmtKind::Assign(ref lhs, ref op, ref rhs) => { 
-            if !lhs.is_lvalue() {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::InvalidStmt,
-                    regarding: Some(String::from("assignment to non-lvalue \
-                      expression")),
-                    loc: lhs.loc.clone(),
-                });
-            }
+            StmtKind::Assign(ref lhs, ref op, ref rhs) => { 
+                if !lhs.is_lvalue() {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(String::from("assignment to non-lvalue \
+                          expression")),
+                        loc: lhs.loc.clone(),
+                    });
+                    return;
+                }
 
-            let lhs_ty = type_of(lhs, symtab, ctxt)?;
-            let rhs_ty = type_of(rhs, symtab, ctxt)?;
+                let lhs_ty = try_type!(lhs);
+                let rhs_ty = try_type!(rhs);
 
-            if is_constexpr(lhs, symtab, ctxt)? {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::InvalidStmt,
-                    regarding: Some(String::from("assignment to const \
-                      expression")),
-                    loc: lhs.loc.clone(),
-                });
-            }
+                if try_collect!(is_constexpr(
+                  lhs, &self.symtab, module, Some(function)) => self.errors) {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::InvalidStmt,
+                        regarding: Some(String::from("assignment to const \
+                          expression")),
+                        loc: lhs.loc.clone(),
+                    });
+                    return;
+                }
 
-            match *op {
-                AssignOp::Assign => { },
+                match *op {
+                    AssignOp::Assign => { },
 
-                AssignOp::AddAssign
-              | AssignOp::SubAssign
-              | AssignOp::MulAssign
-              | AssignOp::DivAssign
-              | AssignOp::PowAssign
-              | AssignOp::SubAssign
-                if !lhs_ty.might_be_numeric()
-                  || !rhs_ty.might_be_numeric() => {
-                    return Err(AnalysisError {
+                    AssignOp::AddAssign
+                  | AssignOp::SubAssign
+                  | AssignOp::MulAssign
+                  | AssignOp::DivAssign
+                  | AssignOp::PowAssign
+                  | AssignOp::SubAssign
+                    if !lhs_ty.might_be_numeric()
+                      || !rhs_ty.might_be_numeric() => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-numeric \
+                              expression in numeric-operation assignment")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    AssignOp::StrCatAssign
+                    if !lhs_ty.might_be_string()
+                      || !rhs_ty.might_be_string() => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-string \
+                              expression in string-operation assignment")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    AssignOp::BitAndAssign
+                  | AssignOp::BitOrAssign
+                    if !lhs_ty.might_be_string()
+                      || !rhs_ty.might_be_string() => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-bitwise \
+                              expression in bitwise-operation assignment")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    AssignOp::LogAndAssign
+                  | AssignOp::LogOrAssign
+                    if !may_coerce(&lhs_ty, &Type::Bool)
+                      || !may_coerce(&rhs_ty, &Type::Bool) => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("non-boolean \
+                              expression in logical-operation assignment")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    _ => {},
+                }
+
+                // TODO: do we like this rule in every case?
+                if !may_coerce(&rhs_ty, &lhs_ty) {
+                    self.errors.push(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("non-numeric \
-                          expression in numeric-operation assignment")),
+                        regarding: Some(format!("expression not \
+                          coercible to {}", lhs_ty)),
                         loc: stmt.loc.clone(),
-                    })
-                },
+                    });
+                }
+            },
 
-                AssignOp::StrCatAssign
-                if !lhs_ty.might_be_string()
-                  || !rhs_ty.might_be_string() => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("non-string \
-                          expression in string-operation assignment")),
-                        loc: stmt.loc.clone(),
-                    })
-                },
-
-                AssignOp::BitAndAssign
-              | AssignOp::BitOrAssign
-                if !lhs_ty.might_be_string()
-                  || !rhs_ty.might_be_string() => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("non-bitwise \
-                          expression in bitwise-operation assignment")),
-                        loc: stmt.loc.clone(),
-                    })
-                },
-
-                AssignOp::LogAndAssign
-              | AssignOp::LogOrAssign
-                if !may_coerce(&lhs_ty, &Type::Bool)
-                  || !may_coerce(&rhs_ty, &Type::Bool) => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("non-boolean \
-                          expression in logical-operation assignment")),
-                        loc: stmt.loc.clone(),
-                    })
-                },
-
-                _ => {},
-            }
-
-            // TODO: do we like this rule in every case?
-            if !may_coerce(&rhs_ty, &lhs_ty) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("expression not \
-                      coercible to {}", lhs_ty)),
-                    loc: stmt.loc.clone(),
-                })
-            }
-        },
-
-        StmtKind::Return(ref expr) => {
-            if let Some(ref fun) = ctxt.1 {
-                let ctxt_path = Path(Some(ctxt.0.clone()), fun.clone());
+            StmtKind::Return(ref expr) => {
+                let fun_path = Path(Some(module.clone()), function.clone());
                 // TODO: symbol_at_ident needed here
-                if let Symbol::Fun { ref def, .. } = *symtab.symbol_at_path(
-                  &ctxt_path,
-                  NameCtxt::Function(&ctxt.0, Access::Private),
-                  &stmt.loc)? {
+                if let Symbol::Fun { ref def, .. } = *try_collect!(
+                  self.symtab.symbol_at_path(
+                      &fun_path,
+                      NameCtxt::Function(module, Access::Private),
+                      &stmt.loc) => self.errors) {
                     match def.ret {
                         Type::Void => if expr.is_some() {
-                            return Err(AnalysisError {
+                            self.errors.push(AnalysisError {
                                 kind: AnalysisErrorKind::InvalidStmt,
                                 regarding: Some(String::from("return with \
                                   value from non-void function")),
@@ -1008,7 +1098,7 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                         },
 
                         ref ret_ty => match *expr {
-                            None => return Err(AnalysisError {
+                            None => self.errors.push(AnalysisError {
                                 kind: AnalysisErrorKind::InvalidStmt,
                                 regarding: Some(String::from("return without \
                                   expression from non-void function")),
@@ -1016,9 +1106,9 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                             }),
 
                             Some(ref expr) => {
-                                let expr_ty = type_of(expr, symtab, ctxt)?;
+                                let expr_ty = try_type!(expr);
                                 if !may_coerce(&expr_ty, ret_ty) {
-                                    return Err(AnalysisError {
+                                    self.errors.push(AnalysisError {
                                         kind: AnalysisErrorKind::TypeError,
                                         regarding: Some(format!("return value not \
                                           coercible to {}", ret_ty)),
@@ -1032,267 +1122,225 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
                     panic!("dumpster fire: fn definition not \
                       found in symbol table.");
                 }
-            } else {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::InvalidStmt,
-                    regarding: Some(String::from("return statement outside of\
-                      function body")),
-                    loc: stmt.loc.clone(),
-                });
-            }
-        },
+            },
 
-        StmtKind::IfStmt { ref cond, ref elsifs, .. } => {
-            let cond_ty = type_of(cond, symtab, ctxt)?;
-            if !may_coerce(&cond_ty, &Type::Bool) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from(
-                      "condition not coercible to bool")),
-                    loc: cond.loc.clone(),
-                });
-            }
-
-            for &(ref cond, _) in elsifs {
-                let cond_ty = type_of(cond, symtab, ctxt)?;
+            StmtKind::IfStmt { ref cond, ref elsifs, .. } => {
+                let cond_ty = try_type!(cond);
                 if !may_coerce(&cond_ty, &Type::Bool) {
-                    return Err(AnalysisError {
+                    self.errors.push(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
                         regarding: Some(String::from(
                           "condition not coercible to bool")),
                         loc: cond.loc.clone(),
                     });
                 }
-            }
 
-            return Ok(());
-        },
-
-        StmtKind::WhileLoop { ref cond, .. } => {
-            let cond_ty = type_of(cond, symtab, ctxt)?;
-            if !may_coerce(&cond_ty, &Type::Bool) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from(
-                      "condition not coercible to bool")),
-                    loc: cond.loc.clone(),
-                });
-            }
-
-            return Ok(());
-        },
-
-        StmtKind::ForLoop { var: (ref var, ref ty, ref mode), ref spec, .. } => {
-            match *spec {
-                ForSpec::Range(ref from, ref to, ref step) => {
-                    if *mode == ParamMode::ByRef {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::InvalidStmt,
-                            regarding: Some(format!("reference variable \
-                              {} cannot be used with for loop over range",
-                              var)),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
-
-                    if !ty.might_be_numeric() {
-                        return Err(AnalysisError {
+                for &(ref cond, _) in elsifs {
+                    let cond_ty = try_type!(cond);
+                    if !may_coerce(&cond_ty, &Type::Bool) {
+                        self.errors.push(AnalysisError {
                             kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-numeric control \
-                              variable in range-based for loop.")),
-                            loc: stmt.loc.clone(),
+                            regarding: Some(String::from(
+                              "condition not coercible to bool")),
+                            loc: cond.loc.clone(),
                         });
                     }
+                }
+            },
 
-                    let to_ty = type_of(to, symtab, ctxt)?;
-                    let from_ty = type_of(from, symtab, ctxt)?;
+            StmtKind::WhileLoop { ref cond, .. } => {
+                let cond_ty = try_type!(cond);
+                if !may_coerce(cond_ty, &Type::Bool) {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(String::from(
+                          "condition not coercible to bool")),
+                        loc: cond.loc.clone(),
+                    });
+                }
+            },
 
-                    if !from_ty.might_be_numeric()
-                      || !to_ty.might_be_numeric() {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("non-numeric range \
-                              expression in range-based for loop.")),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
+            StmtKind::ForLoop { var: (ref var, ref ty, ref mode), ref spec, .. } => {
+                match *spec {
+                    ForSpec::Range(ref from, ref to, ref step) => {
+                        if *mode == ParamMode::ByRef {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::InvalidStmt,
+                                regarding: Some(format!("reference variable \
+                                  {} cannot be used with for loop over range",
+                                  var)),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
 
-                    if !may_coerce(&from_ty, &to_ty) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(String::from("bounds have \
-                              incompatible types in range-based for loop.")),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
-
-                    if let Some(ref step) = *step {
-                        let step_ty = type_of(step, symtab, ctxt)?;
-                        if !step_ty.might_be_numeric() {
-                            return Err(AnalysisError {
+                        if !ty.might_be_numeric() {
+                            self.errors.push(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(String::from("non-numeric step \
+                                regarding: Some(String::from("non-numeric control \
+                                  variable in range-based for loop.")),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+
+                        let to_ty = try_type!(to);
+                        let from_ty = try_type!(from);
+
+                        if !from_ty.might_be_numeric()
+                          || !to_ty.might_be_numeric() {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(String::from("non-numeric range \
                                   expression in range-based for loop.")),
                                 loc: stmt.loc.clone(),
                             });
                         }
 
-                        if !may_coerce(&step_ty, &to_ty) {
-                            return Err(AnalysisError {
+                        if !may_coerce(&from_ty, &to_ty) {
+                            self.errors.push(AnalysisError {
                                 kind: AnalysisErrorKind::TypeError,
-                                regarding: Some(String::from("step has \
-                                  incompatible type in range-based for loop.")),
+                                regarding: Some(String::from("bounds have \
+                                  incompatible types in range-based for loop.")),
                                 loc: stmt.loc.clone(),
                             });
                         }
-                    }
-                },
 
-                // TODO: maybe use for-each by-ref to signify local
-                //   lvalue rebinding?
-                ForSpec::Each(ref expr) => {
-                    let expr_ty = type_of(expr, symtab, ctxt)?;
-                    match expr_ty {
-                        Type::Array(ref base, _) => {
-                            match *mode {
-                                ParamMode::ByVal => {
-                                    if !may_coerce(base, ty) {
-                                        return Err(AnalysisError {
-                                            kind: AnalysisErrorKind::TypeError,
-                                            regarding: Some(format!(
-                                              "element type {} not coercible \
-                                                to variable type {}",
-                                              base, ty)),
-                                            loc: stmt.loc.clone(),
-                                        });
-                                    }
-                                },
-
-                                ParamMode::ByRef => {
-                                    if **base != *ty {
-                                        return Err(AnalysisError {
-                                            kind: AnalysisErrorKind::TypeError,
-                                            regarding: Some(format!(
-                                              "loop variable {} has type &{}; \
-                                              element type {} provided",
-                                              var, ty, base)),
-                                            loc: stmt.loc.clone(),
-                                        });
-                                    }
-                                },
-                            }
-                        },
-
-                        Type::Variant
-                      | Type::Obj
-                      | Type::Object(_) => {
-                            if *mode == ParamMode::ByRef {
-                                return Err(AnalysisError {
+                        if let Some(ref step) = *step {
+                            let step_ty = try_type!(step);
+                            if !step_ty.might_be_numeric() {
+                                self.errors.push(AnalysisError {
                                     kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(format!("reference \
-                                      variable {} cannot be used to loop over \
-                                      expression of object or var type (for now)",
-                                      var)),
+                                    regarding: Some(String::from("non-numeric step \
+                                      expression in range-based for loop.")),
                                     loc: stmt.loc.clone(),
                                 });
                             }
-                        },
 
-                        _ => return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("for-each loop \
-                              iteration expression must have array or object \
-                              type; found type {}", expr_ty)),
-                            loc: stmt.loc.clone(),
-                        })
+                            if !may_coerce(&step_ty, &to_ty) {
+                                self.errors.push(AnalysisError {
+                                    kind: AnalysisErrorKind::TypeError,
+                                    regarding: Some(String::from("step has \
+                                      incompatible type in range-based for loop.")),
+                                    loc: stmt.loc.clone(),
+                                });
+                            }
+                        }
+                    },
 
-                    }
-                },
-
-            };
-
-            return Ok(());
-        },
-
-        StmtKind::ForAlong { ref vars, ref along, .. } => {
-            let along_ty = type_of(along, symtab, ctxt)?;
-            let dims = match along_ty {
-                Type::Array(_, ref bounds) => bounds.dims(),
-
-                // TODO: maybe allow variants (checked at runtime)?
-
-                _ => return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("for-along loop over non-array \
-                      expression of type {}", along_ty)),
-                    loc: stmt.loc.clone(),
-                })
-            };
-
-            if vars.len() > dims {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("for-along loop iteration \
-                      variable count ({}) exceeds iterated array \
-                      dimension ({})", vars.len(), dims)),
-                    loc: stmt.loc.clone(),
-                });
-            };
-        },
-
-        StmtKind::Alloc(ref expr, ref extents) => {
-            match type_of(expr, symtab, ctxt)? {
-                Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    let extent_dims = extents.len();
-
-                    if extent_dims == 1 {
-                        match extents[0] {
-                            AllocExtent::Along(ref other) => {
-                                let other_ty = type_of(other, symtab, &ctxt)?;
-                                match other_ty {
-                                    Type::Array(_, ref bounds) => {
-                                        if bounds.dims() < dims {
-                                            return Err(AnalysisError {
+                    // TODO: maybe use for-each by-ref to signify local
+                    //   lvalue rebinding?
+                    ForSpec::Each(ref expr) => {
+                        match *try_type!(expr) {
+                            Type::Array(ref base, _) => {
+                                match *mode {
+                                    ParamMode::ByVal => {
+                                        if !may_coerce(base, ty) {
+                                            self.errors.push(AnalysisError {
                                                 kind: AnalysisErrorKind::TypeError,
                                                 regarding: Some(format!(
-                                                  "along expression does not \
-                                                  have enough dimensions ({}) \
-                                                  for alloc expression extents \
-                                                  ({})", bounds.dims(), dims)),
+                                                  "element type {} not coercible \
+                                                    to variable type {}",
+                                                  base, ty)),
                                                 loc: stmt.loc.clone(),
                                             });
                                         }
-
-                                        // we have a single big-enough array
-                                        return Ok(());
                                     },
 
-                                    // handled by allocextent visitor
-                                    _ => { },
+                                    ParamMode::ByRef => {
+                                        if **base != *ty {
+                                            self.errors.push(AnalysisError {
+                                                kind: AnalysisErrorKind::TypeError,
+                                                regarding: Some(format!(
+                                                  "loop variable {} has type &{}; \
+                                                  element type {} provided",
+                                                  var, ty, base)),
+                                                loc: stmt.loc.clone(),
+                                            });
+                                        }
+                                    },
                                 }
                             },
 
-                            AllocExtent::Range(_, _) => { },
+                            Type::Variant
+                          | Type::Obj
+                          | Type::Object(_) => {
+                                if *mode == ParamMode::ByRef {
+                                    self.errors.push(AnalysisError {
+                                        kind: AnalysisErrorKind::TypeError,
+                                        regarding: Some(format!("reference \
+                                          variable {} cannot be used to loop over \
+                                          expression of object or var type (for now)",
+                                          var)),
+                                        loc: stmt.loc.clone(),
+                                    });
+                                }
+                            },
+
+                            ref expr_ty => self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("for-each loop \
+                                  iteration expression must have array or object \
+                                  type; found type {}", expr_ty)),
+                                loc: stmt.loc.clone(),
+                            })
+
                         }
-                    } else {
-                        for (dim, extent) in extents.iter().enumerate() {
-                            match *extent {
+                    },
+
+                };
+            },
+
+            StmtKind::ForAlong { ref vars, ref along, .. } => {
+                let dims = match *try_type!(along) {
+                    Type::Array(_, ref bounds) => bounds.dims(),
+
+                    // TODO: maybe allow variants (checked at runtime)?
+
+                    ref along_ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!("for-along loop over \
+                              non-array expression of type {}", along_ty)),
+                            loc: stmt.loc.clone(),
+                        });
+                        return;
+                    }
+                };
+
+                if vars.len() > dims {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!("for-along loop iteration \
+                          variable count ({}) exceeds iterated array \
+                          dimension ({})", vars.len(), dims)),
+                        loc: stmt.loc.clone(),
+                    });
+                };
+            },
+
+            StmtKind::Alloc(ref expr, ref extents) => {
+                match *try_type!(expr) {
+                    Type::Array(_, ArrayBounds::Dynamic(dims)) => {
+                        let extent_dims = extents.len();
+
+                        if extent_dims == 1 {
+                            match extents[0] {
                                 AllocExtent::Along(ref other) => {
-                                    let other_ty = type_of(other, symtab, &ctxt)?;
-                                    match other_ty {
+                                    match *try_type!(other) {
                                         Type::Array(_, ref bounds) => {
-                                            if bounds.dims() <= dim {
-                                                return Err(AnalysisError {
+                                            if bounds.dims() < dims {
+                                                self.errors.push(AnalysisError {
                                                     kind: AnalysisErrorKind::TypeError,
                                                     regarding: Some(format!(
                                                       "along expression does not \
                                                       have enough dimensions ({}) \
-                                                      for dimension {} of alloc \
-                                                      expression extents",
-                                                      bounds.dims(), dim)),
+                                                      for alloc expression extents \
+                                                      ({})", bounds.dims(), dims)),
                                                     loc: stmt.loc.clone(),
                                                 });
                                             }
+
+                                            // otherwise, we have a single
+                                            // big-enough array
                                         },
 
                                         // handled by allocextent visitor
@@ -1302,387 +1350,413 @@ fn typecheck_stmt_shallow(stmt: &Stmt, symtab: &SymbolTable, ctxt: &ExprCtxt)
 
                                 AllocExtent::Range(_, _) => { },
                             }
-                        }
-                    }
+                        } else {
+                            for (dim, extent) in extents.iter().enumerate() {
+                                match *extent {
+                                    AllocExtent::Along(ref other) => {
+                                        match *try_type!(other) {
+                                            Type::Array(_, ref bounds) => {
+                                                if bounds.dims() <= dim {
+                                                    self.errors.push(AnalysisError {
+                                                        kind: AnalysisErrorKind::TypeError,
+                                                        regarding: Some(format!(
+                                                          "along expression does not \
+                                                          have enough dimensions ({}) \
+                                                          for dimension {} of alloc \
+                                                          expression extents",
+                                                          bounds.dims(), dim)),
+                                                        loc: stmt.loc.clone(),
+                                                    });
+                                                }
+                                            },
 
-                    if dims != extent_dims {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("extents dimensions ({}) \
-                              do not match array dimensions ({}) in alloc",
-                              extent_dims, dims)),
-                            loc: stmt.loc.clone(),
-                        });
-                    }
-                },
+                                            // handled by allocextent visitor
+                                            _ => { },
+                                        }
+                                    },
 
-                Type::Array(_, ArrayBounds::Static(_)) => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(String::from("attempt to allocate \
-                          statically-dimensioned array")),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-
-                ref ty => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(format!("attempt to allocate \
-                          expression of non-array type {}", ty)),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-            }
-        },
-
-        StmtKind::ReAlloc(ref expr, preserved, ref extent) => {
-            match type_of(expr, symtab, ctxt)? {
-                Type::Array(_, ArrayBounds::Dynamic(dims)) => {
-                    match *extent {
-                        AllocExtent::Along(ref expr) => {
-                            let expr_ty = type_of(expr, symtab, &ctxt)?;
-                            match expr_ty {
-                                Type::Array(_, ref bounds) => {
-                                    let dims = bounds.dims();
-                                    if dims < preserved + 1 {
-                                        return Err(AnalysisError {
-                                            kind: AnalysisErrorKind::TypeError,
-                                            regarding: Some(format!("along \
-                                              expression of type {} does not \
-                                              have enough dimensions in \
-                                              realloc", expr_ty)),
-                                            loc: stmt.loc.clone(),
-                                        });
-                                    }
-                                },
-
-                                // checked in allocextent visitor
-                                _ => { },
+                                    AllocExtent::Range(_, _) => { },
+                                }
                             }
-                        },
+                        }
 
-                        // checked in allocextent visitor
-                        AllocExtent::Range(_, _) => { },
-                    };
+                        if dims != extent_dims {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("extents dimensions ({}) \
+                                  do not match array dimensions ({}) in alloc",
+                                  extent_dims, dims)),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+                    },
 
-                    if dims != preserved + 1 {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!("extents dimensions ({}) \
-                              do not match array dimensions ({}) in realloc",
-                              preserved + 1, dims)),
+                    Type::Array(_, ArrayBounds::Static(_)) => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to allocate \
+                              statically-dimensioned array")),
                             loc: stmt.loc.clone(),
                         });
-                    }
-                },
+                    },
 
-                Type::Array(_, ArrayBounds::Static(_)) => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(String::from("attempt to reallocate \
-                          statically-dimensioned array")),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-
-                ref ty => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(format!("attempt to reallocate \
-                          expression of non-array type {}", ty)),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-            }
-        },
-
-        StmtKind::DeAlloc(ref expr) => {
-            match type_of(expr, symtab, ctxt)? {
-                Type::Array(_, ArrayBounds::Dynamic(_)) => { },
-
-                Type::Array(_, ArrayBounds::Static(_)) => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(String::from("attempt to deallocate \
-                          statically-dimensioned array")),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-
-                ref ty => {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::InvalidStmt,
-                        regarding: Some(format!("attempt to deallocate \
-                          expression of non-array type {}", ty)),
-                        loc: stmt.loc.clone(),
-                    });
-                },
-            }
-        },
-
-        StmtKind::Print(ref exprs) => {
-            for expr in exprs {
-                match type_of(expr, symtab, ctxt)? {
-                    Type::Void => return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(String::from("void function invocation \
-                          in print statement")),
-                        loc: stmt.loc.clone(),
-                    }),
-
-                    _ => { },
+                    ref ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(format!("attempt to allocate \
+                              expression of non-array type {}", ty)),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
                 }
-            }
-        },
+            },
+
+            StmtKind::ReAlloc(ref expr, preserved, ref extent) => {
+                match *try_type!(expr) {
+                    Type::Array(_, ArrayBounds::Dynamic(dims)) => {
+                        match *extent {
+                            AllocExtent::Along(ref expr) => {
+                                let expr_ty = try_type!(expr);
+                                match *expr_ty {
+                                    Type::Array(_, ref bounds) => {
+                                        let dims = bounds.dims();
+                                        if dims < preserved + 1 {
+                                            self.errors.push(AnalysisError {
+                                                kind: AnalysisErrorKind::TypeError,
+                                                regarding: Some(format!("along \
+                                                  expression of type {} does not \
+                                                  have enough dimensions in \
+                                                  realloc", expr_ty)),
+                                                loc: stmt.loc.clone(),
+                                            });
+                                        }
+                                    },
+
+                                    // checked in allocextent visitor
+                                    _ => { },
+                                }
+                            },
+
+                            // checked in allocextent visitor
+                            AllocExtent::Range(_, _) => { },
+                        };
+
+                        if dims != preserved + 1 {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("extents dimensions ({}) \
+                                  do not match array dimensions ({}) in realloc",
+                                  preserved + 1, dims)),
+                                loc: stmt.loc.clone(),
+                            });
+                        }
+                    },
+
+                    Type::Array(_, ArrayBounds::Static(_)) => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to \
+                              reallocate statically-dimensioned array")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    ref ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(format!("attempt to reallocate \
+                              expression of non-array type {}", ty)),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+                }
+            },
+
+            StmtKind::DeAlloc(ref expr) => {
+                match *try_type!(expr) {
+                    Type::Array(_, ArrayBounds::Dynamic(_)) => { },
+
+                    Type::Array(_, ArrayBounds::Static(_)) => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to \
+                              deallocate statically-dimensioned array")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    ref ty => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(format!("attempt to deallocate \
+                              expression of non-array type {}", ty)),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+                }
+            },
+
+            StmtKind::Print(ref exprs) => {
+                for expr in exprs {
+                    match *try_type!(expr) {
+                        Type::Void => self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from("void function \
+                              invocation in print statement")),
+                            loc: stmt.loc.clone(),
+                        }),
+
+                        _ => { },
+                    }
+                }
+            },
+        }
     }
 
-    Ok(())
-}
+    fn typecheck_allocextent(&mut self, extent: &AllocExtent, loc: &SrcLoc) {
+        // TODO: maybe allow variants (checked at runtime)?
 
-fn typecheck_allocextent(extent: &AllocExtent, symtab: &SymbolTable,
-  ctxt: &ExprCtxt, loc: &SrcLoc) -> AnalysisResult<()> {
-    // TODO: maybe allow variants (checked at runtime)?
+        match *extent {
+            AllocExtent::Along(ref expr) => {
+                match *try_type!(expr) {
+                    Type::Array(_, _) => { },
 
-    match *extent {
-        AllocExtent::Along(ref expr) => {
-            match type_of(expr, symtab, &ctxt)? {
-                Type::Array(_, _) => Ok(()),
+                    ref ty => self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::TypeError,
+                        regarding: Some(format!("along expression of non-array \
+                          type {}", ty)),
+                        loc: loc.clone(),
+                    }),
+                }
+            },
 
-                ty => Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(format!("along expression of non-array \
-                      type {}", ty)),
-                    loc: loc.clone(),
-                }),
-            }
-        },
+            AllocExtent::Range(ref lb, ref ub) => {
+                if let Some(ref lb) = *lb {
+                    let extent_ty = try_type!(lb);
+                    if !may_coerce(&extent_ty, &Type::Int32) {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from(
+                              "array extent bound not \
+                                coercible to i32")),
+                            loc: loc.clone(),
+                        });
+                    }
+                }
 
-        AllocExtent::Range(ref lb, ref ub) => {
-            if let Some(ref lb) = *lb {
-                let extent_ty = type_of(lb, symtab, ctxt)?;
+                let extent_ty = try_type!(ub);
                 if !may_coerce(&extent_ty, &Type::Int32) {
-                    return Err(AnalysisError {
+                    self.errors.push(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
                         regarding: Some(String::from(
-                          "array extent bound not \
-                            coercible to i32")),
+                          "array extent bound not coercible \
+                          to i32")),
                         loc: loc.clone(),
                     });
                 }
-            }
-
-            let extent_ty = type_of(ub, symtab, ctxt)?;
-            if !may_coerce(&extent_ty, &Type::Int32) {
-                return Err(AnalysisError {
-                    kind: AnalysisErrorKind::TypeError,
-                    regarding: Some(String::from(
-                      "array extent bound not coercible \
-                      to i32")),
-                    loc: loc.clone(),
-                });
-            }
-
-            Ok(())
-        },
-    }
-}
-
-fn typeof_fn_call(fun: &FunDef, args: &Vec<Expr>, optargs: &Vec<(Ident, Expr)>,
-  symtab: &SymbolTable, ctxt: &ExprCtxt, invoke_path: &Path,
-  invoke_loc: &SrcLoc) -> AnalysisResult<Type> {
-    if args.len() < fun.params.len() {
-        return Err(AnalysisError {
-            kind: AnalysisErrorKind::FnCallError,
-            regarding: Some(format!("{} requires {} arguments; \
-              {} were provided", invoke_path, fun.params.len(), args.len())),
-            loc: invoke_loc.clone(),
-        })
+            },
+        }
     }
 
-    if !optargs.is_empty() && args.len() > fun.params.len() {
-        return Err(AnalysisError {
-            kind: AnalysisErrorKind::FnCallError,
-            regarding: Some(String::from("positional optional arguments \
-              cannot be mixed with by-name optional arguments (sorry!)")),
-            loc: invoke_loc.clone(),
-        });
-    }
-
-    if let Some(max_optargs) =
-      fun.optparams.as_ref().map(|o| o.max_len()).unwrap_or(Some(0)) {
-        if args.len() > fun.params.len() + max_optargs {
-            return Err(AnalysisError {
+    fn typecheck_fn_call(&mut self, fun: &FunDef, args: &Vec<Expr>,
+      optargs: &Vec<(Ident, Expr)>, invoke_path: &Path,
+      invoke_loc: &SrcLoc) {
+        if args.len() < fun.params.len() {
+            self.errors.push(AnalysisError {
                 kind: AnalysisErrorKind::FnCallError,
-                regarding: Some(format!("{} requires {} arguments{}; \
-                  {} were provided", invoke_path,
-                  fun.params.len(),
-                  if max_optargs != 0 {
-                      format!(" (+ {} optional)", max_optargs)
-                  } else {
-                      String::from("")
-                  },
-                  args.len())),
+                regarding: Some(format!("{} requires {} arguments; \
+                  {} were provided", invoke_path, fun.params.len(), args.len())),
                 loc: invoke_loc.clone(),
             });
+            return;
         }
-    }
 
-    for (i, param) in fun.params.iter().enumerate() {
-        let arg_type = type_of(&args[i], symtab, ctxt)?.decay();
-
-        match param.mode {
-            ParamMode::ByRef =>
-                if param.ty != arg_type {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(format!(
-                          "parameter {} has type &{}; type {} provided",
-                          param.name, param.ty, arg_type)),
-                        loc: args[i].loc.clone(),
-                    })
-                },
-            ParamMode::ByVal =>
-                if !may_coerce(&arg_type, &param.ty) {
-                    return Err(AnalysisError {
-                        kind: AnalysisErrorKind::TypeError,
-                        regarding: Some(format!(
-                          "parameter {} has type {}; type {} provided",
-                          param.name, param.ty, arg_type)),
-                        loc: args[i].loc.clone(),
-                    })
-                },
+        if !optargs.is_empty() && args.len() > fun.params.len() {
+            self.errors.push(AnalysisError {
+                kind: AnalysisErrorKind::FnCallError,
+                regarding: Some(String::from("positional optional arguments \
+                  cannot be mixed with by-name optional arguments (sorry!)")),
+                loc: invoke_loc.clone(),
+            });
+            return;
         }
-    }
 
-    if optargs.is_empty() {
-        // any optional arguments are positional
-        let optargs = &args[fun.params.len()..];
-        match fun.optparams {
-            Some(FunOptParams::Named(ref optparams)) => {
-                for (i, &(ref param, _)) in optparams.iter().enumerate() {
-                    // argument was provided
-                    if i < optargs.len() {
-                        let arg_ty = type_of(&optargs[i], symtab, ctxt)?
-                            .decay();
+        if let Some(max_optargs) =
+          fun.optparams.as_ref().map(|o| o.max_len()).unwrap_or(Some(0)) {
+            if args.len() > fun.params.len() + max_optargs {
+                self.errors.push(AnalysisError {
+                    kind: AnalysisErrorKind::FnCallError,
+                    regarding: Some(format!("{} requires {} arguments{}; \
+                      {} were provided", invoke_path,
+                      fun.params.len(),
+                      if max_optargs != 0 {
+                          format!(" (+ {} optional)", max_optargs)
+                      } else {
+                          String::from("")
+                      },
+                      args.len())),
+                    loc: invoke_loc.clone(),
+                });
+            }
+        }
 
+        for (i, param) in fun.params.iter().enumerate() {
+            let arg_type = try_type!(args[i]).decay();
+
+            match param.mode {
+                ParamMode::ByRef =>
+                    if param.ty != arg_type {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!(
+                              "parameter {} has type &{}; type {} provided",
+                              param.name, param.ty, arg_type)),
+                            loc: args[i].loc.clone(),
+                        });
+                    },
+                ParamMode::ByVal =>
+                    if !may_coerce(&arg_type, &param.ty) {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(format!(
+                              "parameter {} has type {}; type {} provided",
+                              param.name, param.ty, arg_type)),
+                            loc: args[i].loc.clone(),
+                        });
+                    },
+            }
+        }
+
+        if optargs.is_empty() {
+            // any optional arguments are positional
+            let optargs = &args[fun.params.len()..];
+            match fun.optparams {
+                Some(FunOptParams::Named(ref optparams)) => {
+                    for (i, &(ref param, _)) in optparams.iter().enumerate() {
+                        // argument was provided
+                        if i < optargs.len() {
+                            let arg_ty = try_type!(optargs[i]).decay();
+
+                            match param.mode {
+                                ParamMode::ByRef =>
+                                    if param.ty != arg_ty {
+                                        self.errors.push(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(format!(
+                                              "parameter {} has type &{}; type {} \
+                                                provided",
+                                              param.name, param.ty, arg_ty)),
+                                            loc: optargs[i].loc.clone(),
+                                        });
+                                    },
+                                ParamMode::ByVal =>
+                                    if !may_coerce(&arg_ty, &param.ty) {
+                                        self.errors.push(AnalysisError {
+                                            kind: AnalysisErrorKind::TypeError,
+                                            regarding: Some(format!(
+                                              "parameter {} has type {}; type {} \
+                                                provided",
+                                              param.name, param.ty, arg_ty)),
+                                            loc: optargs[i].loc.clone(),
+                                        });
+                                    },
+                            }
+                        }
+                    }
+                },
+
+                Some(FunOptParams::VarArgs(_, _)) => {
+                    for arg in optargs.iter() {
+                        let arg_ty = try_type!(arg).decay();
+                        if !may_coerce(&arg_ty, &Type::Variant) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!(
+                                    "variadic optional argument has type {}; not \
+                                      coercible to var", arg_ty)),
+                                loc: arg.loc.clone(),
+                            });
+                        }
+                    }
+                },
+
+                None => { },
+            }
+        } else {
+            let optparams = match fun.optparams {
+                Some(FunOptParams::Named(ref optparams)) => optparams,
+                _ => {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::FnCallError,
+                        regarding: Some(format!("fn {} called with \
+                          named optional arguments; none specified in \
+                          function definition",
+                          invoke_path)),
+                        loc: optargs[0].1.loc.clone(),
+                    });
+                    return;
+                },
+            };
+
+            let mut seen = HashSet::new();
+
+            for &(ref argname, ref arg) in optargs {
+                let which = optparams.iter().enumerate()
+                    .find(|&(_, &(ref param, _))| {
+                        match param.name {
+                            Ident(ref name, None) => *name == argname.0,
+                            Ident(_, Some(ref prev)) => *prev == argname.0,
+                        }
+                    });
+
+                match which {
+                    Some((i, _)) => {
+                        if seen.contains(&i) {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::DuplicateSymbol,
+                                regarding: Some(format!("optional argument {} to \
+                                  {} was duplicated", argname, invoke_path)),
+                                loc: arg.loc.clone(),
+                            });
+                        }
+                        seen.insert(i);
+
+                        let param = &optparams[i].0;
+                        let arg_ty = try_type!(arg).decay();
                         match param.mode {
                             ParamMode::ByRef =>
                                 if param.ty != arg_ty {
-                                    return Err(AnalysisError {
+                                    self.errors.push(AnalysisError {
                                         kind: AnalysisErrorKind::TypeError,
                                         regarding: Some(format!(
                                           "parameter {} has type &{}; type {} \
                                             provided",
                                           param.name, param.ty, arg_ty)),
-                                        loc: optargs[i].loc.clone(),
-                                    })
+                                        loc: arg.loc.clone(),
+                                    });
                                 },
                             ParamMode::ByVal =>
                                 if !may_coerce(&arg_ty, &param.ty) {
-                                    return Err(AnalysisError {
+                                    self.errors.push(AnalysisError {
                                         kind: AnalysisErrorKind::TypeError,
                                         regarding: Some(format!(
                                           "parameter {} has type {}; type {} \
                                             provided",
                                           param.name, param.ty, arg_ty)),
-                                        loc: optargs[i].loc.clone(),
-                                    })
+                                        loc: arg.loc.clone(),
+                                    });
                                 },
                         }
-                    }
+                    },
+
+                    None => self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::FnCallError,
+                        regarding: Some(format!("{} has no optional argument {}",
+                          invoke_path, argname)),
+                        loc: arg.loc.clone(),
+                    }),
                 }
-            },
-
-            Some(FunOptParams::VarArgs(_, _)) => {
-                for arg in optargs.iter() {
-                    let arg_ty = type_of(arg, symtab, ctxt)?.decay();
-                    if !may_coerce(&arg_ty, &Type::Variant) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::TypeError,
-                            regarding: Some(format!(
-                                "variadic optional argument has type {}; not \
-                                  coercible to var", arg_ty)),
-                            loc: arg.loc.clone(),
-                        })
-                    }
-                }
-            },
-
-            None => { },
-        }
-    } else {
-        let optparams = match fun.optparams {
-            Some(FunOptParams::Named(ref optparams)) => optparams,
-            _ => return Err(AnalysisError {
-                kind: AnalysisErrorKind::FnCallError,
-                regarding: Some(format!("fn {} called with named optional \
-                  arguments; none specified in function definition",
-                  invoke_path)),
-                loc: optargs[0].1.loc.clone(),
-            })
-        };
-
-        let mut seen = HashSet::new();
-
-        for &(ref argname, ref arg) in optargs {
-            let which = optparams.iter().enumerate()
-                .find(|&(_, &(ref param, _))| {
-                    match param.name {
-                        Ident(ref name, None) => *name == argname.0,
-                        Ident(_, Some(ref prev)) => *prev == argname.0,
-                    }
-                });
-
-            match which {
-                Some((i, _)) => {
-                    if seen.contains(&i) {
-                        return Err(AnalysisError {
-                            kind: AnalysisErrorKind::DuplicateSymbol,
-                            regarding: Some(format!("optional argument {} to \
-                              {} was duplicated", argname, invoke_path)),
-                            loc: arg.loc.clone(),
-                        });
-                    }
-                    seen.insert(i);
-
-                    let param = &optparams[i].0;
-                    let arg_ty = type_of(arg, symtab, ctxt)?.decay();
-                    match param.mode {
-                        ParamMode::ByRef =>
-                            if param.ty != arg_ty {
-                                return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(format!(
-                                      "parameter {} has type &{}; type {} \
-                                        provided",
-                                      param.name, param.ty, arg_ty)),
-                                    loc: arg.loc.clone(),
-                                })
-                            },
-                        ParamMode::ByVal =>
-                            if !may_coerce(&arg_ty, &param.ty) {
-                                return Err(AnalysisError {
-                                    kind: AnalysisErrorKind::TypeError,
-                                    regarding: Some(format!(
-                                      "parameter {} has type {}; type {} \
-                                        provided",
-                                      param.name, param.ty, arg_ty)),
-                                    loc: arg.loc.clone(),
-                                })
-                            },
-                    }
-                },
-
-                None => return Err(AnalysisError {
-                    kind: AnalysisErrorKind::FnCallError,
-                    regarding: Some(format!("{} has no optional argument {}",
-                      invoke_path, argname)),
-                    loc: arg.loc.clone(),
-                }),
             }
         }
     }
-
-    Ok(fun.ret.clone())
 }

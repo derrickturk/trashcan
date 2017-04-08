@@ -41,7 +41,7 @@ fn main() {
         .expect("symtab/resolve error");
 
     // typecheck
-    analysis::typecheck(&dumpster, &symtab)
+    analysis::typecheck(&mut dumpster, &symtab)
         .expect("typeck error");
 
     // post-processing / semantics-preserving passes

@@ -15,8 +15,8 @@ pub fn merge_dumpsters(dumpsters: Vec<Dumpster>) -> Dumpster {
 }
 
 /// replace casts with other expressions where necessary
-pub fn cast_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable) -> Dumpster {
-    let mut f = CastRewriteFolder::new(symtab);
+pub fn cast_rewrite(dumpster: Dumpster, _symtab: &mut SymbolTable) -> Dumpster {
+    let mut f = CastRewriteFolder { };
     f.fold_dumpster(dumpster)
 }
 
@@ -42,50 +42,54 @@ pub fn along_loop_rewrite(dumpster: Dumpster) -> Dumpster {
 }
 
 /// rewrite alloc-along exprs to equivalent range exprs
-pub fn alloc_along_rewrite(dumpster: Dumpster, symtab: &mut SymbolTable)
+pub fn alloc_along_rewrite(dumpster: Dumpster, _symtab: &mut SymbolTable)
   -> Dumpster {
-    let mut f = AllocAlongRewriteFolder::new(symtab);
+    let mut f = AllocAlongRewriteFolder;
     f.fold_dumpster(dumpster)
 }
 
-struct CastRewriteFolder<'a> {
-    symtab: &'a mut SymbolTable,
-    // we'll need this for object-type gensyms
+struct CastRewriteFolder {
+    // we'll need these for object-type gensyms
+    // symtab: &'a mut SymbolTable,
     // before_stmt_stack: Vec<Vec<Stmt>>,
 }
 
-impl<'a> CastRewriteFolder<'a> {
+impl CastRewriteFolder {
+    /*
     fn new(symtab: &'a mut SymbolTable) -> Self {
         CastRewriteFolder {
             symtab,
             // before_stmt_stack: Vec::new(),
         }
     }
+    */
 }
 
-impl<'a> ASTFolder for CastRewriteFolder<'a> {
-    fn fold_expr(&mut self, expr: Expr, module: &Ident, function: &Ident)
-    -> Expr {
-        let Expr { data, loc } =
+impl ASTFolder for CastRewriteFolder {
+    fn fold_expr(&mut self, expr: Expr, module: &Ident,
+      function: Option<&Ident>) -> Expr {
+        let Expr { data, ty, loc } =
             fold::noop_fold_expr(self, expr, module, function);
 
         let data = match data {
-            ExprKind::Cast(expr, ty) => {
-                let expr_ty = type_of(&expr, self.symtab,
-                  &ExprCtxt(module.clone(), Some(function.clone())))
-                  .expect("dumpster fire: untypeable expression \
-                          in cast rewriter");
+            ExprKind::Cast(expr, cast_ty) => {
+                let expr_ty = expr.ty.as_ref()
+                  .expect("dumpster fire: untyped expression \
+                          in cast rewriter")
+                  .clone(); // TODO: this is stupid and only to satisfy the
+                            //   borrow checker
 
                 // no-op cast: just lift out the expression
-                if expr_ty == ty {
+                if expr_ty == cast_ty {
                     return *expr;
                 }
 
                 // no special implementations when casting to variant
                 //   (we're just boxing)
-                if ty == Type::Variant {
+                if cast_ty == Type::Variant {
                     return Expr {
-                        data: ExprKind::Cast(expr, ty),
+                        data: ExprKind::Cast(expr, cast_ty),
+                        ty,
                         loc,
                     };
                 }
@@ -96,15 +100,19 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
                     Type::Bool => ExprKind::CondExpr {
                         cond: expr,
                         if_expr: Box::new(Expr {
-                            data: ExprKind::Lit(Literal::num_of_type(&ty, 1)
+                            data: ExprKind::Lit(
+                              Literal::num_of_type(&cast_ty, 1)
                               .expect("dumpster fire: bad numeric type \
                                 in cast rewriter")),
+                            ty: Some(cast_ty.clone()),
                             loc: loc.clone(),
                         }),
                         else_expr: Box::new(Expr {
-                            data: ExprKind::Lit(Literal::num_of_type(&ty, 0)
+                            data: ExprKind::Lit(
+                              Literal::num_of_type(&cast_ty, 0)
                               .expect("dumpster fire: bad numeric type \
                                 in cast rewriter")),
+                            ty: Some(cast_ty.clone()),
                             loc,
                         })
                     },
@@ -113,7 +121,7 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
                         panic!("TODO: object dynamic casts")
                     },
 
-                    _ => ExprKind::Cast(expr, ty),
+                    _ => ExprKind::Cast(expr, cast_ty),
                 }
             },
 
@@ -122,6 +130,7 @@ impl<'a> ASTFolder for CastRewriteFolder<'a> {
 
         Expr {
             data,
+            ty,
             loc,
         }
     }
@@ -188,6 +197,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                         cond: Expr {
                             data: ExprKind::UnOpApp(
                                       Box::new(lhs.clone()), UnOp::LogNot),
+                            ty: lhs.ty.clone(),
                             loc: loc.clone(),
                         },
                         body: vec![
@@ -215,9 +225,9 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
     }
 
     fn fold_expr(&mut self, expr: Expr, module: &Ident,
-      function: &Ident) -> Expr {
+      function: Option<&Ident>) -> Expr {
         // first recurse into the expression...
-        let Expr { data, loc } =
+        let Expr { data, ty, loc } =
             fold::noop_fold_expr(self, expr, module, function);
 
         let data = match data {
@@ -232,7 +242,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                                   error in before statement stack");
 
                         // add symbol table entry for it
-                        self.symtab.add_value_entry(&g, module, Some(function),
+                        self.symtab.add_value_entry(&g, module, function,
                           &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
@@ -248,6 +258,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                         // build a path-expression for it
                         let g_expr = Expr {
                             data: ExprKind::Name(Path(None, g)),
+                            ty: Some(Type::Bool),
                             loc: loc.clone(),
                         };
 
@@ -275,7 +286,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                                   error in before statement stack");
 
                         // add symbol table entry for it
-                        self.symtab.add_value_entry(&g, module, Some(function),
+                        self.symtab.add_value_entry(&g, module, function,
                           &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
@@ -291,6 +302,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                         // build a path-expression for it
                         let g_expr = Expr {
                             data: ExprKind::Name(Path(None, g)),
+                            ty: Some(Type::Bool),
                             loc: loc.clone(),
                         };
 
@@ -324,16 +336,16 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
                         if_expr: if_expr.clone(),
                         else_expr: else_expr.clone()
                     },
+                    ty: ty.clone(),
                     loc: loc.clone(),
                 };
-                
-                let ty = type_of(&this_expr, self.symtab,
-                  &ExprCtxt(module.clone(), Some(function.clone())))
+
+                let ty = this_expr.ty.as_ref()
                   .expect("dumpster fire: \
-                     untypeable condexpr in short-ciruiter");
+                     untyped condexpr in short-ciruiter");
 
                 // add symbol table entry for g
-                self.symtab.add_value_entry(&g, module, Some(function),
+                self.symtab.add_value_entry(&g, module, function,
                   &ty, Access::Private, &loc).expect("dumpster fire: \
                                     failure adding symtab entry for gensym");
 
@@ -342,12 +354,15 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
                 // push declaration for g
                 before_stmts.push(Stmt {
-                    data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
+                    data: StmtKind::VarDecl(vec![
+                        (g.clone(), ty.clone(), None)
+                    ]),
                     loc: loc.clone(),
                 });
 
                 let g_expr = Expr {
                     data: ExprKind::Name(Path(None, g)),
+                    ty: Some(ty.clone()),
                     loc: loc.clone(),
                 };
 
@@ -383,6 +398,7 @@ impl<'a> ASTFolder for ShortCircuitLogicalsFolder<'a> {
 
         Expr {
             data,
+            ty,
             loc,
         }
     }
@@ -403,7 +419,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
 
     // TODO: this whole loop-and-a-half is ugly hot garbage
     fn array_for_loop(&mut self, var: Ident, ty: Type, mode: ParamMode,
-      expr: Expr, _base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
+      expr: Expr, base: &Type, bounds: &ArrayBounds, mut body: Vec<Stmt>,
       loc: &SrcLoc, module: &Ident, function: &Ident) -> StmtKind {
         let dims = bounds.dims();
 
@@ -415,8 +431,10 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
             data: ExprKind::Index(Box::new(expr.clone()),
               g_iters.iter().cloned().map(|g| Expr {
                   data: ExprKind::Name(Path(None, g)),
+                  ty: Some(Type::Int32),
                   loc: loc.clone(),
               }).collect()),
+            ty: Some(base.clone()),
             loc: loc.clone(),
         };
 
@@ -436,7 +454,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
 
                 before_stmts.push(Stmt {
                     data: StmtKind::VarDecl(vec![
-                      (var.clone(), ty, None)
+                      (var.clone(), ty.clone(), None)
                     ]),
                     loc: loc.clone(),
                 });
@@ -446,6 +464,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                     data: StmtKind::Assign(
                         Expr {
                             data: ExprKind::Name(Path(None, var)),
+                            ty: Some(ty),
                             loc: loc.clone(),
                         },
                         AssignOp::Assign,
@@ -464,7 +483,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                     orig: var,
                     replace: index_expr,
                     module: module.clone(),
-                    function: function.clone(),
+                    function: Some(function.clone()),
                 };
 
                 subst_folder.fold_stmt_list(body, module, function)
@@ -481,6 +500,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                               Box::new(expr.clone()),
                               ExtentKind::First,
                               dim),
+                    ty: Some(Type::Int32),
                     loc: loc.clone(),
                 },
 
@@ -489,6 +509,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                               Box::new(expr.clone()),
                               ExtentKind::Last,
                               dim),
+                    ty: Some(Type::Int32),
                     loc: loc.clone(),
                 },
                 None
@@ -512,6 +533,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                           Box::new(expr.clone()),
                           ExtentKind::First,
                           0usize),
+                ty: Some(Type::Int32),
                 loc: loc.clone(),
             },
 
@@ -520,6 +542,7 @@ impl<'a> ArrayLoopRewriteFolder<'a> {
                           Box::new(expr.clone()),
                           ExtentKind::Last,
                           0usize),
+                ty: Some(Type::Int32),
                 loc: loc.clone(),
             },
 
@@ -573,10 +596,11 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                         },
 
                     ForSpec::Each(expr) => {
-                        let expr_ty = type_of(&expr, self.symtab,
-                          &ExprCtxt(module.clone(), Some(function.clone())))
+                        let expr_ty = expr.ty.as_ref()
                             .expect("dumpster fire: \
-                                    untypeable expr in loop rewriter");
+                                    untyped expr in loop rewriter")
+                            .clone(); // TODO: this is stupid and only to
+                                      //   satisfy the borrow checker
 
                         match expr_ty {
                             Type::Array(ref base, ref bounds) =>
@@ -603,9 +627,9 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
     }
 
     fn fold_expr(&mut self, expr: Expr, module: &Ident,
-      function: &Ident) -> Expr {
+      function: Option<&Ident>) -> Expr {
         // first recurse into the expression...
-        let Expr { data, loc } =
+        let Expr { data, ty, loc } =
             fold::noop_fold_expr(self, expr, module, function);
 
         let data = match data {
@@ -620,7 +644,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                                   error in before statement stack");
 
                         // add symbol table entry for it
-                        self.symtab.add_value_entry(&g, module, Some(function),
+                        self.symtab.add_value_entry(&g, module, function,
                           &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
@@ -636,6 +660,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                         // build a path-expression for it
                         let g_expr = Expr {
                             data: ExprKind::Name(Path(None, g)),
+                            ty: Some(Type::Bool),
                             loc: loc.clone(),
                         };
 
@@ -663,7 +688,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                                   error in before statement stack");
 
                         // add symbol table entry for it
-                        self.symtab.add_value_entry(&g, module, Some(function),
+                        self.symtab.add_value_entry(&g, module, function,
                           &Type::Bool, Access::Private, &loc)
                           .expect("dumpster fire: \
                                   failure adding symtab entry for gensym");
@@ -679,6 +704,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                         // build a path-expression for it
                         let g_expr = Expr {
                             data: ExprKind::Name(Path(None, g)),
+                            ty: Some(Type::Bool),
                             loc: loc.clone(),
                         };
 
@@ -712,16 +738,16 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                         if_expr: if_expr.clone(),
                         else_expr: else_expr.clone()
                     },
+                    ty: ty.clone(),
                     loc: loc.clone(),
                 };
                 
-                let ty = type_of(&this_expr, self.symtab,
-                  &ExprCtxt(module.clone(), Some(function.clone())))
+                let ty = this_expr.ty.as_ref()
                   .expect("dumpster fire: \
                      untypeable condexpr in short-ciruiter");
 
                 // add symbol table entry for g
-                self.symtab.add_value_entry(&g, module, Some(function),
+                self.symtab.add_value_entry(&g, module, function,
                   &ty, Access::Private, &loc).expect("dumpster fire: \
                                     failure adding symtab entry for gensym");
 
@@ -730,12 +756,15 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
 
                 // push declaration for g
                 before_stmts.push(Stmt {
-                    data: StmtKind::VarDecl(vec![(g.clone(), ty, None)]),
+                    data: StmtKind::VarDecl(vec![
+                        (g.clone(), ty.clone(), None)
+                    ]),
                     loc: loc.clone(),
                 });
 
                 let g_expr = Expr {
                     data: ExprKind::Name(Path(None, g)),
+                    ty: Some(ty.clone()),
                     loc: loc.clone(),
                 };
 
@@ -771,6 +800,7 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
 
         Expr {
             data,
+            ty,
             loc,
         }
     }
@@ -812,6 +842,7 @@ impl ASTFolder for AlongLoopRewriteFolder {
                                             ExtentKind::First,
                                             dim
                                         ),
+                                        ty: Some(Type::Int32),
                                         loc: loc.clone(),
                                     },
                                     Expr {
@@ -820,6 +851,7 @@ impl ASTFolder for AlongLoopRewriteFolder {
                                             ExtentKind::Last,
                                             dim
                                         ),
+                                        ty: Some(Type::Int32),
                                         loc: loc.clone(),
                                     },
                                     None
@@ -844,19 +876,9 @@ impl ASTFolder for AlongLoopRewriteFolder {
     }
 }
 
-struct AllocAlongRewriteFolder<'a> {
-    symtab: &'a mut SymbolTable,
-}
+struct AllocAlongRewriteFolder;
 
-impl<'a> AllocAlongRewriteFolder<'a> {
-    fn new(symtab: &'a mut SymbolTable) -> Self {
-        AllocAlongRewriteFolder {
-            symtab,
-        }
-    }
-}
-
-impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
+impl ASTFolder for AllocAlongRewriteFolder {
     fn fold_stmt(&mut self, Stmt { data, loc }: Stmt, module: &Ident,
       function: &Ident) -> Stmt {
         let data = match data {
@@ -865,12 +887,11 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                 if extents.len() == 1 {
                     let howmany = match extents[0] {
                         AllocExtent::Along(_) => {
-                            let expr_ty = type_of(&expr, self.symtab,
-                              &ExprCtxt(module.clone(), Some(function.clone())))
+                            let expr_ty = expr.ty.as_ref()
                               .expect("dumpster fire: \
-                                      untypeable condexpr in realloc rewriter");
+                                      untyped condexpr in realloc rewriter");
 
-                            if let Type::Array(_, ref bounds) = expr_ty {
+                            if let Type::Array(_, ref bounds) = *expr_ty {
                                 Some(bounds.dims() - 1)
                             } else {
                                 panic!("dumpster fire: \
@@ -899,6 +920,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                                                   Box::new(other.clone()),
                                                   ExtentKind::First,
                                                   i),
+                                        ty: Some(Type::Int32),
                                         loc: other.loc.clone(),
                                     }),
 
@@ -907,6 +929,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                                                   Box::new(other.clone()),
                                                   ExtentKind::Last,
                                                   i),
+                                        ty: Some(Type::Int32),
                                         loc: other.loc.clone(),
                                     },
                                 ),
@@ -927,6 +950,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                                           Box::new(other.clone()),
                                           ExtentKind::First,
                                           preserved),
+                                ty: Some(Type::Int32),
                                 loc: other.loc.clone(),
                             }),
 
@@ -935,6 +959,7 @@ impl<'a> ASTFolder for AllocAlongRewriteFolder<'a> {
                                           Box::new(other.clone()),
                                           ExtentKind::Last,
                                           preserved),
+                                ty: Some(Type::Int32),
                                 loc: other.loc.clone(),
                             }
                         );

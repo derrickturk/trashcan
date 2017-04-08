@@ -1,5 +1,7 @@
 //! trashcan's internal representation of abstract syntax trees
 
+// TODO: phantom types for each pass
+
 use std::fmt;
 
 use parser::SrcLoc;
@@ -179,6 +181,7 @@ pub enum AllocExtent {
 #[derive(Clone, Debug)]
 pub struct Expr {
     pub data: ExprKind,
+    pub ty: Option<Type>,
     pub loc: SrcLoc,
 }
 
