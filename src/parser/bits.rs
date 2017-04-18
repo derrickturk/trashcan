@@ -271,12 +271,12 @@ pub fn bytes_not(input: &[u8], not: u8) -> CutParseResult<&[u8]> {
 }
 
 #[inline]
-pub fn bytes_in<'a>(input: &'a [u8], set: &[u8])
-  -> CutParseResult<'a, &'a [u8]> {
+pub fn bytes_in<'a>(input: &'a [u8], set: &'static [u8],
+  set_desc: Option<&'static str>) -> CutParseResult<'a, &'a [u8]> {
     for (i, b) in input.iter().enumerate() {
         if !set.contains(b) {
             if i == 0 {
-                return err!(input, ParseErrorKind::ExpectedInSet);
+                return err!(input, ParseErrorKind::ExpectedInSet(set_desc));
             } else {
                 let (parsed, rest) = input.split_at(i);
                 return ok!(rest, parsed);

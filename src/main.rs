@@ -27,7 +27,7 @@ fn main() {
         match parser::parse_dumpster(&f.to_string_lossy(), &contents) {
             Ok(d) => dumpsters.push(d),
             Err(err) => {
-                println!("parse error: {:?}", err);
+                println!("syntax error: {}", err);
                 return;
             }
         }

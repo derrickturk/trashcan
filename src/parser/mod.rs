@@ -1,5 +1,8 @@
 //! trashcan's parser and affiliated types
 
+use std::fmt;
+use std::str;
+
 use ast::*;
 
 #[derive(Copy, Clone, Debug)]
@@ -9,7 +12,7 @@ pub enum ParseErrorKind {
     ExpectedWhiteSpace,
     ExpectedDigit,
     ExpectedAsciiLetter,
-    ExpectedInSet,
+    ExpectedInSet(Option<&'static str>),
     ExpectedKeyword(&'static [u8]),
     ExpectedLiteral,
     ExpectedTypename,
@@ -27,6 +30,61 @@ pub enum ParseErrorKind {
     KeywordAsIdent(&'static [u8]),
     InvalidArrayDim,
     InvalidTrailingContent,
+}
+
+impl fmt::Display for ParseErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ParseErrorKind::ExpectedByte(byte) =>
+                write!(f, "expected '{}'", byte as char),
+            ParseErrorKind::ExpectedNotByte(byte) =>
+                write!(f, "unexpected '{}'", byte as char),
+            ParseErrorKind::ExpectedWhiteSpace =>
+                write!(f, "expected whitespace"),
+            ParseErrorKind::ExpectedDigit =>
+                write!(f, "expected digit"),
+            ParseErrorKind::ExpectedAsciiLetter =>
+                write!(f, "expected ASCII letter"),
+            ParseErrorKind::ExpectedInSet(ref desc) =>
+                write!(f, "expected {}", desc.unwrap_or("set member")),
+            ParseErrorKind::ExpectedKeyword(ref kw) =>
+                write!(f, "expected \"{}\"",
+                  unsafe { str::from_utf8_unchecked(kw) }),
+            ParseErrorKind::ExpectedLiteral =>
+                write!(f, "expected literal"),
+            ParseErrorKind::ExpectedTypename =>
+                write!(f, "expected type name"),
+            ParseErrorKind::ExpectedIdent =>
+                write!(f, "expected identifier"),
+            ParseErrorKind::ExpectedExpr =>
+                write!(f, "expected expression"),
+            ParseErrorKind::ExpectedDimSpecifier =>
+                write!(f, "expected dimension specifier"),
+            ParseErrorKind::ExpectedForSpecifier =>
+                write!(f, "expected for-loop specifier"),
+            ParseErrorKind::ExpectedOptParams =>
+                write!(f, "expected optional parameters"),
+            ParseErrorKind::ExpectedDefaultArgument =>
+                write!(f, "expected default argument"),
+            ParseErrorKind::ExpectedModule
+                => write!(f, "expected module definition"),
+            ParseErrorKind::NoAltMatch
+                => write!(f, "all alternatives failed"), // dumpster fire?
+            ParseErrorKind::LookAhead
+                => write!(f, "look-ahead error"), // dumpster fire?
+            ParseErrorKind::InvalidLiteral
+                => write!(f, "invalid literal value"),
+            ParseErrorKind::InvalidEscape
+                => write!(f, "invalid escape character"),
+            ParseErrorKind::KeywordAsIdent(ref kw)
+                => write!(f, "keyword \"{}\" used as identifier",
+                     unsafe { str::from_utf8_unchecked(kw) }),
+            ParseErrorKind::InvalidArrayDim
+                => write!(f, "invalid array dimension"),
+            ParseErrorKind::InvalidTrailingContent
+                => write!(f, "invalid trailing content"),
+        }
+    }
 }
 
 // the internal parser result type, used to allow cuts back to the
@@ -93,6 +151,12 @@ pub use self::srcloc::SrcLoc;
 pub struct ParseError {
     kind: ParseErrorKind,
     loc: SrcLoc,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} @ {}", self.kind, self.loc)
+    }
 }
 
 pub type ParseResult<T> = Result<T, ParseError>;

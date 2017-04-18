@@ -74,7 +74,8 @@ fn path_module(input: &[u8]) -> CutParseResult<Ident> {
 pub fn ident(input: &[u8]) -> CutParseResult<Ident> {
     let (i, _) = opt(input, multispace)?;
     let (i, first) = require!(ascii_letters(i));
-    let (i, rest) = require!(opt!(bytes_in(i, IDENT_CONT_CHARS)));
+    let (i, rest) = require!(opt!(
+      bytes_in(i, IDENT_CONT_CHARS, Some("_, letter, or digit"))));
 
     let mut id = String::from(unsafe { str::from_utf8_unchecked(first) });
     if let Some(rest) = rest {

@@ -1,5 +1,7 @@
 //! trashcan's types for tracking source locations
 
+use std::fmt;
+
 use super::{CutParseResult, ParseError, ParseResult};
 
 use ast::Dumpster;
@@ -29,6 +31,18 @@ impl SrcLoc {
             line: 0,
             start,
             len,
+        }
+    }
+}
+
+impl fmt::Display for SrcLoc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.len == 0 {
+            write!(f, "{}, line {}, character {}",
+              self.file, self.line, self.start)
+        } else {
+            write!(f, "{}, line {}, characters {}:{}",
+              self.file, self.line, self.start, self.start + self.len)
         }
     }
 }
