@@ -43,15 +43,22 @@ fn main() {
     let mut dumpster = transform::case_folding_duplicate_gensym(dumpster);
 
     // symbol table generation & deferred type resolution
-    let mut symtab = analysis::SymbolTable::build(&mut dumpster)
-        .expect("symtab/resolve error");
+    let mut symtab = match analysis::SymbolTable::build(&mut dumpster) {
+        Ok(symtab) => symtab,
+        Err(errs) => {
+            for err in errs {
+                println!("{}", err);
+            }
+            return;
+        }
+    };
 
     // typecheck
     match analysis::typecheck(&mut dumpster, &symtab) {
         Ok(_) => { },
         Err(errs) => {
             for err in errs {
-                println!("error: {:?}", err);
+                println!("{}", err);
             }
             return;
         }

@@ -1,9 +1,7 @@
 //! trashcan's code analysis pipeline, including symbol table and type
 //!   checking as well as various pre-codegen rewrite rules
 
-// the symbol table type will be something like
-//   Map<ident, Map<ident, (type, ...)>> where the outer map key is the scope
-//   (possibly gensymmed for private scopes) and the inner is the symbol name
+use std::fmt;
 
 use parser::SrcLoc;
 
@@ -12,6 +10,37 @@ pub struct AnalysisError {
     kind: AnalysisErrorKind,
     regarding: Option<String>,
     loc: SrcLoc,
+}
+
+impl fmt::Display for AnalysisError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.kind {
+            AnalysisErrorKind::DuplicateSymbol =>
+                write!(f, "duplicate symbol")?,
+            AnalysisErrorKind::NotDefined =>
+                write!(f, "undefined item")?,
+            AnalysisErrorKind::SymbolAccess =>
+                write!(f, "access error")?,
+            AnalysisErrorKind::TypeError =>
+                write!(f, "type error")?,
+            AnalysisErrorKind::InvalidStmt =>
+                write!(f, "invalid statement")?,
+            AnalysisErrorKind::InvalidExpr =>
+                write!(f, "invalid expression")?,
+            AnalysisErrorKind::FnCallError =>
+                write!(f, "invalid fn call")?,
+            AnalysisErrorKind::PrivateInPublic =>
+                write!(f, "private item in public interface")?,
+            AnalysisErrorKind::RecursiveType =>
+                write!(f, "invalid recursive type")?,
+        };
+
+        if let Some(ref msg) = self.regarding {
+            write!(f, ": {}", msg)?;
+        }
+
+        write!(f, " @ {}", self.loc)
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
