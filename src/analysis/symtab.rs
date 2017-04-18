@@ -63,8 +63,9 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    pub fn build(dumpster: &mut Dumpster) -> AnalysisResult<SymbolTable> {
+    pub fn build(dumpster: &mut Dumpster) -> AnalysisResultMany<SymbolTable> {
         let mut symtab = SymbolTable::new();
+        let mut errors = Vec::new();
 
         // first make a pass to collect all type declarations into
         //   the symbol table...
@@ -73,14 +74,21 @@ impl SymbolTable {
                 TypeCollectingSymbolTableBuilder::build(&mut symtab);
             type_collector.visit_dumpster(dumpster);
 
-            let _ = type_collector.result()?;
+            match type_collector.result() {
+                Ok(_) => { },
+                Err(mut errs) => errors.append(&mut errs),
+            };
         }
 
         // then a mutation pass over the AST to resolve Deferred type nodes
         {
             let mut resolver = DeferredResolver::from(&symtab);
             resolver.visit_dumpster(dumpster);
-            let _ = resolver.result()?;
+
+            match resolver.result() {
+                Ok(_) => { },
+                Err(mut errs) => errors.append(&mut errs),
+            };
         }
 
         // then a final pass to collect values and functions into the symbol
@@ -90,10 +98,17 @@ impl SymbolTable {
                 ValueCollectingSymbolTableBuilder::build(&mut symtab);
             value_collector.visit_dumpster(dumpster);
 
-            let _ = value_collector.result()?;
+            match value_collector.result() {
+                Ok(_) => { },
+                Err(mut errs) => errors.append(&mut errs),
+            };
         }
 
-        Ok(symtab)
+        if errors.is_empty() {
+            Ok(symtab)
+        } else {
+            Err(errors)
+        }
     }
 
     // TODO: probably build symbol_at_ident etc (steal guts of
@@ -178,9 +193,12 @@ impl SymbolTable {
             ValueCollectingSymbolTableBuilder::build(self);
         value_collector.visit_ident(ident,
           NameCtxt::DefValue(module, function, ty, access), err_loc);
-        let _ = value_collector.result()?;
 
-        Ok(())
+        match value_collector.result() {
+            Ok(_) => Ok(()),
+            Err(errs) => Err(errs.into_iter().next()
+              .expect("dumpster fire: empty error vector")),
+        }
     }
 
     pub fn type_access(&self, ty: &Type, module: &Ident, err_loc: &SrcLoc)
@@ -323,11 +341,12 @@ impl<'a> TypeCollectingSymbolTableBuilder<'a> {
         }
     }
 
-    fn result(self) -> AnalysisResult<()> {
-        for e in self.errors {
-            return Err(e);
+    fn result(self) -> AnalysisResultMany<()> {
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors)
         }
-        Ok(())
     }
 }
 
@@ -382,12 +401,12 @@ impl<'a> ValueCollectingSymbolTableBuilder<'a> {
         }
     }
 
-    // TODO: allow vector of errors
-    fn result(self) -> AnalysisResult<()> {
-        for e in self.errors {
-            return Err(e);
+    fn result(self) -> AnalysisResultMany<()> {
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors)
         }
-        Ok(())
     }
 }
 
@@ -523,12 +542,12 @@ impl<'a> DeferredResolver<'a> {
         }
     }
 
-    fn result(self) -> AnalysisResult<()> {
-        // for now
-        for e in self.errors {
-            return Err(e);
+    fn result(self) -> AnalysisResultMany<()> {
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(self.errors)
         }
-        Ok(())
     }
 }
 
