@@ -371,9 +371,10 @@ impl<'a> ASTVisitor for TypeCollectingSymbolTableBuilder<'a> {
                 "dumpster fire: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
+                println!("duplicate struct: {:?}", def.name);
                 self.errors.push(AnalysisError {
                     kind: AnalysisErrorKind::DuplicateSymbol,
-                    regarding: Some(format!("fn {}::{}", m, def.name)),
+                    regarding: Some(format!("struct {}::{}", m, def.name)),
                     loc: def.loc.clone(),
                 });
             } else {
@@ -417,6 +418,7 @@ impl<'a> ASTVisitor for ValueCollectingSymbolTableBuilder<'a> {
                 "dumpster fire: no module entry in symbol table");
 
             if mod_tab.contains_key(&def.name.0) {
+                println!("duplicate fn: {:?}", def.name);
                 self.errors.push(AnalysisError {
                     kind: AnalysisErrorKind::DuplicateSymbol,
                     regarding: Some(format!("fn {}::{}", m, def.name)),

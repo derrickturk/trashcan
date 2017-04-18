@@ -14,7 +14,7 @@ static mut GENSYM_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
 pub fn gensym(orig: Option<Ident>) -> Ident {
     let num = unsafe { GENSYM_ID.fetch_add(1, Ordering::Relaxed) };
-    Ident(format!("ø{}", num), orig.map(|i| i.0))
+    Ident(format!("ø{}", num), orig.map(|i| i.1.unwrap_or(i.0)))
 }
 
 // TODO: some impl fns that make this easier to construct
