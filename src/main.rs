@@ -1,7 +1,6 @@
 use std::env;
 use std::fs::File;
 
-use std::io;
 use std::io::Read;
 
 extern crate trashcan;
@@ -81,7 +80,4 @@ fn main() {
             &format!("Unable to open {}.", file));
         m.emit(&mut file, &symtab, (), 0).unwrap();
     }
-
-    let mut stdout = io::LineWriter::new(io::stdout());
-    symtab.dump(&mut stdout, 0).unwrap();
 }
