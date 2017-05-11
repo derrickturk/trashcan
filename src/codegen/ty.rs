@@ -24,7 +24,7 @@ impl Emit<TypePos> for Type {
             Type::Array(_, ref bounds) => {
                 match ctxt {
                     TypePos::Decl => {
-                        emit_bounds(out, bounds)?;
+                        emit_bounds(out, bounds, symtab)?;
                         out.write_all(b" As ")?;
                         emit_basename(out, symtab, self)
                     },
@@ -75,20 +75,59 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
     }
 }
 
-fn emit_bounds<W: Write>(out: &mut W, bounds: &ArrayBounds)
-  -> io::Result<()> {
+fn emit_bounds<W: Write>(out: &mut W, bounds: &ArrayBounds,
+  symtab: &SymbolTable) -> io::Result<()> {
     out.write_all(b"(")?;
     match *bounds {
         ArrayBounds::Static(ref bounds) => {
-            for (i, &(l, u)) in bounds.iter().enumerate() {
+            for (i, bound) in bounds.iter().enumerate() {
                 if i != 0 {
                     out.write_all(b", ")?;
                 }
-                write!(out, "{} To {}", l, u)?;
+
+                match *bound {
+                    StaticArrayBound::Range(ref first, ref end) => {
+                        emit_static_dim(out, first, symtab, false)?;
+                        out.write_all(b" To ")?;
+                        emit_static_dim(out, end, symtab, false)?;
+                    },
+
+                    StaticArrayBound::Length(ref len) => {
+                        out.write_all(b"0 To ")?;
+                        emit_static_dim(out, len, symtab, true)?;
+                    },
+                }
             }
         },
 
         ArrayBounds::Dynamic(_) => {},
     };
     out.write_all(b")")
+}
+
+fn emit_static_dim<W: Write>(out: &mut W, dim: &StaticArrayDim,
+  symtab: &SymbolTable, subtract_one: bool) -> io::Result<()> {
+    match *dim {
+        StaticArrayDim::Lit(ref lit) => {
+            match *lit {
+                Literal::UInt8(i) =>
+                    write!(out, "{}", if subtract_one { i - 1 } else { i }),
+                Literal::Int16(i) =>
+                    write!(out, "{}", if subtract_one { i - 1 } else { i }),
+                Literal::Int32(i) =>
+                    write!(out, "{}", if subtract_one { i - 1 } else { i }),
+                _ => panic!("dumpster fire: invalid literal type in static \
+                  array bound during codegen"),
+            }?;
+        },
+
+        StaticArrayDim::Named(ref path) => {
+            path.emit(out, symtab, (), 0)?;
+            if subtract_one {
+                out.write_all(b" - 1")?;
+            }
+        },
+    }
+
+    Ok(())
 }

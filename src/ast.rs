@@ -3,6 +3,7 @@
 // TODO: phantom types for each pass
 
 use std::fmt;
+use std::fmt::Write;
 
 use parser::SrcLoc;
 
@@ -331,7 +332,7 @@ pub enum ParamMode {
 }
 
 /// Primitive types of trashcan
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     /// bool
     Bool,
@@ -477,11 +478,44 @@ impl fmt::Display for Type {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum StaticArrayDim {
+    Lit(Literal),
+    Named(Path),
+}
+
+impl fmt::Display for StaticArrayDim {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            StaticArrayDim::Lit(ref lit) => write!(f, "{}", lit),
+            StaticArrayDim::Named(ref path) => write!(f, "{}", path),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// A static array bound
+pub enum StaticArrayBound {
+    Range(StaticArrayDim, StaticArrayDim),
+    Length(StaticArrayDim),
+}
+
+impl fmt::Display for StaticArrayBound {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            StaticArrayBound::Range(ref first, ref end) =>
+                write!(f, "{}:{}", first, end),
+            StaticArrayBound::Length(ref len) =>
+                write!(f, "{}", len),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 /// Array bound descriptions
 pub enum ArrayBounds {
     /// static bounds lower-to-upper by dimension
-    Static(Vec<(i32, i32)>),
+    Static(Vec<StaticArrayBound>),
     /// dynamic array: typed by dimensionality only
     Dynamic(usize),
 }
@@ -499,11 +533,11 @@ impl fmt::Display for ArrayBounds {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ArrayBounds::Static(ref bounds) => {
-                for (i, &(lb, ub)) in bounds.iter().enumerate() {
+                for (i, ref bound) in bounds.iter().enumerate() {
                     if i != 0 {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{}:{}", lb, ub)?;
+                    bound.fmt(f)?;
                 }
                 Ok(())
             },
@@ -587,7 +621,7 @@ pub enum BinOp {
 }
 
 /// Literals are...
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     /// null pointer literal (= VB6 Nothing)
     NullPtr,
@@ -656,4 +690,38 @@ impl Literal {
             _ => None,
         }
     }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Literal::NullPtr => f.write_str("nullptr"),
+            Literal::NullVar => f.write_str("nullvar"),
+            Literal::EmptyVar => f.write_str("emptyvar"),
+            Literal::Bool(b) => f.write_str(if b { "true" } else { "false" }),
+            Literal::UInt8(i) => write!(f, "{}u8", i),
+            Literal::Int16(i) => write!(f, "{}i16", i),
+            Literal::Int32(i) => write!(f, "{}i32", i),
+            Literal::IntPtr(i) => write!(f, "{}isize", i),
+            Literal::Float32(g) => write!(f, "{}f32", g),
+            Literal::Float64(g) => write!(f, "{}f64", g),
+            Literal::String(ref s) => unescape_string(&s, f),
+            Literal::Currency(c) =>
+                write!(f, "{}.{}currency", c / 10000, c % 10000),
+            Literal::Date(_) =>
+                panic!("dumpster fire: no format for literal dates yet"),
+        }
+    }
+}
+
+fn unescape_string(escaped: &str, f: &mut fmt::Formatter) -> fmt::Result {
+    for c in escaped.chars() {
+        match c {
+            '"' => f.write_str("\"\"")?,
+            '\t' => f.write_str("\\t")?,
+            '\n' => f.write_str("\\n")?,
+            c => f.write_char(c)?,
+        }
+    }
+    Ok(())
 }

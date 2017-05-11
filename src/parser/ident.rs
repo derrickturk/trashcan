@@ -4,6 +4,7 @@ use std::str;
 
 use super::{ParseErrorKind, CutParseResult};
 use super::bits::*;
+use super::lit::*;
 
 use ast::*;
 
@@ -147,32 +148,25 @@ fn array_static_bounds(input: &[u8]) -> CutParseResult<ArrayBounds> {
     ok!(i, ArrayBounds::Static(bounds))
 }
 
-fn array_dim(input: &[u8]) -> CutParseResult<(i32, i32)> {
-    let (i, _) = opt(input, multispace)?;
-    let (i, first) = require!(digits(i));
+fn array_dim(input: &[u8]) -> CutParseResult<StaticArrayBound> {
+    let (i, first) = require!(alt!(input,
+        literal(input) => |l| StaticArrayDim::Lit(l)
+      ; path(input) => |p| StaticArrayDim::Named(p)
+    ));
 
     let (i, end) = require!(opt!(chain!(i,
         |i| opt(i, multispace) =>
         |i| byte(i, b':') =>
         |i| opt(i, multispace) =>
-        |i| cut_if_err!(digits(i)) // we should cut! if we dont see a digit here
+        |i| cut_if_err!(alt!(i,
+                literal(i) => |l| StaticArrayDim::Lit(l)
+              ; path(i) => |p| StaticArrayDim::Named(p)
+            ) => ParseErrorKind::ExpectedDimSpecifier)
     )));
 
-    match make_range(first, end) {
-        Ok(dim) => ok!(i, dim),
-        Err(_) => err!(input, ParseErrorKind::InvalidArrayDim),
-    }
-}
-
-fn make_range(first: &[u8], end: Option<&[u8]>)
-  -> Result<(i32, i32), <i32 as str::FromStr>::Err> {
-    let first = unsafe { str::from_utf8_unchecked(first).parse()? };
     match end {
-        None => Ok((0, first - 1)),
-        Some (end) => {
-            let end = unsafe { str::from_utf8_unchecked(end).parse()? };
-            Ok((first, end))
-        }
+        None => ok!(i, StaticArrayBound::Length(first)),
+        Some(end) => ok!(i, StaticArrayBound::Range(first, end)),
     }
 }
 
