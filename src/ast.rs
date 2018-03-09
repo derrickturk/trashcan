@@ -360,6 +360,8 @@ pub enum Type {
     Obj,
     /// T[] (possibly multidimensional)
     Array(Box<Type>, ArrayBounds),
+    /// ... (variadic argument arrays)
+    VarArgsArray,
     /// named object type
     Object(Path),
     /// named structure type
@@ -473,6 +475,7 @@ impl fmt::Display for Type {
             Type::Deferred(ref path) => write!(f, "{}", path),
             Type::Array(ref base, ref bounds) =>
                 write!(f, "{}[{}]", base, bounds),
+            Type::VarArgsArray => write!(f, "..."),
             Type::Void => write!(f, "void"),
         }
     }

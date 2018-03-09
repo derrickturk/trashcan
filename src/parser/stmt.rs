@@ -17,9 +17,9 @@ pub fn stmt(input: &[u8]) -> CutParseResult<Stmt> {
       ; whileloop(input)
       ; foralong(input) // must try this before forloop
       ; forloop(input)
+      ; dealloc(input) // must try this before alloc/realloc
       ; alloc(input)
       ; realloc(input)
-      ; dealloc(input)
       ; assignment(input)
       ; exprstmt(input)
     )

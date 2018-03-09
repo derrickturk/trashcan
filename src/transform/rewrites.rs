@@ -607,6 +607,11 @@ impl<'a> ASTFolder for ArrayLoopRewriteFolder<'a> {
                                 self.array_for_loop(var, ty, mode, expr,
                                   base, bounds, body, &loc, module, function),
 
+                            Type::VarArgsArray =>
+                                self.array_for_loop(var, ty, mode, expr,
+                                  &Type::Variant, &ArrayBounds::Dynamic(1),
+                                  body, &loc, module, function),
+
                             _ => StmtKind::ForLoop {
                                 var: (var, ty, mode),
                                 spec: ForSpec::Each(expr),

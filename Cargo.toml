@@ -6,3 +6,4 @@ authors = ["derrickturk <dwt@terminusdatascience.com>"]
 [[bin]]
 doc = false
 name = "tcc"
+path = "src/main.rs"

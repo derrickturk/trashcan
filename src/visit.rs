@@ -272,10 +272,7 @@ macro_rules! make_ast_vistor {
                     ) => {
                         self.visit_ident(name,
                           NameCtxt::DefParam(module, function,
-                            &Type::Array(
-                                Box::new(Type::Variant),
-                                ArrayBounds::Dynamic(1)
-                            ),
+                            &Type::VarArgsArray,
                             ParamMode::ByRef
                           ),
                           loc);

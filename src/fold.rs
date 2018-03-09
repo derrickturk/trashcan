@@ -247,10 +247,7 @@ pub fn noop_fold_optparams<F: ASTFolder + ?Sized>(folder: &mut F,
                   NameCtxt::DefParam(
                       module,
                       function,
-                      &Type::Array(
-                        Box::new(Type::Variant),
-                        ArrayBounds::Dynamic(1)
-                      ),
+                      &Type::VarArgsArray,
                       ParamMode::ByRef
                   ),
                   &loc),

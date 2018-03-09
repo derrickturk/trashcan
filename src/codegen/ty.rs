@@ -66,6 +66,7 @@ fn emit_basename<W: Write>(out: &mut W, symtab: &SymbolTable, ty: &Type)
         &Type::Variant => out.write_all(b"Variant"),
         &Type::Obj => out.write_all(b"Object"),
         &Type::Array(ref basety, _) => emit_basename(out, symtab, basety),
+        &Type::VarArgsArray => out.write_all(b"Variant"),
         &Type::Object(ref path) => path.emit(out, symtab, (), 0),
         &Type::Struct(ref path) => path.emit(out, symtab, (), 0),
         &Type::Enum(ref path) => path.emit(out, symtab, (), 0),

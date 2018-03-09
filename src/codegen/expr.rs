@@ -187,6 +187,7 @@ impl Emit<ExprPos> for Expr {
 
                 let emit_dim = match *expr_ty {
                     Type::Array(_, ref bounds) => bounds.dims() != 1,
+                    Type::VarArgsArray => false,
                     // TODO: maybe allow variants here (checked at runtime)?
                     _ => panic!("dumpster fire: non-array expression \
                       in extent expr"),

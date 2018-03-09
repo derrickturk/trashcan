@@ -134,6 +134,7 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
             _ => false,
         },
 
+        // TODO: do we want to allow this? coercion to var may fail at runtime
         Type::Variant => match *to {
             // can't assign to statically-dimensioned array
             Type::Array(_, ArrayBounds::Static(_)) => false,
@@ -163,6 +164,8 @@ pub fn may_coerce(from: &Type, to: &Type) -> bool {
 
             _ => false,
         },
+
+        Type::VarArgsArray => false,
 
         // TODO: thread the symbol table through here
         //   and check actual subtyping info
@@ -555,6 +558,21 @@ impl<'a> ASTVisitorMut for TypecheckVisitor<'a> {
                         }
                     },
 
+                    Type::VarArgsArray => {
+                        if indices.len() == 1 {
+                            Some(Type::Variant)
+                        } else {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("variadic arguments \
+                                  array indexed with {} dimensions; 1 required",
+                                  indices.len())),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        }
+                    },
+
                     // not a lot else we can do
                     Type::Variant => Some(Type::Variant),
 
@@ -904,6 +922,20 @@ impl<'a> ASTVisitorMut for TypecheckVisitor<'a> {
                         }
                     },
 
+                    Type::VarArgsArray => {
+                        if dim == 0 {
+                            Some(Type::Int32)
+                        } else {
+                            self.errors.push(AnalysisError {
+                                kind: AnalysisErrorKind::TypeError,
+                                regarding: Some(format!("dimension {} not \
+                                  valid for variadic arguments array", dim)),
+                                loc: expr.loc.clone(),
+                            });
+                            None
+                        }
+                    },
+
                     // TODO: maybe allow variants here (checked at runtime)?
 
                     _ => {
@@ -1226,8 +1258,6 @@ impl<'a> TypecheckVisitor<'a> {
                         }
                     },
 
-                    // TODO: maybe use for-each by-ref to signify local
-                    //   lvalue rebinding?
                     ForSpec::Each(ref expr) => {
                         match *try_type!(expr) {
                             Type::Array(ref base, _) => {
@@ -1253,6 +1283,35 @@ impl<'a> TypecheckVisitor<'a> {
                                                   "loop variable {} has type &{}; \
                                                   element type {} provided",
                                                   var, ty, base)),
+                                                loc: stmt.loc.clone(),
+                                            });
+                                        }
+                                    },
+                                }
+                            },
+
+                            Type::VarArgsArray => {
+                                match *mode {
+                                    ParamMode::ByVal => {
+                                        if !may_coerce(&Type::Variant, ty) {
+                                            self.errors.push(AnalysisError {
+                                                kind: AnalysisErrorKind::TypeError,
+                                                regarding: Some(format!(
+                                                  "element type var not coercible \
+                                                    to variable type {}", ty)),
+                                                loc: stmt.loc.clone(),
+                                            });
+                                        }
+                                    },
+
+                                    ParamMode::ByRef => {
+                                        if *ty != Type::Variant {
+                                            self.errors.push(AnalysisError {
+                                                kind: AnalysisErrorKind::TypeError,
+                                                regarding: Some(format!(
+                                                  "loop variable {} has type &{}; \
+                                                  element type var provided",
+                                                  var, ty)),
                                                 loc: stmt.loc.clone(),
                                             });
                                         }
@@ -1292,6 +1351,8 @@ impl<'a> TypecheckVisitor<'a> {
             StmtKind::ForAlong { ref vars, ref along, .. } => {
                 let dims = match *try_type!(along) {
                     Type::Array(_, ref bounds) => bounds.dims(),
+
+                    Type::VarArgsArray => 1,
 
                     // TODO: maybe allow variants (checked at runtime)?
 
@@ -1400,6 +1461,15 @@ impl<'a> TypecheckVisitor<'a> {
                         });
                     },
 
+                    Type::VarArgsArray => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to allocate \
+                              variadic arguments array")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
                     ref ty => {
                         self.errors.push(AnalysisError {
                             kind: AnalysisErrorKind::InvalidStmt,
@@ -1461,6 +1531,15 @@ impl<'a> TypecheckVisitor<'a> {
                         });
                     },
 
+                    Type::VarArgsArray => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to reallocate \
+                              variadic arguments array")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
                     ref ty => {
                         self.errors.push(AnalysisError {
                             kind: AnalysisErrorKind::InvalidStmt,
@@ -1481,6 +1560,15 @@ impl<'a> TypecheckVisitor<'a> {
                             kind: AnalysisErrorKind::InvalidStmt,
                             regarding: Some(String::from("attempt to \
                               deallocate statically-dimensioned array")),
+                            loc: stmt.loc.clone(),
+                        });
+                    },
+
+                    Type::VarArgsArray => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::InvalidStmt,
+                            regarding: Some(String::from("attempt to deallocate \
+                              variadic arguments array")),
                             loc: stmt.loc.clone(),
                         });
                     },
@@ -1520,6 +1608,8 @@ impl<'a> TypecheckVisitor<'a> {
             AllocExtent::Along(ref expr) => {
                 match *try_type!(expr) {
                     Type::Array(_, _) => { },
+
+                    Type::VarArgsArray => { },
 
                     ref ty => self.errors.push(AnalysisError {
                         kind: AnalysisErrorKind::TypeError,
