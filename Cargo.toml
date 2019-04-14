@@ -3,6 +3,13 @@ name = "trashcan"
 version = "0.1.0"
 authors = ["derrickturk <dwt@terminusdatascience.com>"]
 license = "GPL-3.0-or-later"
+description = "a simple language which compiles to Visual Basic 6 / VBA"
+repository = "https://github.com/derrickturk/trashcan"
+readme = "README.md"
+keywords = ["compiler", "VB6", "VBA"]
+
+[badges]
+maintenance = { status = "experimental" }
 
 [[bin]]
 doc = false
