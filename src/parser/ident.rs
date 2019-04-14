@@ -236,8 +236,12 @@ mod test {
 
     #[test]
     fn parse_array_dim() {
-        expect_parse!(array_dim(b"123") => (0, 122));
-        expect_parse!(array_dim(b"17 : 32") => (17, 32));
+        expect_parse!(array_dim(b"123") => StaticArrayBound::Range(
+                StaticArrayDim::Lit(Literal::Int32(0)),
+                StaticArrayDim::Lit(Literal::Int32(122))));
+        expect_parse!(array_dim(b"17 : 32") => StaticArrayBound::Range(
+                StaticArrayDim::Lit(Literal::Int32(17)),
+                StaticArrayDim::Lit(Literal::Int32(32))));
         expect_parse_err!(array_dim(b"  poatato:23") =>
           ParseErrorKind::ExpectedDigit);
         expect_parse_cut!(array_dim(b"  17:potato") =>
