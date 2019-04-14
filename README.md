@@ -19,6 +19,8 @@ Key features of the trashcan language over VB include:
 
 trashcan is inspired by previous work on extending the VB language with m4 macros: https://gist.github.com/derrickturk/5c01caab93bbd6bc9ddd
 
+work in progress, licensed for commercial or non-commercial use under GPL 3.0 or later
+
 Critical implementation note:  
 <div style="margin: 0 auto; text-align:center"><img src ="https://i.imgur.com/rFIYYc1.png" /></div>
 
@@ -31,4 +33,4 @@ Critical implementation note:
 <div style="margin: 0 auto; text-align:center"><img src ="http://i.imgur.com/rf50rO5.jpg" /></div>
 
 ---
-### (c) 2017 dwt | terminus data science, LLC
+### (c) 2017-2019 dwt | terminus data science, LLC

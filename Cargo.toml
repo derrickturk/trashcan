@@ -2,6 +2,7 @@
 name = "trashcan"
 version = "0.1.0"
 authors = ["derrickturk <dwt@terminusdatascience.com>"]
+license = "GPL-3.0-or-later"
 
 [[bin]]
 doc = false
