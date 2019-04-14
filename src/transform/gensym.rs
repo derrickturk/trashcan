@@ -1,6 +1,6 @@
 //! trashcan's gensym and substitution tools
 
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use ast::*;
 use parser::SrcLoc;
@@ -10,7 +10,7 @@ use visit::NameCtxt;
 use fold;
 use fold::ASTFolder;
 
-static mut GENSYM_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+static mut GENSYM_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub fn gensym(orig: Option<Ident>) -> Ident {
     let num = unsafe { GENSYM_ID.fetch_add(1, Ordering::Relaxed) };
