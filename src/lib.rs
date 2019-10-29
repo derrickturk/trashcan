@@ -22,6 +22,28 @@ Work in progress, licensed for commercial or non-commercial use under GPL 3.0 or
 * Somehow, improved error handling (?)
 * Closures (?)
 
+## Example
+Trashcan syntax is similar to Rust. A minimal working trashcan source file might look like this:
+```
+// trashcan source code
+mod hello_world {
+    pub fn hello() {
+        print "hello world";
+    }
+}
+```
+
+This trashcan source compiles to the following Visual Basic `hello_world.bas` file:
+```basic
+' hello_world.bas
+Attribute VB_Name = "hello_world"
+Option Explicit
+
+Public Sub hello()
+    Debug.Print "hello world"
+End Sub
+```
+
 ## Usage
 Build the trashcan compiler using `cargo build`.
 
