@@ -12,6 +12,7 @@ use trashcan::codegen::Emit;
 fn main() {
     let args = env::args_os().collect::<Vec<_>>();
     if args.len() <= 1 {
+        println!("tcc 0.1.0\nThe trashcan compiler\n\nUSAGE:\n    tcc source.tc [source2.tc ...]\n");
         return;
     }
 
