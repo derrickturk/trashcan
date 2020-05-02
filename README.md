@@ -30,6 +30,10 @@ Critical implementation note:
 
 ---
 
+<div style="margin: 0 auto; text-align:center"><img src ="https://i.imgur.com/QO8KUPV.png" /></div>
+
+---
+
 <div style="margin: 0 auto; text-align:center"><img src ="http://i.imgur.com/rf50rO5.jpg" /></div>
 
 ---
