@@ -10,10 +10,10 @@ use visit::NameCtxt;
 use fold;
 use fold::ASTFolder;
 
-static mut GENSYM_ID: AtomicUsize = AtomicUsize::new(0);
+static GENSYM_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub fn gensym(orig: Option<Ident>) -> Ident {
-    let num = unsafe { GENSYM_ID.fetch_add(1, Ordering::Relaxed) };
+    let num = GENSYM_ID.fetch_add(1, Ordering::Relaxed);
     Ident(format!("ø{}", num), orig.map(|i| i.1.unwrap_or(i.0)))
 }
 
