@@ -47,7 +47,7 @@ enum UnitaryRecExprRest {
 
 // pull a nonrecursive expr, and maybe a recursive rest
 #[inline]
-pub fn expr(input: &[u8]) -> CutParseResult<Expr> {
+pub fn expr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, first) = require!(logorexpr(input));
     let (i, rest) = require!(opt(i, condexpr));
     let e = match rest {
@@ -90,7 +90,7 @@ fn fold_bin_exprs(first: Expr, rest: Vec<(BinOp, Expr)>) -> Expr {
 macro_rules! binopexpr {
     ($fname:ident = $basefn:ident | $op:ident) => {
         #[inline]
-        fn $fname(input: &[u8]) -> CutParseResult<Expr> {
+        fn $fname(input: &[u8]) -> CutParseResult<'_, Expr> {
             let (i, first) = require!($basefn(input));
             let (i, rest) = require!(many(i, |input| {
                 let (i, op) = require!(input, $op(input));
@@ -113,7 +113,7 @@ binopexpr!(logandexpr = bitorexpr | logand_op);
 binopexpr!(logorexpr = logandexpr | logor_op);
 
 // the rest (? xxx : yyy) of a conditional expr
-fn condexpr(input: &[u8]) -> CutParseResult<RecExprRest> {
+fn condexpr(input: &[u8]) -> CutParseResult<'_, RecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'?'));
@@ -133,7 +133,7 @@ fn condexpr(input: &[u8]) -> CutParseResult<RecExprRest> {
 
 // "unitary" exprs, possibly preceded by unary operators
 #[inline]
-fn unitary_op_expr(input: &[u8]) -> CutParseResult<Expr> {
+fn unitary_op_expr(input: &[u8]) -> CutParseResult<'_, Expr> {
     alt!(input,
         unitary_expr(input)
       ; unitary_op_expr1(input)
@@ -142,7 +142,7 @@ fn unitary_op_expr(input: &[u8]) -> CutParseResult<Expr> {
 
 // "unitary" expr with exactly one unary op applied
 #[inline]
-fn unitary_op_expr1(input: &[u8]) -> CutParseResult<Expr> {
+fn unitary_op_expr1(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, op) = require!(un_op(i));
@@ -159,7 +159,7 @@ fn unitary_op_expr1(input: &[u8]) -> CutParseResult<Expr> {
 // "unitary" exprs (bind to unary ops for precedence)
 // pull a nonrecursive expr, and maybe a recursive rest
 #[inline]
-fn unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
+fn unitary_expr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, first) = require!(nonrec_unitary_expr(input));
     let (i, rest) = require!(many(i, |i| alt!(i,
         indexed(i)
@@ -172,7 +172,7 @@ fn unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
 
 // a non left-recursive unitary expr
 #[inline]
-fn nonrec_unitary_expr(input: &[u8]) -> CutParseResult<Expr> {
+fn nonrec_unitary_expr(input: &[u8]) -> CutParseResult<'_, Expr> {
     alt!(input,
         litexpr(input) // because keywords can be literals
       ; extent_expr(input) // and these guys start with keywords
@@ -226,7 +226,7 @@ fn fold_unitary_exprs(first: Expr, rest: Vec<UnitaryRecExprRest>) -> Expr {
 }
 
 // a function call expression
-fn fncall(input: &[u8]) -> CutParseResult<Expr> {
+fn fncall(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
 
@@ -268,7 +268,7 @@ fn fncall(input: &[u8]) -> CutParseResult<Expr> {
 
 // an optional function argument
 #[inline]
-fn optarg(input: &[u8]) -> CutParseResult<(Ident, Expr)> {
+fn optarg(input: &[u8]) -> CutParseResult<'_, (Ident, Expr)> {
     let (i, _) = opt(input, multispace)?;
     let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
     let (i, _) = opt(i, multispace)?;
@@ -279,7 +279,7 @@ fn optarg(input: &[u8]) -> CutParseResult<(Ident, Expr)> {
 }
 
 // a path as an expression
-fn pathexpr(input: &[u8]) -> CutParseResult<Expr> {
+fn pathexpr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, p) = require!(path(i));
@@ -292,7 +292,7 @@ fn pathexpr(input: &[u8]) -> CutParseResult<Expr> {
 }
 
 // a literal as an expression
-fn litexpr(input: &[u8]) -> CutParseResult<Expr> {
+fn litexpr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, lit) = require!(literal(i));
@@ -305,7 +305,7 @@ fn litexpr(input: &[u8]) -> CutParseResult<Expr> {
 }
 
 // an expr grouped in parentheses, to force precedence
-fn grouped(input: &[u8]) -> CutParseResult<Expr> {
+fn grouped(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(byte(i, b'('));
@@ -322,7 +322,7 @@ fn grouped(input: &[u8]) -> CutParseResult<Expr> {
 }
 
 // an extents expression e.g. first_index<0>(arr)
-fn extent_expr(input: &[u8]) -> CutParseResult<Expr> {
+fn extent_expr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
 
@@ -366,7 +366,7 @@ fn extent_expr(input: &[u8]) -> CutParseResult<Expr> {
 
 // a passthrough VB expression
 // TODO: this needs work to handle escaping ` inside vb stmts
-fn vbexpr(input: &[u8]) -> CutParseResult<Expr> {
+fn vbexpr(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(byte(i, b'`'));
@@ -382,7 +382,7 @@ fn vbexpr(input: &[u8]) -> CutParseResult<Expr> {
 
 // various possible recursive "rests" of unitary exprs
 
-fn indexed(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
+fn indexed(input: &[u8]) -> CutParseResult<'_, UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'['));
@@ -399,7 +399,7 @@ fn indexed(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     ok!(i, UnitaryRecExprRest::Indexed(indices, end_pos - start_pos))
 }
 
-fn member(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
+fn member(input: &[u8]) -> CutParseResult<'_, UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'.'));
@@ -410,7 +410,7 @@ fn member(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     ok!(i, UnitaryRecExprRest::Member(name, end_pos - start_pos))
 }
 
-fn memberinvoke(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
+fn memberinvoke(input: &[u8]) -> CutParseResult<'_, UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b'.'));
@@ -429,7 +429,7 @@ fn memberinvoke(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
     ok!(i, UnitaryRecExprRest::MemberInvoke(name, args, end_pos - start_pos))
 }
 
-fn cast(input: &[u8]) -> CutParseResult<UnitaryRecExprRest> {
+fn cast(input: &[u8]) -> CutParseResult<'_, UnitaryRecExprRest> {
     let (i, start_pos) = require!(pos(input));
     let (i, _) = require!(multispace(i));
     let (i, _) = require!(keyword_immediate(i, b"as"));

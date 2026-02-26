@@ -185,12 +185,12 @@ macro_rules! opt {
 }
 
 #[inline]
-pub fn pos(input: &[u8]) -> CutParseResult<usize> {
+pub fn pos(input: &[u8]) -> CutParseResult<'_, usize> {
     ok!(input, input.as_ptr() as usize)
 }
 
 #[inline]
-pub fn end_of_input(input: &[u8]) -> CutParseResult<()> {
+pub fn end_of_input(input: &[u8]) -> CutParseResult<'_, ()> {
     if input.is_empty() {
         ok!(input, ())
     } else {
@@ -199,7 +199,7 @@ pub fn end_of_input(input: &[u8]) -> CutParseResult<()> {
 }
 
 #[inline]
-pub fn byte(input: &[u8], b: u8) -> CutParseResult<u8> {
+pub fn byte(input: &[u8], b: u8) -> CutParseResult<'_, u8> {
     if !input.is_empty() && input[0] == b {
         ok!(&input[1..], b)
     } else {
@@ -208,7 +208,7 @@ pub fn byte(input: &[u8], b: u8) -> CutParseResult<u8> {
 }
 
 #[inline]
-pub fn multispace(input: &[u8]) -> CutParseResult<&[u8]> {
+pub fn multispace(input: &[u8]) -> CutParseResult<'_, &[u8]> {
     for (i, b) in input.iter().enumerate() {
         match *b {
             b'\n' | b'\r' | b'\t' | b' ' => { },
@@ -225,7 +225,7 @@ pub fn multispace(input: &[u8]) -> CutParseResult<&[u8]> {
 }
 
 #[inline]
-pub fn digits(input: &[u8]) -> CutParseResult<&[u8]> {
+pub fn digits(input: &[u8]) -> CutParseResult<'_, &[u8]> {
     for (i, b) in input.iter().enumerate() {
         match *b {
             b'0' | b'1' | b'2' | b'3' | b'4'
@@ -241,7 +241,7 @@ pub fn digits(input: &[u8]) -> CutParseResult<&[u8]> {
 }
 
 #[inline]
-pub fn ascii_letters(input: &[u8]) -> CutParseResult<&[u8]> {
+pub fn ascii_letters(input: &[u8]) -> CutParseResult<'_, &[u8]> {
     for (i, b) in input.iter().enumerate() {
         if (*b < b'A' || *b > b'Z') && (*b < b'a' || *b > b'z') {
             if i == 0 {
@@ -256,7 +256,7 @@ pub fn ascii_letters(input: &[u8]) -> CutParseResult<&[u8]> {
 }
 
 #[inline]
-pub fn bytes_not(input: &[u8], not: u8) -> CutParseResult<&[u8]> {
+pub fn bytes_not(input: &[u8], not: u8) -> CutParseResult<'_, &[u8]> {
     for (i, b) in input.iter().enumerate() {
         if *b == not {
             if i == 0 {
@@ -287,7 +287,7 @@ pub fn bytes_in<'a>(input: &'a [u8], set: &'static [u8],
 }
 
 #[inline]
-pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<Option<R>>
+pub fn opt<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<'a, Option<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R> {
     let res = parser(input)?;
     match res {
@@ -315,7 +315,7 @@ pub fn keyword_immediate<'a>(input: &'a [u8], kw: &'static [u8])
 }
 
 #[inline]
-pub fn many<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<Vec<R>>
+pub fn many<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<'a, Vec<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R> {
     let mut results = Vec::new();
     let mut i = input;
@@ -343,7 +343,7 @@ pub fn many<'a, F, R>(input: &'a [u8], parser: F) -> CutParseResult<Vec<R>>
 
 #[inline]
 pub fn at_least_one<'a, F, R>(input: &'a [u8], parser: F)
-  -> CutParseResult<Vec<R>>
+  -> CutParseResult<'a, Vec<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R> {
     let (i, res) = require!(parser(input));
     let mut results = vec![res];
@@ -356,7 +356,7 @@ pub fn at_least_one<'a, F, R>(input: &'a [u8], parser: F)
 
 #[inline]
 pub fn delimited<'a, F, R, D, _R>(input: &'a [u8], parser: F, delim_parser: D)
-  -> CutParseResult<Vec<R>>
+  -> CutParseResult<'a, Vec<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R>,
         D: Fn(&'a [u8]) -> CutParseResult<_R> {
     let (i, first) = require!(opt!(parser(input)));
@@ -379,7 +379,7 @@ pub fn delimited<'a, F, R, D, _R>(input: &'a [u8], parser: F, delim_parser: D)
 
 #[inline]
 pub fn delimited_at_least_one<'a, F, R, D, _R>(input: &'a [u8], parser: F,
-  delim_parser: D) -> CutParseResult<Vec<R>>
+  delim_parser: D) -> CutParseResult<'a, Vec<R>>
   where F: Fn(&'a [u8]) -> CutParseResult<R>,
         D: Fn(&'a [u8]) -> CutParseResult<_R> {
     let (i, first) = require!(parser(input));

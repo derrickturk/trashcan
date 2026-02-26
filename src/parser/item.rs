@@ -8,7 +8,7 @@ use super::stmt::*;
 
 use ast::*;
 
-pub fn normal_item(input: &[u8]) -> CutParseResult<NormalItem> {
+pub fn normal_item(input: &[u8]) -> CutParseResult<'_, NormalItem> {
     alt!(input,
         fundef(input) => NormalItem::Function
       ; structdef(input) => NormalItem::Struct
@@ -17,7 +17,7 @@ pub fn normal_item(input: &[u8]) -> CutParseResult<NormalItem> {
     )
 }
 
-pub fn fundef(input: &[u8]) -> CutParseResult<FunDef> {
+pub fn fundef(input: &[u8]) -> CutParseResult<'_, FunDef> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
@@ -60,7 +60,7 @@ pub fn fundef(input: &[u8]) -> CutParseResult<FunDef> {
     })
 }
 
-pub fn structdef(input: &[u8]) -> CutParseResult<StructDef> {
+pub fn structdef(input: &[u8]) -> CutParseResult<'_, StructDef> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
@@ -89,7 +89,7 @@ pub fn structdef(input: &[u8]) -> CutParseResult<StructDef> {
     })
 }
 
-pub fn staticdef(input: &[u8]) -> CutParseResult<Static> {
+pub fn staticdef(input: &[u8]) -> CutParseResult<'_, Static> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
@@ -118,7 +118,7 @@ pub fn staticdef(input: &[u8]) -> CutParseResult<Static> {
     })
 }
 
-pub fn constantdef(input: &[u8]) -> CutParseResult<Constant> {
+pub fn constantdef(input: &[u8]) -> CutParseResult<'_, Constant> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, access) = require!(access(i));
@@ -147,7 +147,7 @@ pub fn constantdef(input: &[u8]) -> CutParseResult<Constant> {
 }
 
 #[inline]
-fn fnparam(input: &[u8]) -> CutParseResult<FunParam> {
+fn fnparam(input: &[u8]) -> CutParseResult<'_, FunParam> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
@@ -173,7 +173,7 @@ fn fnparam(input: &[u8]) -> CutParseResult<FunParam> {
 }
 
 #[inline]
-fn optparams(input: &[u8]) -> CutParseResult<FunOptParams> {
+fn optparams(input: &[u8]) -> CutParseResult<'_, FunOptParams> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b';'));
     // cut on error below here
@@ -189,7 +189,7 @@ fn optparams(input: &[u8]) -> CutParseResult<FunOptParams> {
 }
 
 #[inline]
-fn varargs(input: &[u8]) -> CutParseResult<FunOptParams> {
+fn varargs(input: &[u8]) -> CutParseResult<'_, FunOptParams> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, name) = require!(ident(i));
@@ -202,7 +202,7 @@ fn varargs(input: &[u8]) -> CutParseResult<FunOptParams> {
 }
 
 #[inline]
-fn optfnparam(input: &[u8]) -> CutParseResult<(FunParam, Literal)> {
+fn optfnparam(input: &[u8]) -> CutParseResult<'_, (FunParam, Literal)> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
@@ -236,13 +236,13 @@ fn optfnparam(input: &[u8]) -> CutParseResult<(FunParam, Literal)> {
 }
 
 #[inline]
-fn fnret(input: &[u8]) -> CutParseResult<Type> {
+fn fnret(input: &[u8]) -> CutParseResult<'_, Type> {
     let (i, _) = require!(keyword(input, b"->"));
     cut_if_err!(typename(i) => ParseErrorKind::ExpectedTypename)
 }
 
 #[inline]
-fn structmem(input: &[u8]) -> CutParseResult<StructMem> {
+fn structmem(input: &[u8]) -> CutParseResult<'_, StructMem> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, name) = require!(ident(i) => ParseErrorKind::ExpectedIdent);
@@ -260,7 +260,7 @@ fn structmem(input: &[u8]) -> CutParseResult<StructMem> {
 }
 
 #[inline]
-fn access(input: &[u8]) -> CutParseResult<Access> {
+fn access(input: &[u8]) -> CutParseResult<'_, Access> {
     let (i, _) = opt(input, multispace)?;
     let (i, access) = require!(opt(i, |i| {
         let (i, _) = require!(keyword_immediate(i, b"pub"));

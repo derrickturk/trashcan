@@ -8,7 +8,7 @@ use super::expr::*;
 
 use ast::*;
 
-pub fn stmt(input: &[u8]) -> CutParseResult<Stmt> {
+pub fn stmt(input: &[u8]) -> CutParseResult<'_, Stmt> {
     alt!(input,
         decl(input)
       ; ret(input)
@@ -26,13 +26,13 @@ pub fn stmt(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-pub fn terminator(input: &[u8]) -> CutParseResult<()> {
+pub fn terminator(input: &[u8]) -> CutParseResult<'_, ()> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b';'));
     ok!(i, ())
 }
 
-fn decl(input: &[u8]) -> CutParseResult<Stmt> {
+fn decl(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"let"));
@@ -54,14 +54,14 @@ fn decl(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-fn vardeclinit(input: &[u8]) -> CutParseResult<(Ident, Type, Option<Expr>)> {
+fn vardeclinit(input: &[u8]) -> CutParseResult<'_, (Ident, Type, Option<Expr>)> {
     let (i, decl) = require!(vardecl(input));
     let (i, init) = require!(opt!(varinit(i)));
     ok!(i, (decl.0, decl.1, init))
 }
 
 #[inline]
-fn vardecl(input: &[u8]) -> CutParseResult<(Ident, Type)> {
+fn vardecl(input: &[u8]) -> CutParseResult<'_, (Ident, Type)> {
     let (i, name) = require!(ident(input));
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b':'));
@@ -71,14 +71,14 @@ fn vardecl(input: &[u8]) -> CutParseResult<(Ident, Type)> {
 }
 
 #[inline]
-fn varinit(input: &[u8]) -> CutParseResult<Expr> {
+fn varinit(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'='));
     cut_if_err!(expr(i) => ParseErrorKind::ExpectedExpr)
 }
 
 #[inline]
-fn ret(input: &[u8]) -> CutParseResult<Stmt> {
+fn ret(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"return"));
@@ -95,7 +95,7 @@ fn ret(input: &[u8]) -> CutParseResult<Stmt> {
     })
 }
 
-fn print(input: &[u8]) -> CutParseResult<Stmt> {
+fn print(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"print"));
@@ -119,7 +119,7 @@ fn print(input: &[u8]) -> CutParseResult<Stmt> {
     })
 }
 
-fn ifstmt(input: &[u8]) -> CutParseResult<Stmt> {
+fn ifstmt(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"if"));
@@ -146,7 +146,7 @@ fn ifstmt(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-fn elsif(input: &[u8]) -> CutParseResult<(Expr, Vec<Stmt>)> {
+fn elsif(input: &[u8]) -> CutParseResult<'_, (Expr, Vec<Stmt>)> {
     let (i, _) = require!(keyword(input, b"else"));
     // have to backtrack to input here or hit ambiguity with "els"
     let (i, _) = require!(input, multispace(i));
@@ -163,7 +163,7 @@ fn elsif(input: &[u8]) -> CutParseResult<(Expr, Vec<Stmt>)> {
 }
 
 #[inline]
-fn els(input: &[u8]) -> CutParseResult<Vec<Stmt>> {
+fn els(input: &[u8]) -> CutParseResult<'_, Vec<Stmt>> {
     let (i, _) = require!(keyword(input, b"else"));
     let (i, _) = opt(i, multispace)?;
     // can cut after this point
@@ -174,7 +174,7 @@ fn els(input: &[u8]) -> CutParseResult<Vec<Stmt>> {
     ok!(i, body)
 }
 
-fn whileloop(input: &[u8]) -> CutParseResult<Stmt> {
+fn whileloop(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"while"));
@@ -198,7 +198,7 @@ fn whileloop(input: &[u8]) -> CutParseResult<Stmt> {
 
 // must be tried before forloop or forloop will cut on lack of type ascription
 //   in vars
-fn foralong(input: &[u8]) -> CutParseResult<Stmt> {
+fn foralong(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"for"));
@@ -229,7 +229,7 @@ fn foralong(input: &[u8]) -> CutParseResult<Stmt> {
     })
 }
 
-fn forloop(input: &[u8]) -> CutParseResult<Stmt> {
+fn forloop(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"for"));
@@ -257,7 +257,7 @@ fn forloop(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-fn forvardecl(input: &[u8]) -> CutParseResult<(Ident, Type, ParamMode)> {
+fn forvardecl(input: &[u8]) -> CutParseResult<'_, (Ident, Type, ParamMode)> {
     let (i, name) = require!(ident(input) => ParseErrorKind::ExpectedIdent);
     let (i, _) = opt(i, multispace)?;
     let (i, _) = require!(byte(i, b':'));
@@ -270,7 +270,7 @@ fn forvardecl(input: &[u8]) -> CutParseResult<(Ident, Type, ParamMode)> {
 }
 
 #[inline]
-fn for_range(input: &[u8]) -> CutParseResult<(Expr, Expr, Option<Expr>)> {
+fn for_range(input: &[u8]) -> CutParseResult<'_, (Expr, Expr, Option<Expr>)> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'='));
     // we can cut on error after this point
@@ -286,7 +286,7 @@ fn for_range(input: &[u8]) -> CutParseResult<(Expr, Expr, Option<Expr>)> {
 }
 
 #[inline]
-fn for_each(input: &[u8]) -> CutParseResult<Expr> {
+fn for_each(input: &[u8]) -> CutParseResult<'_, Expr> {
     let (i, _) = require!(keyword(input, b"in"));
     let (i, _) = require!(multispace(i));
     cut_if_err!(expr(i) => ParseErrorKind::ExpectedExpr)
@@ -298,7 +298,7 @@ fn for_each(input: &[u8]) -> CutParseResult<Expr> {
 //     like `alloc indexing-expr` not `alloc name-expr bounds`)
 //   2) I dunno maybe we'll use it for something else later?
 
-fn alloc(input: &[u8]) -> CutParseResult<Stmt> {
+fn alloc(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, array) = require!(expr(i));
@@ -314,7 +314,7 @@ fn alloc(input: &[u8]) -> CutParseResult<Stmt> {
     })
 }
 
-fn realloc(input: &[u8]) -> CutParseResult<Stmt> {
+fn realloc(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, array) = require!(expr(i));
@@ -330,7 +330,7 @@ fn realloc(input: &[u8]) -> CutParseResult<Stmt> {
     })
 }
 
-fn alloc_extents(input: &[u8]) -> CutParseResult<Vec<AllocExtent>> {
+fn alloc_extents(input: &[u8]) -> CutParseResult<'_, Vec<AllocExtent>> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'['));
     let (i, extents) = require!(delimited_at_least_one(i,
@@ -344,7 +344,7 @@ fn alloc_extents(input: &[u8]) -> CutParseResult<Vec<AllocExtent>> {
     ok!(i, extents)
 }
 
-fn realloc_extents(input: &[u8]) -> CutParseResult<(usize, AllocExtent)> {
+fn realloc_extents(input: &[u8]) -> CutParseResult<'_, (usize, AllocExtent)> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'['));
     let (i, predims) = require!(many(i,
@@ -359,7 +359,7 @@ fn realloc_extents(input: &[u8]) -> CutParseResult<(usize, AllocExtent)> {
 }
 
 #[inline]
-fn dim_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
+fn dim_extent(input: &[u8]) -> CutParseResult<'_, AllocExtent> {
     alt!(input,
         along_extent(input) // this has to be first; it starts with a keyword
       ; range_extent(input)
@@ -367,7 +367,7 @@ fn dim_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
 }
 
 #[inline]
-fn range_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
+fn range_extent(input: &[u8]) -> CutParseResult<'_, AllocExtent> {
     let (i, lb) = require!(opt(input, |i| {
         let (i, e) = require!(expr(i));
         let (i, _) = opt(i, multispace)?;
@@ -378,14 +378,14 @@ fn range_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
     ok!(i, AllocExtent::Range(lb, ub))
 }
 
-fn along_extent(input: &[u8]) -> CutParseResult<AllocExtent> {
+fn along_extent(input: &[u8]) -> CutParseResult<'_, AllocExtent> {
     let (i, _) = require!(keyword(input, b"along"));
     let (i, _) = require_or_cut!(multispace(i));
     let (i, e) = require_or_cut!(expr(i) => ParseErrorKind::ExpectedExpr);
     ok!(i, AllocExtent::Along(e))
 }
 
-fn dealloc(input: &[u8]) -> CutParseResult<Stmt> {
+fn dealloc(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"dealloc"));
@@ -401,7 +401,7 @@ fn dealloc(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-fn assignment(input: &[u8]) -> CutParseResult<Stmt> {
+fn assignment(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, e1) = require!(expr(i));
@@ -417,7 +417,7 @@ fn assignment(input: &[u8]) -> CutParseResult<Stmt> {
 }
 
 #[inline]
-fn exprstmt(input: &[u8]) -> CutParseResult<Stmt> {
+fn exprstmt(input: &[u8]) -> CutParseResult<'_, Stmt> {
     let (i, e) = require!(expr(input));
     let (i, _) = require_or_cut!(terminator(i));
     let loc = e.loc.clone();

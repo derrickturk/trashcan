@@ -7,7 +7,7 @@ use super::bits::*;
 
 use ast::*;
 
-pub fn literal(input: &[u8]) -> CutParseResult<Literal> {
+pub fn literal(input: &[u8]) -> CutParseResult<'_, Literal> {
     alt!(input,
         literal_null(input)
       ; literal_bool(input)
@@ -20,7 +20,7 @@ pub fn literal(input: &[u8]) -> CutParseResult<Literal> {
     )
 }
 
-fn literal_null(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_null(input: &[u8]) -> CutParseResult<'_, Literal> {
     alt!(input,
         keyword(input, b"nullptr") => |_| Literal::NullPtr
       ; keyword(input, b"nullvar") => |_| Literal::NullVar
@@ -28,14 +28,14 @@ fn literal_null(input: &[u8]) -> CutParseResult<Literal> {
     )
 }
 
-fn literal_bool(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_bool(input: &[u8]) -> CutParseResult<'_, Literal> {
     alt!(input,
         keyword(input, b"true") => |_| Literal::Bool(true)
       ; keyword(input, b"false") => |_| Literal::Bool(false)
     )
 }
 
-fn literal_int(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_int(input: &[u8]) -> CutParseResult<'_, Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, num) = require!(digits(i));
     let (i, tag) = require!(opt!(alt!(i,
@@ -63,7 +63,7 @@ fn literal_int(input: &[u8]) -> CutParseResult<Literal> {
     }
 }
 
-fn literal_float(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_float(input: &[u8]) -> CutParseResult<'_, Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, whole) = require!(digits(i));
     // mandatory decimal point
@@ -98,7 +98,7 @@ fn literal_float(input: &[u8]) -> CutParseResult<Literal> {
     }
 }
 
-fn literal_currency(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_currency(input: &[u8]) -> CutParseResult<'_, Literal> {
     let (i, _) = opt(input, multispace)?;
 
     let (i, whole) = require!(digits(i));
@@ -127,7 +127,7 @@ fn literal_currency(input: &[u8]) -> CutParseResult<Literal> {
     ok!(i, make_currency(whole, frac))
 }
 
-fn literal_string(input: &[u8]) -> CutParseResult<Literal> {
+fn literal_string(input: &[u8]) -> CutParseResult<'_, Literal> {
     let (i, _) = opt(input, multispace)?;
     let (i, _) = require!(byte(i, b'"'));
     let (i, escaped) = require!(escaped_string(i));
@@ -146,7 +146,7 @@ fn make_currency(whole: i64, frac: i16) -> Literal {
     Literal::Currency(whole * 10000 + (frac as f32 * frac_scalar) as i64)
 }
 
-fn escaped_string(input: &[u8]) -> CutParseResult<Vec<u8>> {
+fn escaped_string(input: &[u8]) -> CutParseResult<'_, Vec<u8>> {
     let mut s = Vec::new();
     let mut bytes_consumed = 0;
     let mut bytes = input.iter();

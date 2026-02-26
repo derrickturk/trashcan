@@ -8,7 +8,7 @@ use super::item::*;
 use ast::*;
 
 #[inline]
-pub fn dumpster(input: &[u8]) -> CutParseResult<Dumpster> {
+pub fn dumpster(input: &[u8]) -> CutParseResult<'_, Dumpster> {
     let (i, modules) = require!(at_least_one(input, module) =>
       ParseErrorKind::ExpectedModule);
     let (i, _) = opt(i, multispace)?;
@@ -17,14 +17,14 @@ pub fn dumpster(input: &[u8]) -> CutParseResult<Dumpster> {
 }
 
 #[inline]
-pub fn module(input: &[u8]) -> CutParseResult<Module> {
+pub fn module(input: &[u8]) -> CutParseResult<'_, Module> {
     alt!(input,
         normal_module(input)
     )
 }
 
 #[inline]
-fn normal_module(input: &[u8]) -> CutParseResult<Module> {
+fn normal_module(input: &[u8]) -> CutParseResult<'_, Module> {
     let (i, _) = opt(input, multispace)?;
     let (i, start_pos) = require!(pos(i));
     let (i, _) = require!(keyword_immediate(i, b"mod"));
