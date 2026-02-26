@@ -96,6 +96,7 @@ type CutParseResult<'a, R> = Result<
     (&'a [u8], ParseErrorKind)
 >;
 
+#[cfg(test)]
 #[allow(unreachable_patterns)]
 macro_rules! expect_parse {
     ($e:expr => $p:pat) => {
@@ -109,6 +110,7 @@ macro_rules! expect_parse {
     }
 }
 
+#[cfg(test)]
 macro_rules! expect_parse_err {
     ($e:expr => $p:pat) => {
         #[allow(unreachable_patterns)]
@@ -121,6 +123,7 @@ macro_rules! expect_parse_err {
     }
 }
 
+#[cfg(test)]
 macro_rules! expect_parse_cut {
     ($e:expr => $p:pat) => {
         #[allow(unreachable_patterns)]
