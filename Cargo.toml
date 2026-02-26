@@ -7,6 +7,7 @@ description = "a simple language which compiles to Visual Basic 6 / VBA"
 repository = "https://github.com/derrickturk/trashcan"
 readme = "README.md"
 keywords = ["compiler", "VB6", "VBA"]
+edition = "2015"
 
 [badges]
 maintenance = { status = "experimental" }
