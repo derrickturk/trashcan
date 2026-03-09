@@ -6,7 +6,7 @@
 
 Work in progress, licensed for commercial or non-commercial use under GPL 3.0 or later.
 
-*(C) 2017-2019 dwt | terminus data science, LLC*
+*(C) 2017-2026 dwt | terminus data science, LLC*
 
 ## Features
 * No more damn case insensitivity
@@ -24,7 +24,7 @@ Work in progress, licensed for commercial or non-commercial use under GPL 3.0 or
 
 ## Example
 Trashcan syntax is similar to Rust. A minimal working trashcan source file might look like this:
-```
+```trashcan
 // trashcan source code
 mod hello_world {
     pub fn hello() {

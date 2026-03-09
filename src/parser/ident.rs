@@ -204,10 +204,11 @@ mod test {
           Type::Array(_, ArrayBounds::Static(_)));
         expect_parse!(typename(b"something::else[,,,]") =>
           Type::Array(_, ArrayBounds::Dynamic(_)));
+        expect_parse!(typename(b"bad::array[bobby]") =>
+          Type::Array(_, ArrayBounds::Static(_)));
 
         expect_parse_err!(typename(b"__cant_be_ident") =>
           ParseErrorKind::NoAltMatch);
-        expect_parse_cut!(typename(b"bad::array[bobby]") => _);
         expect_parse_cut!(typename(b"some::for") =>
           ParseErrorKind::KeywordAsIdent(b"for"));
     }
@@ -218,8 +219,9 @@ mod test {
         expect_parse!(array_static_bounds(b" 0:17") => _);
         expect_parse!(array_static_bounds(b" 0:17,9") => _);
         expect_parse!(array_static_bounds(b"10, 10, 10") => _);
-        expect_parse_cut!(array_static_bounds(b"17, 99:potato") =>
-          ParseErrorKind::ExpectedDigit);
+        expect_parse!(array_static_bounds(b"17, 99:potato") => _);
+        expect_parse_cut!(array_static_bounds(b"17, 99:.") =>
+          ParseErrorKind::ExpectedDimSpecifier);
 
         expect_parse!(array_dynamic_bounds(b"") => ArrayBounds::Dynamic(1));
         expect_parse!(array_dynamic_bounds(b" , , ") => ArrayBounds::Dynamic(3));
@@ -236,15 +238,20 @@ mod test {
 
     #[test]
     fn parse_array_dim() {
-        expect_parse!(array_dim(b"123") => StaticArrayBound::Range(
-                StaticArrayDim::Lit(Literal::Int32(0)),
-                StaticArrayDim::Lit(Literal::Int32(122))));
+        expect_parse!(array_dim(b"123") => StaticArrayBound::Length(
+                StaticArrayDim::Lit(Literal::Int32(123))));
         expect_parse!(array_dim(b"17 : 32") => StaticArrayBound::Range(
                 StaticArrayDim::Lit(Literal::Int32(17)),
                 StaticArrayDim::Lit(Literal::Int32(32))));
-        expect_parse_err!(array_dim(b"  poatato:23") =>
-          ParseErrorKind::ExpectedDigit);
-        expect_parse_cut!(array_dim(b"  17:potato") =>
-          ParseErrorKind::ExpectedDigit);
+        expect_parse!(array_dim(b"  poatato:23") => StaticArrayBound::Range(
+                StaticArrayDim::Named(_),
+                StaticArrayDim::Lit(Literal::Int32(23))));
+        expect_parse!(array_dim(b"  17:potato") => StaticArrayBound::Range(
+                StaticArrayDim::Lit(Literal::Int32(17)),
+                StaticArrayDim::Named(_)));
+        expect_parse_cut!(array_dim(b"  poatato:?") =>
+          ParseErrorKind::ExpectedDimSpecifier);
+        expect_parse_err!(array_dim(b"  ?:potato") =>
+          ParseErrorKind::NoAltMatch);
     }
 }

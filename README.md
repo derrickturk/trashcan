@@ -33,4 +33,4 @@ Critical implementation note:
 <div style="margin: 0 auto; text-align:center"><img src ="http://i.imgur.com/rf50rO5.jpg" /></div>
 
 ---
-### (c) 2017-2019 dwt | terminus data science, LLC
+### (c) 2017-2026 dwt | terminus data science, LLC
