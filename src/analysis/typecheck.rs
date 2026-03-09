@@ -975,6 +975,56 @@ impl<'a> ASTVisitorMut for TypecheckVisitor<'a> {
         self.walk_allocextent(extent, m, f, loc);
         self.typecheck_allocextent(extent, loc);
     }
+
+    fn visit_staticarraydim(&mut self, dim: &mut StaticArrayDim,
+      module: &Ident, loc: &SrcLoc) {
+        match dim {
+            StaticArrayDim::Lit(lit) => {
+                match lit.ty() {
+                    Type::UInt8 | Type::Int16 | Type::Int32 => { },
+                    _ => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from(
+                              "non-integer literal in array dimension")),
+                            loc: loc.clone(),
+                        });
+                    },
+                }
+            },
+            StaticArrayDim::Named(path) => {
+                let mut path_expr = Expr {
+                    data: ExprKind::Name(path.clone()),
+                    ty: None,
+                    loc: loc.clone()
+                };
+                self.visit_expr(&mut path_expr, module, None);
+                match path_expr.ty {
+                    Some(Type::UInt8 | Type::Int16 | Type::Int32) => { },
+                    Some(_) => {
+                        self.errors.push(AnalysisError {
+                            kind: AnalysisErrorKind::TypeError,
+                            regarding: Some(String::from(
+                              "non-integer expression in array dimension")),
+                            loc: loc.clone(),
+                        });
+                        return;
+                    },
+                    None => return,
+                }
+
+                if !try_collect!(
+                    is_constexpr(&path_expr, &self.symtab, module, None
+                        ) => self.errors) {
+                    self.errors.push(AnalysisError {
+                        kind: AnalysisErrorKind::NonConstDim,
+                        regarding: Some(format!("identifier {}", path)),
+                        loc: loc.clone(),
+                    })
+                }
+            },
+        }
+    }
 }
 
 impl<'a> TypecheckVisitor<'a> {

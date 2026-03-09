@@ -33,6 +33,8 @@ impl fmt::Display for AnalysisError {
                 write!(f, "private item in public interface")?,
             AnalysisErrorKind::RecursiveType =>
                 write!(f, "invalid recursive type")?,
+            AnalysisErrorKind::NonConstDim =>
+                write!(f, "non-constant array dimension")?,
         };
 
         if let Some(ref msg) = self.regarding {
@@ -54,6 +56,7 @@ pub enum AnalysisErrorKind {
     FnCallError,
     PrivateInPublic,
     RecursiveType,
+    NonConstDim,
 }
 
 pub type AnalysisResult<T> = Result<T, AnalysisError>;

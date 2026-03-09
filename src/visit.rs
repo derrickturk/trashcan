@@ -149,6 +149,23 @@ macro_rules! make_ast_vistor {
                 self.walk_type(ty, module, loc)
             }
 
+            fn visit_arraybounds(&mut self, bounds: & $($_mut)* ArrayBounds,
+              _base_ty: & $($_mut)* Type, module: &Ident, loc: &SrcLoc) {
+                self.walk_arraybounds(bounds, module, loc);
+            }
+
+            fn visit_staticarraybound(&mut self,
+              bound: & $($_mut)* StaticArrayBound, module: &Ident,
+              loc: &SrcLoc) {
+                self.walk_staticarraybound(bound, module, loc);
+            }
+
+            fn visit_staticarraydim(&mut self,
+              _dim: & $($_mut)* StaticArrayDim, _module: &Ident,
+              _loc: &SrcLoc) {
+                // do nothing
+            }
+
             fn visit_ident(&mut self, _i: & $($_mut)* Ident, _ctxt: NameCtxt,
               _loc: &SrcLoc) {
                 // do nothing
@@ -161,11 +178,6 @@ macro_rules! make_ast_vistor {
 
             fn visit_vbexpr(&mut self, _data: & $($_mut)* Vec<u8>,
               _module: &Ident, _function: Option<&Ident>, _loc: &SrcLoc) {
-                // do nothing
-            }
-
-            fn visit_arraybounds(&mut self, _bounds: & $($_mut)* ArrayBounds,
-              _base_ty: & $($_mut)* Type, _module: &Ident, _loc: &SrcLoc) {
                 // do nothing
             }
 
@@ -711,6 +723,35 @@ macro_rules! make_ast_vistor {
                     },
 
                     _ => {},
+                }
+            }
+
+            fn walk_arraybounds(&mut self, bounds: & $($_mut)* ArrayBounds,
+              module: &Ident, loc: &SrcLoc) {
+                match *bounds {
+                    ArrayBounds::Static(ref $($_mut)* bs) => {
+                        for b in bs {
+                            self.visit_staticarraybound(b, module, loc);
+                        }
+                    },
+                    _ => {},
+                };
+            }
+
+            fn walk_staticarraybound(&mut self,
+              bound: & $($_mut)* StaticArrayBound, module: &Ident,
+              loc: &SrcLoc) {
+                match *bound {
+                    StaticArrayBound::Range(
+                      ref $($_mut)* start,
+                      ref $($_mut)* end
+                    ) => {
+                        self.visit_staticarraydim(start, module, loc);
+                        self.visit_staticarraydim(end, module, loc);
+                    },
+                    StaticArrayBound::Length(ref $($_mut)* len) => {
+                        self.visit_staticarraydim(len, module, loc);
+                    }
                 }
             }
 

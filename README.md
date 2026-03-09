@@ -5,6 +5,12 @@ trashcan is a simple language with abbreviated syntax (similar to Rust,
 in which the compiler is not coincidentally written) which compiles to
 Visual Basic (the old, gross one).
 
+To fix:
+* [x] type checking for literal array bounds  
+* [x] constness checking for named array bounds  
+* [ ] nice to have: clearer error message for local as array dim
+* [ ] lazy statics  
+
 Key features of the trashcan language over VB include:  
 * [x] No more damn case insensitivity  
 * [x] Short-circuiting boolean expressions  
